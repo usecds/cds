@@ -1,0 +1,17 @@
+{
+  "name": "@cds/demo",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/build-demo.js",
+  "scripts": {
+    "build": "tsc",
+    "generate": "pnpm build && node ./dist/build-demo.js"
+  },
+  "dependencies": {
+    "@cds/client": "workspace:*",
+    "@cds/server": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "goal_1",
+    "key": "independence",
+    "translations": {
+      "en": {
+        "title": "Remain independent of specific vendors",
+        "icon": "🛡️"
+      },
+      "de": {
+        "title": "Unabhängig von spezifischen Anbietern bleiben",
+        "icon": "🛡️"
+      }
+    }
+  },
+  {
+    "id": "goal_2",
+    "key": "static-json",
+    "translations": {
+      "en": {
+        "title": "Deliver structured content as static JSON",
+        "icon": "📦"
+      },
+      "de": {
+        "title": "Strukturierten Content als statisches JSON bereitstellen",
+        "icon": "📦"
+      }
+    }
+  },
+  {
+    "id": "goal_3",
+    "key": "multilingual",
+    "translations": {
+      "en": {
+        "title": "Support translations and stable key lookup",
+        "icon": "🌍"
+      },
+      "de": {
+        "title": "Übersetzungen und stabilen Key-Lookup unterstützen",
+        "icon": "🌍"
+      }
+    }
+  },
+  {
+    "id": "goal_4",
+    "key": "garbage-collection",
+    "translations": {
+      "en": {
+        "title": "Safely garbage-collect unused objects",
+        "icon": "🧹"
+      },
+      "de": {
+        "title": "Nicht mehr genutzte Objekte sicher entfernen",
+        "icon": "🧹"
+      }
+    }
+  }
+]

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "settings_main",
+    "key": "homepage",
+    "translations": {
+      "en": {
+        "siteTitle": "Content Distribution System (CDS)",
+        "heroTitle": "The Portable Content Delivery Layer",
+        "heroSubtitle": "Bridge the gap between your CMS and client applications with resilient, static, content-addressed delivery.",
+        "ctaPrimary": "Explore Goals",
+        "ctaSecondary": "View on GitHub",
+        "footerText": "© 2026 CDS Project. Open Source & CMS-independent."
+      },
+      "de": {
+        "siteTitle": "Content Distribution System (CDS)",
+        "heroTitle": "Die portable Content-Delivery-Ebene",
+        "heroSubtitle": "Schließen Sie die Lücke zwischen Ihrem CMS und Ihren Client-Anwendungen mit einer resilienten, statischen und inhaltsadressierten Bereitstellung.",
+        "ctaPrimary": "Ziele erkunden",
+        "ctaSecondary": "Auf GitHub ansehen",
+        "footerText": "© 2026 CDS-Projekt. Open Source & CMS-unabhängig."
+      }
+    }
+  }
+]

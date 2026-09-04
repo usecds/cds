@@ -1,0 +1,58 @@
+[
+  {
+    "id": "feat_cas",
+    "key": "cas-storage",
+    "translations": {
+      "en": {
+        "title": "Content-Addressed Storage",
+        "description": "Collections and media are serialized deterministically and referenced by their SHA-256 hashes. Multiple releases reuse unchanged files, reducing hosting costs and bandwidth."
+      },
+      "de": {
+        "title": "Inhaltsadressierter Speicher",
+        "description": "Kollektionen und Medien werden deterministisch serialisiert und über ihre SHA-256-Hashes referenziert. Mehrere Releases nutzen unveränderte Dateien gemeinsam."
+      }
+    }
+  },
+  {
+    "id": "feat_atomic",
+    "key": "atomic-activation",
+    "translations": {
+      "en": {
+        "title": "Atomic Releases",
+        "description": "Clients download missing assets and stage them fully in a background buffer. Swapping to the active release happens in a single, atomic operation so users never see half-loaded pages."
+      },
+      "de": {
+        "title": "Atomare Releases",
+        "description": "Clients laden fehlende Assets herunter und puffern sie vollständig im Hintergrund. Das Umschalten auf das aktive Release erfolgt in einer einzigen, atomaren Operation."
+      }
+    }
+  },
+  {
+    "id": "feat_offline",
+    "key": "offline-resilience",
+    "translations": {
+      "en": {
+        "title": "Offline-First Design",
+        "description": "Operating with unreliable connectivity? CDS client caches the entire active release locally in IndexedDB or Filesystem, ensuring sub-millisecond offline lookups."
+      },
+      "de": {
+        "title": "Offline-First Design",
+        "description": "Unzuverlässige Verbindung? Der CDS-Client speichert das gesamte Release lokal im IndexedDB- oder Dateisystem und sorgt für Offline-Lookups im Sub-Millisekundenbereich."
+      }
+    }
+  },
+  {
+    "id": "feat_independent",
+    "key": "cms-independent",
+    "translations": {
+      "en": {
+        "title": "CMS & Target Agnostic",
+        "description": "Works with any CMS (Directus, Contentful, Headless WordPress) and any storage target (Local Filesystem, S3, Cloudflare R2, or traditional CDNs)."
+      },
+      "de": {
+        "title": "CMS- & Ziel-Agnostisch",
+        "description": "Funktioniert mit jedem CMS (Directus, Contentful, Headless WordPress) und jedem Speicherziel (lokales Dateisystem, S3, Cloudflare R2 oder klassische CDNs)."
+      }
+    }
+  }
+]
