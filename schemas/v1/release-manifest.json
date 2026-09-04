@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReleaseManifest",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "releaseId": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "collections": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "hash": { "type": "string" },
+          "itemCount": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["hash", "itemCount"],
+        "additionalProperties": false
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "hash": { "type": "string" },
+          "size": { "type": "integer", "minimum": 0 },
+          "mimeType": { "type": "string" }
+        },
+        "required": ["hash", "size", "mimeType"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schemaVersion", "releaseId", "createdAt", "collections", "media"],
+  "additionalProperties": false
+}

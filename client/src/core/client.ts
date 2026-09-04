@@ -1,0 +1,293 @@
+import { 
+  ClientStorage, 
+  RemoteDownloader, 
+  ReleaseManifest, 
+  Collection, 
+  CollectionItem 
+} from "../types.js";
+import { sha256 } from "../utils.js";
+import { 
+  validateChannelManifest, 
+  validateReleaseManifest, 
+  validateCollection 
+} from "../validation.js";
+
+export interface CDSClientConfig {
+  storage: ClientStorage;
+  downloader: RemoteDownloader;
+  retentionCount?: number; // default: 3
+}
+
+export interface SyncResult {
+  success: boolean;
+  updated: boolean;
+  releaseId?: string;
+  error?: Error;
+}
+
+export class CDSClient {
+  private storage: ClientStorage;
+  private downloader: RemoteDownloader;
+  private retentionCount: number;
+  private activeRelease: ReleaseManifest | null = null;
+  
+  // In-memory cache for fast, sub-millisecond lookups
+  private collectionsCache = new Map<string, CollectionItem[]>();
+
+  constructor(config: CDSClientConfig) {
+    this.storage = config.storage;
+    this.downloader = config.downloader;
+    this.retentionCount = config.retentionCount ?? 3;
+  }
+
+  /**
+   * Initializes the client by loading the last active local release from storage.
+   */
+  async initialize(): Promise<void> {
+    const activeId = await this.storage.getActiveReleaseId();
+    if (activeId) {
+      try {
+        const manifest = await this.storage.readRelease(activeId);
+        if (manifest) {
+          validateReleaseManifest(manifest);
+          this.activeRelease = manifest;
+          await this.loadActiveCollectionsIntoCache();
+        }
+      } catch (err) {
+        console.error("Failed to initialize active release, falling back to clean state:", err);
+        this.activeRelease = null;
+      }
+    }
+  }
+
+  /**
+   * Returns the currently active release manifest, or null if none is active.
+   */
+  getActiveRelease(): ReleaseManifest | null {
+    return this.activeRelease;
+  }
+
+  /**
+   * Loads all collections from the active release into the memory cache.
+   */
+  private async loadActiveCollectionsIntoCache(): Promise<void> {
+    this.collectionsCache.clear();
+    if (!this.activeRelease) return;
+
+    for (const [colName, colMeta] of Object.entries(this.activeRelease.collections)) {
+      const serialized = await this.storage.readObject(colMeta.hash);
+      if (serialized) {
+        try {
+          const col: Collection = JSON.parse(serialized);
+          validateCollection(col);
+          this.collectionsCache.set(colName, col.items);
+        } catch (err) {
+          console.error(`Failed to load cached collection ${colName}:`, err);
+        }
+      }
+    }
+  }
+
+  /**
+   * Syncs with the remote server/CDN channel.
+   * If a new release is available, downloads, validates, and atomically activates it.
+   */
+  async sync(channel: string): Promise<SyncResult> {
+    try {
+      // 1. Fetch channel manifest (optionally passing current active releaseId as ETag)
+      const currentEtag = this.activeRelease?.releaseId;
+      const { manifest: channelManifest, notModified } = await this.downloader.fetchChannelManifest(channel, currentEtag);
+
+      if (notModified) {
+        return { success: true, updated: false, releaseId: this.activeRelease?.releaseId };
+      }
+
+      validateChannelManifest(channelManifest);
+
+      // Check schema version compatibility
+      if (channelManifest.schemaVersion !== 1) {
+        throw new Error(`Incompatible schema version: ${channelManifest.schemaVersion}. Client supports version 1.`);
+      }
+
+      // If already on this release, we're done
+      if (this.activeRelease && this.activeRelease.releaseId === channelManifest.releaseId) {
+        // Just write local channel manifest to be safe
+        await this.storage.saveChannelManifest(channel, channelManifest);
+        return { success: true, updated: false, releaseId: this.activeRelease.releaseId };
+      }
+
+      // 2. Fetch target Release Manifest
+      const targetReleaseId = channelManifest.releaseId;
+      const releaseManifest = await this.downloader.fetchReleaseManifest(targetReleaseId);
+      validateReleaseManifest(releaseManifest);
+
+      // 3. Download, hash-verify, and stage all missing objects & media
+      const stagedObjects = new Map<string, string>();
+      const stagedMedia = new Map<string, Buffer>();
+
+      // Staging JSON collections
+      for (const [colName, colMeta] of Object.entries(releaseManifest.collections)) {
+        const hashExists = await this.storage.hasObject(colMeta.hash);
+        if (!hashExists) {
+          const content = await this.downloader.fetchObject(colMeta.hash);
+          
+          // Verify SHA-256 hash
+          const computedHash = sha256(content);
+          if (computedHash !== colMeta.hash) {
+            throw new Error(`Hash mismatch for collection ${colName}. Expected ${colMeta.hash}, got ${computedHash}`);
+          }
+
+          // Schema validation on client
+          const colObj: Collection = JSON.parse(content);
+          validateCollection(colObj);
+
+          stagedObjects.set(colMeta.hash, content);
+        }
+      }
+
+      // Staging Media assets
+      for (const [virtualPath, mediaMeta] of Object.entries(releaseManifest.media)) {
+        const hashExists = await this.storage.hasMedia(mediaMeta.hash);
+        if (!hashExists) {
+          const ext = virtualPath.includes(".") ? virtualPath.substring(virtualPath.lastIndexOf(".")) : "";
+          const content = await this.downloader.fetchMedia(mediaMeta.hash, ext);
+
+          // Verify SHA-256 hash
+          const computedHash = sha256(content);
+          if (computedHash !== mediaMeta.hash) {
+            throw new Error(`Hash mismatch for media ${virtualPath}. Expected ${mediaMeta.hash}, got ${computedHash}`);
+          }
+
+          stagedMedia.set(mediaMeta.hash, content);
+        }
+      }
+
+      // 4. Atomic Commit (Write staged files to permanent cache, activate)
+      for (const [hash, content] of stagedObjects.entries()) {
+        await this.storage.saveObject(hash, content);
+      }
+      for (const [hash, content] of stagedMedia.entries()) {
+        await this.storage.saveMedia(hash, content);
+      }
+
+      // Save the release manifest itself
+      await this.storage.saveRelease(targetReleaseId, releaseManifest);
+
+      // Update Channel Manifest locally
+      await this.storage.saveChannelManifest(channel, channelManifest);
+
+      // Switch pointer atomically
+      await this.storage.setActiveReleaseId(targetReleaseId);
+      this.activeRelease = releaseManifest;
+
+      // Warm cache
+      await this.loadActiveCollectionsIntoCache();
+
+      // 5. Prune local old releases
+      await this.pruneOldLocalReleases();
+
+      return { success: true, updated: true, releaseId: targetReleaseId };
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      // Return unsuccessful sync, but continue working using the existing active release
+      return { success: false, updated: false, error };
+    }
+  }
+
+  /**
+   * Prunes client-side release manifests that exceed the local retention quota.
+   */
+  private async pruneOldLocalReleases(): Promise<void> {
+    const list = await this.storage.listReleases();
+    list.sort(); // Lexicographical sort
+
+    if (list.length > this.retentionCount) {
+      const toDelete = list.slice(0, list.length - this.retentionCount);
+      for (const relId of toDelete) {
+        // Ensure we never delete the active release!
+        if (this.activeRelease && relId === this.activeRelease.releaseId) {
+          continue;
+        }
+        await this.storage.deleteRelease(relId);
+      }
+    }
+  }
+
+  // --- QUERY & CONTENT ACCESS API ---
+
+  /**
+   * Returns list of collection names in the active release.
+   */
+  getCollectionsList(): string[] {
+    if (!this.activeRelease) return [];
+    return Object.keys(this.activeRelease.collections);
+  }
+
+  /**
+   * Exposes a complete collection by name.
+   */
+  async getCollection(name: string): Promise<CollectionItem[]> {
+    return this.collectionsCache.get(name) || [];
+  }
+
+  /**
+   * Finds a single item by its stable key.
+   */
+  async getItemByKey(collectionName: string, key: string): Promise<CollectionItem | null> {
+    const col = await this.getCollection(collectionName);
+    return col.find((item) => item.key === key) || null;
+  }
+
+  /**
+   * Finds a single item by its unique ID.
+   */
+  async getItemById(collectionName: string, id: string): Promise<CollectionItem | null> {
+    const col = await this.getCollection(collectionName);
+    return col.find((item) => item.id === id) || null;
+  }
+
+  /**
+   * Dynamic discovery of all available locales across the active release.
+   */
+  getLocales(): string[] {
+    const localesSet = new Set<string>();
+    for (const items of this.collectionsCache.values()) {
+      for (const item of items) {
+        if (item.translations) {
+          for (const locale of Object.keys(item.translations)) {
+            localesSet.add(locale);
+          }
+        }
+      }
+    }
+    return Array.from(localesSet).sort();
+  }
+
+  /**
+   * Resolves the references in a collection item to their actual collection item objects.
+   */
+  async resolveReferences(item: CollectionItem): Promise<CollectionItem[]> {
+    if (!item.references || !Array.isArray(item.references)) {
+      return [];
+    }
+
+    const resolved: CollectionItem[] = [];
+    for (const ref of item.references) {
+      const targetItem = await this.getItemById(ref.collection, ref.id);
+      if (targetItem) {
+        resolved.push(targetItem);
+      }
+    }
+    return resolved;
+  }
+
+  /**
+   * Utility to retrieve raw binary media content from local cache.
+   */
+  async getMediaContent(virtualPath: string): Promise<Buffer | null> {
+    if (!this.activeRelease) return null;
+    const meta = this.activeRelease.media[virtualPath];
+    if (!meta) return null;
+    return await this.storage.readMedia(meta.hash);
+  }
+}
