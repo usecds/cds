@@ -31,18 +31,19 @@ None of these exist in code yet. Each one records the request, the design direct
 
 All v1 schema objects will switch to `additionalProperties: true`, so new optional fields don't break existing clients. *Not yet applied to `schemas/v1/`.*
 
-**Reserved prefix for CDS fields on items (`$` vs `_`): open, leaning `$`.** Items are open objects, so CDS metadata (e.g. `$translation`) needs a prefix that can't collide with content fields.
-- `$`: CMS and SQL field naming rules almost never allow it, so adapters can't produce collisions. It matches the JSON Schema `$id`/`$ref` style. Drawbacks: MongoDB treats `$` keys as operators, GraphQL field names can't start with `$`, and Python can't use attribute access on it.
-- `_`: safe in every language and storage. Drawback: widely used by other systems (`_id` in MongoDB, `_rev` in CouchDB, `_source` in Elasticsearch, sometimes CMS system fields), so pass-through fields could collide.
-- Either way, keep the number of reserved names small. Source references (P6) are no longer in items, so `$translation` is the only one so far.
+### Decided: `_` prefix for CDS fields on items
+
+Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_translation`). Unlike `$`, it works everywhere: MongoDB, GraphQL, Python attribute access.
+- `_` is also used by other systems (`_id`, `_rev`, `_source`, ...). So CDS reserves **specific names**, not the whole prefix. Only the names listed in the collection schema are CDS fields, and the schema validates their shape, so a pass-through `_translation` with the wrong shape fails the publish instead of being misread.
+- Keep the list of reserved names short. So far: `_translation`.
 
 ### P1: Translation completeness (per language and overall)
 
 **Problem:** There's no way to see how complete each language is before publishing, or from the client.
 **Direction:** The publisher computes completeness while it iterates the collections. Per collection × locale it counts translated, missing and **stale** fields (see P2), then rolls that up per locale and overall. The result goes in the publish result and in the release manifest.
 **Open questions:**
-- What counts as "expected"? Proposed: the fields of a declared source locale, falling back to the union across locales.
-- Does `""` / `null` count as missing? Proposed: yes.
+- *Decided:* the **source locale is a runtime argument** of the publish run (e.g. `--source-locale en` / `publish(..., { sourceLocale })`). "Expected" fields are the source locale's fields. Open: the fallback when the argument is omitted (proposed: union across locales).
+- *Decided:* an empty (`""`) or `null` translation counts as **missing only if the source locale value is a string longer than zero**. If the source value is empty too, the field isn't expected and isn't counted. Open: how non-string source values (numbers, objects) are counted.
 - Report only, or also a publish gate (e.g. "production requires `de` ≥ 100%, 0 stale")?
 
 ### P2: Auto-translation, provenance and review
@@ -51,7 +52,7 @@ All v1 schema objects will switch to `additionalProperties: true`, so new option
 **Direction:** Each translated field records its provenance, plus the hash of the source text it was translated from:
 
 ```json
-"$translation": {
+"_translation": {
   "de": {
     "title": { "status": "machine", "from": "en", "sourceHash": "<sha256 of en.title when translated>" }
   }
@@ -150,7 +151,7 @@ All v1 schema objects will switch to `additionalProperties: true`, so new option
 - Keyed by CDS collection name + item `id` and by media virtual path, so it can be looked up from anything in a release.
 - The adapter supplies the references, e.g. through an optional `ContentSource.getSourceMap()` or by attaching them to items in memory. The publisher removes them before hashing, so they never affect hashes or releases.
 - Relative `path` + per-source `baseUrl`, so a CMS host move only changes the artifact.
-- Content items stay clean: no reserved `$source` field.
+- Content items stay clean: no reserved `_source` field.
 
 **Build artifacts in general:** The source map is the first of several per-publish outputs that are for the pipeline, not for clients. Others would be the completeness report (P1), the GC report (P4), the render log (P3) and target validation results (P7). `publish()` should return a single `artifacts` object that the pipeline stores.
 
