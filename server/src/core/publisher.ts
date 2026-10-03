@@ -27,6 +27,7 @@ import {
 } from "./translations.js";
 import { resolveTargets, TargetDefinition } from "./targets.js";
 import { buildContentReport, ContentReport } from "./content-report.js";
+import { MEDIA_COLLECTION, validateMediaMetadata } from "./media-metadata.js";
 
 export interface PublisherConfig {
   retentionCount?: number; // How many releases to keep (default: 3)
@@ -137,6 +138,11 @@ export class Publisher {
         mimeType: item.mimeType
       };
     });
+
+    // Media metadata must describe media that is actually in the release
+    if (rawCollections[MEDIA_COLLECTION]) {
+      validateMediaMetadata(rawCollections[MEDIA_COLLECTION], mediaMeta);
+    }
 
     // 3. Measure translation completeness against the source locale and the channel's current release
     const { locale: sourceLocale, origin } = await this.resolveSourceLocale(options.sourceLocale, rawCollections);

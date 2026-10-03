@@ -153,6 +153,28 @@ This has two consequences:
 - Two publishes of the same content produce the same hash, so unchanged collections are not re-uploaded or re-downloaded.
 - Reordering `items` changes the hash. Sources should return items in a stable order.
 
+## Media metadata (`_media` collection, `media-metadata.json`)
+
+Alt texts, descriptions, focal points and sizes of media files are content, kept in the reserved collection `_media`. It's an ordinary collection (stored, hashed and synced like any other), so translation completeness, provenance markers, source map links and target rules apply to it. Each item describes one media file:
+
+```json
+{ "id": "rooms/suite.jpg", "key": "rooms/suite.jpg",
+  "translations": { "en": { "alt": "Suite with lake view", "description": "Corner suite on the 4th floor…" },
+                    "de": { "alt": "Suite mit Seeblick" } },
+  "focalPoint": { "x": 0.62, "y": 0.4 },
+  "width": 3000, "height": 2000 }
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | string | The media file's virtual path; must exist in the release's `media` map. `key` is the same value. |
+| `translations[locale].alt` | string | Short functional text for accessibility (recommended 1–125 characters) |
+| `translations[locale].description` | string | Longer text for llms.txt, SEO and JSON-LD (recommended 50–300 characters) |
+| `focalPoint` | `{ x, y }`, each `0..1` | The important point of the image, relative to width and height; used when cropping |
+| `width`, `height` | integer ≥ 1 | Intrinsic size in pixels |
+
+`media-metadata.json` validates each `_media` item at publish, in addition to `collection.json`. The publisher also rejects items for media files that aren't in the release, and media files described twice.
+
 ## `target.json`
 
 Validates target definitions (see [server.md](server.md#targets)). Only `id` (`[a-zA-Z0-9_-]+`) is required. `collections.*.localized`, `collections.*.fields` and `recommendations.*` hold JSON Schemas, which are compiled when the target is checked. Target definitions are pipeline configuration and are never published.

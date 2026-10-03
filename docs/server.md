@@ -137,7 +137,7 @@ Steps, in order:
    - validate against `collection.json` (throws on failure, which aborts the publish)
    - serialize with `deterministicStringify`, hash with SHA-256
    - record `{ hash, itemCount, size }` (`size` = UTF-8 byte length of the serialized string)
-3. Hash each media file and record `{ hash, size, mimeType }` under its virtual path.
+3. Hash each media file and record `{ hash, size, mimeType }` under its virtual path. If a `_media` collection exists, validate it against the media (see [schemas.md](schemas.md#media-metadata-_media-collection-media-metadatajson)); a problem throws before anything is written.
 4. Measure translation completeness (below), comparing against the release the channel currently points to.
 5. Check the targets and build the content report. **An unmet requirement throws `PublishRequirementsError` here, before anything is written.** The error carries the artifacts, so the pipeline can still store the report.
 6. Write objects (`store.writeObject`) and media (`store.writeMedia(hash, extname(virtualPath), bytes)`).

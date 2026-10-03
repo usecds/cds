@@ -35,6 +35,14 @@ export interface CollectionItem {
   [key: string]: any;
 }
 
+// Item of the reserved _media collection; id = the media file's virtual path
+export interface MediaMetadataItem extends CollectionItem {
+  translations: Record<string, { alt?: string | null; description?: string | null; [field: string]: any }>;
+  focalPoint?: { x: number; y: number }; // 0..1, relative to width/height
+  width?: number; // intrinsic size in pixels
+  height?: number;
+}
+
 export interface Collection {
   schemaVersion: 1;
   collection: string;

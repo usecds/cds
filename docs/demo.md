@@ -26,11 +26,12 @@ demo/data/*.json ──▶ FixtureSource ──▶ Publisher ──▶ demo/publ
 ```
 
 1. **Clean.** Deletes `demo/published`, `demo/cache` and `demo/dist`, so every run starts from scratch (all three are git-ignored).
-2. **Server side.** Reads the four JSON files in `demo/data/`, wraps them in a `FixtureSource` (no media), and publishes them with a `Publisher` + `FilesystemStore` to channel `demo-channel` as release `release_demo_<Date.now()>`. The source locale is `en`. Targets are loaded from `demo/targets/` (`landing-page.json`; no `default.json`, so the built-in default applies). Translation completeness and the target results are printed to the console.
+2. **Server side.** Reads the JSON files in `demo/data/` and the media files in `demo/data/media/`, wraps them in a `FixtureSource`, and publishes them with a `Publisher` + `FilesystemStore` to channel `demo-channel` as release `release_demo_<Date.now()>`. The source locale is `en`. Targets are loaded from `demo/targets/` (`landing-page.json`; no `default.json`, so the built-in default applies). Translation completeness and the target results are printed to the console.
 3. **Client side.** Creates a `CDSClient` with `FilesystemStorage("demo/cache")` and a `DemoLocalDownloader` that reads files from `demo/published` (a local stand-in for HTTP). The client is configured with `target: "landing-page"`. Calls `initialize()` and then `sync("demo-channel")`, and aborts if the sync fails.
 4. **Generator.** For each locale returned by `client.getLocales()`, it:
    - gets the `homepage` item from `site_settings` by key, for hero, CTA and footer texts
    - gets the `features`, `goals` and `testimonials` collections
+   - gets the hero image with `getMediaInfo("hero.svg", locale)` and renders it with its localized alt text, size, and the focal point as CSS `object-position` (so cropping keeps the important part visible). Media files are copied from the client cache to `demo/dist/media/`.
    - renders an HTML page with `item.translations[locale]` and writes `index.html` (for `en`) or `index-<locale>.html`
    - adds a "release log" panel showing the active release ID, loaded collections and synced locales, read from the client
 
@@ -42,6 +43,9 @@ demo/data/*.json ──▶ FixtureSource ──▶ Publisher ──▶ demo/publ
 | `features.json` | `features` | 4 | `title`, `description` |
 | `goals.json` | `goals` | 4 | `title`, `icon` |
 | `testimonials.json` | `testimonials` | 2 | `quote`, `author`, `role` |
+| `_media.json` | `_media` | 1 (`hero.svg`) | `alt`, `description` (plus `focalPoint`, `width`, `height`) |
+
+Media files live in `demo/data/media/`, named by their virtual path.
 
 Each file is a plain array of CDS items (`id`, `key`, `translations`). To change the page, edit the JSON and run `pnpm demo` again.
 

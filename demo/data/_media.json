@@ -1,0 +1,19 @@
+[
+  {
+    "id": "hero.svg",
+    "key": "hero.svg",
+    "translations": {
+      "en": {
+        "alt": "Diagram: content flows from the CMS through CDS to kiosk, TV and web clients",
+        "description": "Illustration of the CDS pipeline. A CMS on the left publishes into CDS in the middle, which distributes verified releases to three clients on the right: a kiosk, a TV app and a website."
+      },
+      "de": {
+        "alt": "Diagramm: Inhalte fließen vom CMS über CDS zu Kiosk-, TV- und Web-Clients",
+        "description": "Darstellung der CDS-Pipeline. Ein CMS links veröffentlicht in CDS in der Mitte, das geprüfte Releases an drei Clients rechts verteilt: einen Kiosk, eine TV-App und eine Website."
+      }
+    },
+    "focalPoint": { "x": 0.63, "y": 0.5 },
+    "width": 1200,
+    "height": 600
+  }
+]

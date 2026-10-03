@@ -4,6 +4,7 @@ import {
   ReleaseManifest, 
   Collection, 
   CollectionItem,
+  MediaInfo,
   ProvenanceStatus,
   TranslationSummary
 } from "../types.js";
@@ -317,6 +318,27 @@ export class CDSClient {
       }
     }
     return resolved;
+  }
+
+  /**
+   * Media file details plus its _media metadata (alt text and description in the given locale).
+   * Returns null if the path isn't in the active release. Texts are absent if not set for that locale.
+   */
+  getMediaInfo(virtualPath: string, locale?: string): MediaInfo | null {
+    const meta = this.activeRelease?.media[virtualPath];
+    if (!meta) return null;
+
+    const info: MediaInfo = { path: virtualPath, hash: meta.hash, size: meta.size, mimeType: meta.mimeType };
+    const item = this.collectionsCache.get("_media")?.find((i) => i.id === virtualPath);
+    if (!item) return info;
+
+    if (typeof item.width === "number") info.width = item.width;
+    if (typeof item.height === "number") info.height = item.height;
+    if (item.focalPoint) info.focalPoint = item.focalPoint;
+    const texts = locale ? item.translations[locale] : undefined;
+    if (typeof texts?.alt === "string" && texts.alt) info.alt = texts.alt;
+    if (typeof texts?.description === "string" && texts.description) info.description = texts.description;
+    return info;
   }
 
   /**

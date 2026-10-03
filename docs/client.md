@@ -158,6 +158,7 @@ All queries read from the in-memory cache of the **active** release and need no 
 | `getLocales()` | Sorted union of all locale keys across all items |
 | `resolveReferences(item)` | Referenced items, in order; dangling references are skipped |
 | `getMediaContent(virtualPath)` | `Buffer` from storage, or `null` if the path or file is unknown |
+| `getMediaInfo(virtualPath, locale?)` | `MediaInfo`: path, hash, size, MIME type, plus `width`, `height`, `focalPoint`, and `alt` / `description` in that locale from the `_media` collection. Fields that aren't set (or are empty in that locale) are left out. `null` if the path isn't in the release. |
 | `getTranslationSummary()` | The release's translation completeness summary, or `null` |
 | `getTranslationStatus(item, locale, field)` | `{ status, stale }` from the item's `_provenance` translation marker (`status: null` without a marker). Staleness is detected via `sourceHash` only. The publisher's previous-release fallback shows up in the build report, not here. |
 

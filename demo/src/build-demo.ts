@@ -71,6 +71,9 @@ class DemoLocalDownloader implements RemoteDownloader {
   }
 }
 
+const escapeAttr = (text: string) =>
+  text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 async function run() {
   console.log("🚀 Starting CDS Demo Builder...");
 
@@ -93,16 +96,29 @@ async function run() {
   const featuresData = JSON.parse(await fs.readFile(path.join(dataDir, "features.json"), "utf-8"));
   const goalsData = JSON.parse(await fs.readFile(path.join(dataDir, "goals.json"), "utf-8"));
   const testimonialsData = JSON.parse(await fs.readFile(path.join(dataDir, "testimonials.json"), "utf-8"));
+  const mediaMetadata = JSON.parse(await fs.readFile(path.join(dataDir, "_media.json"), "utf-8"));
+
+  // Media files from data/media; their alt texts, descriptions and focal points live in _media.json
+  const mimeTypes: Record<string, string> = { ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg" };
+  const mediaDir = path.join(dataDir, "media");
+  const media = await Promise.all(
+    (await fs.readdir(mediaDir)).map(async (file) => ({
+      virtualPath: file,
+      content: await fs.readFile(path.join(mediaDir, file)),
+      mimeType: mimeTypes[path.extname(file)] ?? "application/octet-stream"
+    }))
+  );
 
   const collections = {
     site_settings,
     features: featuresData,
     goals: goalsData,
-    testimonials: testimonialsData
+    testimonials: testimonialsData,
+    _media: mediaMetadata
   };
 
   console.log("📦 [Server] Setting up Source & Storage target...");
-  const source = new FixtureSource(collections, []);
+  const source = new FixtureSource(collections, media);
   const serverStore = new FilesystemStore(publishedDir);
   const publisher = new Publisher(source, serverStore, { retentionCount: 3 });
 
@@ -144,6 +160,12 @@ async function run() {
   // -------------------------------------------------------------
   console.log("🎨 [Generator] Querying CDS Client APIs & generating multilingual single page website...");
   
+  await fs.mkdir(path.join(distDir, "media"), { recursive: true });
+  for (const virtualPath of Object.keys(client.getActiveRelease()!.media)) {
+    const bytes = await client.getMediaContent(virtualPath);
+    if (bytes) await fs.writeFile(path.join(distDir, "media", virtualPath), bytes);
+  }
+
   const locales = client.getLocales();
   console.log(`🌍 Available Locales: ${locales.join(", ")}`);
 
@@ -156,6 +178,9 @@ async function run() {
     const features = await client.getCollection("features");
     const goals = await client.getCollection("goals");
     const testimonials = await client.getCollection("testimonials");
+    const hero = client.getMediaInfo("hero.svg", locale);
+    // The focal point keeps the important part of the image visible when CSS crops it
+    const heroPosition = hero?.focalPoint ? `${hero.focalPoint.x * 100}% ${hero.focalPoint.y * 100}%` : "center";
 
     // Generate responsive Tailwind layout
     const html = `<!DOCTYPE html>
@@ -208,6 +233,10 @@ async function run() {
             <p class="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
                 ${content.heroSubtitle}
             </p>
+            ${hero ? `<figure class="mb-10">
+                <img src="media/${hero.path}" alt="${escapeAttr(hero.alt ?? "")}" width="${hero.width ?? ""}" height="${hero.height ?? ""}"
+                     class="w-full h-56 sm:h-72 object-cover rounded-2xl border border-slate-800" style="object-position: ${heroPosition}">
+            </figure>` : ""}
             <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
                 <a href="#goals" class="w-full sm:w-auto px-8 py-3.5 rounded-xl font-semibold bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-400 hover:to-blue-500 text-slate-950 shadow-lg shadow-teal-500/20 transition-all text-center">
                     ${content.ctaPrimary}

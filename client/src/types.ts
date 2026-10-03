@@ -35,6 +35,14 @@ export interface CollectionItem {
   [key: string]: any;
 }
 
+// Item of the reserved _media collection; id = the media file's virtual path
+export interface MediaMetadataItem extends CollectionItem {
+  translations: Record<string, { alt?: string | null; description?: string | null; [field: string]: any }>;
+  focalPoint?: { x: number; y: number }; // 0..1, relative to width/height
+  width?: number; // intrinsic size in pixels
+  height?: number;
+}
+
 export interface Collection {
   schemaVersion: 1;
   collection: string;
@@ -75,6 +83,19 @@ export interface ReleaseManifest {
   media: Record<string, MediaMeta>;
   translations?: TranslationSummary;
   targets?: string[]; // targets whose requirements this release satisfies
+}
+
+// Combined view of a media file: release entry plus its _media metadata
+export interface MediaInfo {
+  path: string; // virtual path
+  hash: string;
+  size: number; // bytes
+  mimeType: string;
+  width?: number;
+  height?: number;
+  focalPoint?: { x: number; y: number };
+  alt?: string; // in the requested locale
+  description?: string;
 }
 
 // Client Storage Interface

@@ -19,7 +19,12 @@ import { downloaderFor } from "./helpers.js";
 
 const sourceOf = (collections: Record<string, CollectionItem[]>, sourceMap?: SourceMap): ContentSource => ({
   getCollections: async () => collections,
-  getMedia: async () => [],
+  // A media file for every _media item, so the media metadata check passes
+  getMedia: async () => (collections._media ?? []).map((m) => ({
+    virtualPath: m.id,
+    content: Buffer.from(m.id),
+    mimeType: "image/png"
+  })),
   ...(sourceMap ? { getSourceMap: async () => sourceMap } : {})
 });
 

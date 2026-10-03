@@ -282,6 +282,8 @@ Sketch:
 
 ### P8: Media metadata as content (`_media` collection)
 
+**Status: implemented in G5** (`media-metadata.json`, publish checks, `getMediaInfo()`, demo hero image).
+
 **Problem:** Images have no alt text, description, focal point or intrinsic size. Accessibility, llms.txt, JSON-LD and image rendering all need them.
 **Decided:** Media metadata is content, in a reserved collection `_media`, one item per media file keyed by its virtual path:
 
