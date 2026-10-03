@@ -82,7 +82,7 @@ describe("Translation completeness and provenance (G3)", () => {
         id: "a",
         key: "a",
         translations: { de: { t: "Original" }, en: { t: "Translated" } },
-        _translation: { en: { t: { status: "machine", from: "de" } } }
+        _provenance: { translations: { en: { t: { status: "machine", from: "de" } } } }
       }
     ];
 
@@ -102,10 +102,12 @@ describe("Translation completeness and provenance (G3)", () => {
         id: "a",
         key: "a",
         translations: { en: { title: "New title", body: "Body" }, de: { title: "Alter Titel", body: "Text" } },
-        _translation: {
-          de: {
-            title: { status: "machine", from: "en", sourceHash: translationSourceHash("Old title") },
-            body: { status: "reviewed", from: "en", sourceHash: translationSourceHash("Body") }
+        _provenance: {
+          translations: {
+            de: {
+              title: { status: "machine", from: "en", sourceHash: translationSourceHash("Old title") },
+              body: { status: "reviewed", from: "en", sourceHash: translationSourceHash("Body") }
+            }
           }
         }
       }
@@ -132,11 +134,22 @@ describe("Translation completeness and provenance (G3)", () => {
     expect((await publish("r3", version("Hello again", "Hallo nochmal"))).artifacts.translations.overall.stale).toBe(0);
   });
 
-  it("rejects a malformed _translation marker", async () => {
+  it("rejects a malformed provenance marker", async () => {
     const items = [
-      { id: "a", key: "a", translations: { en: { t: "x" } }, _translation: { de: { t: { status: "bogus" } } } }
+      { id: "a", key: "a", translations: { en: { t: "x" } }, _provenance: { translations: { de: { t: { status: "bogus" } } } } }
     ] as unknown as CollectionItem[];
     await expect(new Publisher(sourceOf({ items }), store).publish("production", "r1")).rejects.toThrow(/Invalid Collection/);
+  });
+
+  it("validates provenance markers on non-localized fields", async () => {
+    const withMarker = (marker: object) => [
+      { id: "a", key: "a", translations: { en: { t: "x" } }, focalPoint: { x: 0.5, y: 0.4 }, _provenance: { fields: { focalPoint: marker } } }
+    ] as unknown as CollectionItem[];
+
+    await expect(new Publisher(sourceOf({ items: withMarker({ status: "machine", model: "vision-x@2" }) }), store)
+      .publish("production", "r1")).resolves.toBeDefined();
+    await expect(new Publisher(sourceOf({ items: withMarker({ model: "vision-x@2" }) }), store)
+      .publish("production", "r2")).rejects.toThrow(/Invalid Collection/);
   });
 
   it("exposes the summary and per-field status on the client", async () => {
@@ -145,10 +158,12 @@ describe("Translation completeness and provenance (G3)", () => {
         id: "a",
         key: "a",
         translations: { en: { title: "Changed", body: "Same" }, de: { title: "Titel", body: "Gleich" } },
-        _translation: {
-          de: {
-            title: { status: "human", sourceHash: translationSourceHash("Original") },
-            body: { status: "machine", sourceHash: translationSourceHash("Same") }
+        _provenance: {
+          translations: {
+            de: {
+              title: { status: "human", sourceHash: translationSourceHash("Original") },
+              body: { status: "machine", sourceHash: translationSourceHash("Same") }
+            }
           }
         }
       }

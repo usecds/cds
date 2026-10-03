@@ -7,7 +7,7 @@ export const DEFAULT_SOURCE_LOCALE = "en";
 export type SourceLocaleOrigin =
   | "argument" // passed to publish()
   | "source" // reported by the ContentSource
-  | "inferred" // derived from _translation markers
+  | "inferred" // derived from _provenance translation markers
   | "fallback"; // DEFAULT_SOURCE_LOCALE
 
 export interface TranslationIssue {
@@ -27,21 +27,21 @@ export interface TranslationReport extends TranslationSummary {
 }
 
 /**
- * Hash of a source text, as stored in _translation markers (sourceHash).
+ * Hash of a source text, as stored in _provenance translation markers (sourceHash).
  */
 export function translationSourceHash(text: string): string {
   return sha256(text);
 }
 
 /**
- * Infers the source locale from _translation markers: the locales of fields marked
+ * Infers the source locale from _provenance translation markers: the locales of fields marked
  * "original" plus all "from" locales. Returns undefined unless exactly one candidate exists.
  */
 export function inferSourceLocale(collections: Record<string, CollectionItem[]>): string | undefined {
   const candidates = new Set<string>();
   for (const items of Object.values(collections)) {
     for (const item of items) {
-      for (const [locale, fields] of Object.entries(item._translation ?? {})) {
+      for (const [locale, fields] of Object.entries(item._provenance?.translations ?? {})) {
         for (const marker of Object.values(fields)) {
           if (marker.status === "original") candidates.add(locale);
           if (marker.from) candidates.add(marker.from);
@@ -126,7 +126,7 @@ export function analyzeTranslations(
           }
 
           counts.translated++;
-          const marker = item._translation?.[locale]?.[field];
+          const marker = item._provenance?.translations?.[locale]?.[field];
           if (marker?.status === "machine") counts.machine++;
 
           let stale = false;

@@ -42,26 +42,40 @@
               "type": "string"
             }
           },
-          "_translation": {
+          "_provenance": {
             "type": "object",
-            "additionalProperties": {
-              "type": "object",
-              "additionalProperties": {
+            "properties": {
+              "translations": {
                 "type": "object",
-                "properties": {
-                  "status": { "enum": ["original", "human", "machine", "reviewed"] },
-                  "from": { "type": "string" },
-                  "sourceHash": { "type": "string" }
-                },
-                "required": ["status"],
-                "additionalProperties": true
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": { "$ref": "#/definitions/provenanceMarker" }
+                }
+              },
+              "fields": {
+                "type": "object",
+                "additionalProperties": { "$ref": "#/definitions/provenanceMarker" }
               }
-            }
+            },
+            "additionalProperties": true
           }
         },
         "required": ["id", "key", "translations"],
         "additionalProperties": true
       }
+    }
+  },
+  "definitions": {
+    "provenanceMarker": {
+      "type": "object",
+      "properties": {
+        "status": { "enum": ["original", "human", "machine", "reviewed"] },
+        "from": { "type": "string" },
+        "sourceHash": { "type": "string" },
+        "model": { "type": "string" }
+      },
+      "required": ["status"],
+      "additionalProperties": true
     }
   },
   "required": ["schemaVersion", "collection", "items"],

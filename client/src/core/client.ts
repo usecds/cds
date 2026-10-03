@@ -4,7 +4,7 @@ import {
   ReleaseManifest, 
   Collection, 
   CollectionItem,
-  TranslationStatus,
+  ProvenanceStatus,
   TranslationSummary
 } from "../types.js";
 import { sha256 } from "../utils.js";
@@ -280,8 +280,8 @@ export class CDSClient {
     item: CollectionItem,
     locale: string,
     field: string
-  ): { status: TranslationStatus | null; stale: boolean } {
-    const marker = item._translation?.[locale]?.[field];
+  ): { status: ProvenanceStatus | null; stale: boolean } {
+    const marker = item._provenance?.translations?.[locale]?.[field];
     if (!marker) return { status: null, stale: false };
 
     let stale = false;

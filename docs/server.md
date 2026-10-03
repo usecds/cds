@@ -147,7 +147,7 @@ Every publish measures how complete each language is, relative to a **source loc
 **Source locale**, first match wins:
 1. `options.sourceLocale` passed to `publish()`
 2. `ContentSource.getSourceLocale()`
-3. inferred from `_translation` markers, if they name exactly one origin language (locales marked `original` plus all `from` values)
+3. inferred from `_provenance` translation markers, if they name exactly one origin language (locales marked `original` plus all `from` values)
 4. `"en"`
 
 The report says which rule was used (`sourceLocaleOrigin`: `argument` | `source` | `inferred` | `fallback`).

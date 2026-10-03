@@ -158,7 +158,7 @@ All queries read from the in-memory cache of the **active** release and need no 
 | `resolveReferences(item)` | Referenced items, in order; dangling references are skipped |
 | `getMediaContent(virtualPath)` | `Buffer` from storage, or `null` if the path or file is unknown |
 | `getTranslationSummary()` | The release's translation completeness summary, or `null` |
-| `getTranslationStatus(item, locale, field)` | `{ status, stale }` from the item's `_translation` marker (`status: null` without a marker). Staleness is detected via `sourceHash` only. The publisher's previous-release fallback shows up in the build report, not here. |
+| `getTranslationStatus(item, locale, field)` | `{ status, stale }` from the item's `_provenance` translation marker (`status: null` without a marker). Staleness is detected via `sourceHash` only. The publisher's previous-release fallback shows up in the build report, not here. |
 
 The query API leaves locale fallback to the application. `item.translations[locale]` is `undefined` when an item lacks that locale.
 

@@ -99,10 +99,10 @@ The content of `objects/<hash>.json`.
 | `translations` | `{ [locale]: { [field]: any } }` | yes | All localized fields live here, grouped by locale |
 | `references` | array of `{ collection, id }` | no | Links to items in other collections |
 | `media` | array of string | no | Virtual paths into the release's `media` map |
-| `_translation` | `{ [locale]: { [field]: TranslationMarker } }` | no | Translation provenance, see below |
+| `_provenance` | `{ translations?, fields? }` | no | Where values came from (human, machine, ...), see below |
 | *any other field* | any | no | Items allow additional properties for non-localized data |
 
-All levels allow additional properties. On items, extra top-level fields hold non-localized data. Field names starting with `_` are reserved for CDS metadata, and only names the schema defines (currently `_translation`) are CDS fields. The schema validates their shape, so a pass-through field with the same name but the wrong shape fails the publish.
+All levels allow additional properties. On items, extra top-level fields hold non-localized data. Field names starting with `_` are reserved for CDS metadata, and only names the schema defines (currently `_provenance`) are CDS fields. The schema validates their shape, so a pass-through field with the same name but the wrong shape fails the publish.
 
 ```json
 {
@@ -123,23 +123,23 @@ All levels allow additional properties. On items, extra top-level fields hold no
 }
 ```
 
-### Translation provenance (`_translation`)
+### Provenance (`_provenance`)
 
-Per locale and field, a marker records where a translation came from:
-
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `status` | `original` | `human` | `machine` | `reviewed` | yes | `reviewed` = machine translation checked by a human |
-| `from` | string | no | Locale it was translated from (defaults to the release's source locale) |
-| `sourceHash` | string | no | SHA-256 (hex) of the source text at translation time |
+Markers record where values came from: `translations` per locale and field, `fields` for non-localized fields (e.g. an AI-detected focal point).
 
 ```json
-"_translation": {
-  "de": {
-    "title": { "status": "machine", "from": "en", "sourceHash": "5f2b…" }
-  }
+"_provenance": {
+  "translations": { "de": { "title": { "status": "machine", "from": "en", "sourceHash": "5f2b…" } } },
+  "fields": { "focalPoint": { "status": "machine", "model": "vision-x@2" } }
 }
 ```
+
+| Marker field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `status` | `original`, `human`, `machine` or `reviewed` | yes | `reviewed` = machine value checked by a human |
+| `from` | string | no | Translations: locale it was translated from (defaults to the release's source locale) |
+| `sourceHash` | string | no | Translations: SHA-256 (hex) of the source text at translation time |
+| `model` | string | no | Machine values: model/version that produced it |
 
 If the current source text no longer matches `sourceHash`, the translation is **stale** and needs review. Whoever translates or reviews (CMS, adapter) writes the hash of the source text they worked from. The server exports `translationSourceHash(text)` for this. Markers are optional: items without them are still counted for completeness.
 

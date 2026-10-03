@@ -10,12 +10,19 @@ export interface Reference {
   id: string;
 }
 
-export type TranslationStatus = "original" | "human" | "machine" | "reviewed";
+export type ProvenanceStatus = "original" | "human" | "machine" | "reviewed";
 
-export interface TranslationMarker {
-  status: TranslationStatus;
-  from?: string; // locale the text was translated from
-  sourceHash?: string; // sha256 of the source text at translation time
+export interface ProvenanceMarker {
+  status: ProvenanceStatus;
+  from?: string; // translations: locale the text was translated from
+  sourceHash?: string; // translations: sha256 of the source text at translation time
+  model?: string; // machine: model/version that produced the value
+}
+
+// Where values came from: translated fields per locale, and non-localized fields
+export interface Provenance {
+  translations?: Record<string, Record<string, ProvenanceMarker>>; // locale -> field -> marker
+  fields?: Record<string, ProvenanceMarker>; // field -> marker
 }
 
 export interface CollectionItem {
@@ -24,7 +31,7 @@ export interface CollectionItem {
   translations: Record<string, Record<string, any>>;
   references?: Reference[];
   media?: string[];
-  _translation?: Record<string, Record<string, TranslationMarker>>; // locale -> field -> marker
+  _provenance?: Provenance;
   [key: string]: any;
 }
 
