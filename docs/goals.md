@@ -203,6 +203,8 @@ Example result for a `HotelRoom` in `de` (no URLs yet):
 
 ### P7: Target definitions (requirements per consumer)
 
+**Status: implemented in G4** (`loadTargets`, `resolveTargets`, `publish({ targets })`, client `target` option). `media` presets are merged and exported in `artifacts.targets` for the image project.
+
 **Problem:** A release is built for consumers that have concrete expectations, but nothing states or checks them. For example:
 - a kiosk must have the `contact_info` item `emergency`, or it can't show emergency contacts
 - a hotel website needs a `rooms` collection whose items have `name`, `description` and an `amenities` object
@@ -270,7 +272,7 @@ Sketch:
 - **Scope is the exception to merging.** A named target's `scope` limits only its **own** presets and requirements. Inheriting the default's "everything" would cancel out subset rendering. Default presets still apply to all media.
 - **Location:** versioned files next to the pipeline config (e.g. `targets/*.json`), owned by the consumer's team, validated by a new `schemas/v1/target.json`. Not CMS content.
 - **Targets and channels are independent.** Channels only point at releases. Which targets a release satisfies is recorded in the release itself.
-- **Merging is additive only. Nothing is overwritten or replaced.** Lists (`locales.required`, `items`, breakpoints, DPR, presets, required collections) are combined. Requirements accumulate, so a named target can add or tighten but never loosen: for a threshold declared twice (e.g. `minCompleteness`), both apply and the stricter one wins. A preset or item schema defined differently under the same name is a conflict and fails the build. Identical definitions are fine and are rendered once.
+- **Merging is additive only. Nothing is overwritten or replaced.** Lists (`locales.required`, `items`, breakpoints, DPR, presets, required collections) are combined. Requirements accumulate, so a named target can add or tighten but never loosen: for a threshold declared twice (e.g. `minCompleteness`), both apply and the stricter one wins. Item schemas declared by several targets are combined with `allOf` (all must pass), which is additive. A **preset** defined differently under the same name is a conflict and fails the build, because all variants share one release. Identical definitions are fine and are rendered once.
 - **Number of targets:** no hard cap. The recommended maximum is **8**.
 
 **Image cost (for the image project):** Variants from different targets with the same source and options get the same variant key, so they're rendered and stored once (P3). Cost grows with *media in scope × presets × widths*, not with the number of targets.
@@ -302,6 +304,8 @@ Sketch:
 **Decided: runs in the CMS, not in CDS** (e.g. a Directus flow on upload). The CMS writes the values together with a provenance marker (`status: "machine"`, `model`), and editors review them where they already work. CDS carries the markers, counts machine-made values and reports them (P10). An image-processing service could be part of the complementary image project (P3).
 
 ### P10: Content report with recommendations
+
+**Status: implemented in G4** (`artifacts.content`, built-in `_media` recommendations).
 
 **Problem:** Editors don't know what's missing or below standard (missing alt text, descriptions that are too short or too long).
 **Direction:** A **content report** in the build artifacts, extending the G3 issue list. Each issue carries its severity, the recommendation and a source map link (P6) back to the CMS record:

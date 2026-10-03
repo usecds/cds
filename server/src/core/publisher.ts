@@ -25,6 +25,8 @@ import {
   SourceLocaleOrigin,
   TranslationReport
 } from "./translations.js";
+import { resolveTargets, TargetDefinition } from "./targets.js";
+import { buildContentReport, ContentReport } from "./content-report.js";
 
 export interface PublisherConfig {
   retentionCount?: number; // How many releases to keep (default: 3)
@@ -32,12 +34,30 @@ export interface PublisherConfig {
 
 export interface PublishOptions {
   sourceLocale?: string; // original-content language; detected from the source if omitted
+  targets?: TargetDefinition[]; // default + named targets (see loadTargets); built-in defaults if none
 }
 
 // Per-publish outputs meant for the pipeline (reports, source maps), never written to the store
 export interface PublishArtifacts {
   sourceMap?: SourceMap & { releaseId: string };
   translations: TranslationReport;
+  content: ContentReport;
+  targets: Record<string, TargetDefinition>; // effective (merged) definitions, e.g. for the image project
+}
+
+/**
+ * Thrown when content fails a target requirement. Nothing has been written to the store.
+ * The artifacts (including the content report) are attached for the pipeline.
+ */
+export class PublishRequirementsError extends Error {
+  constructor(public artifacts: PublishArtifacts) {
+    const failed = artifacts.content.issues.filter((i) => i.severity === "requirement");
+    super(
+      `Publish failed: ${failed.length} unmet target requirement(s)\n` +
+        failed.slice(0, 20).map((i) => `  [${i.target}] ${i.collection ? i.collection + (i.id ? "/" + i.id : "") + ": " : ""}${i.message}`).join("\n")
+    );
+    this.name = "PublishRequirementsError";
+  }
 }
 
 export interface PublishResult {
@@ -82,8 +102,9 @@ export class Publisher {
 
     const collectionsMeta: Record<string, CollectionMeta> = {};
     const mediaMeta: Record<string, MediaMeta> = {};
+    const objects: { hash: string; serialized: string }[] = [];
 
-    // 1. Process and normalize collections
+    // 1. Normalize, validate and hash collections (nothing is written before all checks pass)
     for (const [colName, items] of Object.entries(rawCollections)) {
       const normalizedCollection: Collection = {
         schemaVersion: 1,
@@ -97,9 +118,7 @@ export class Publisher {
       // Serialize deterministically and compute SHA-256 hash
       const serialized = deterministicStringify(normalizedCollection);
       const hash = sha256(serialized);
-
-      // Write object to CAS
-      await this.store.writeObject(hash, serialized);
+      objects.push({ hash, serialized });
 
       // Update release manifest metadata
       collectionsMeta[colName] = {
@@ -109,41 +128,55 @@ export class Publisher {
       };
     }
 
-    // 2. Process and write media
-    for (const item of rawMedia) {
-      const hash = sha256(item.content);
-      const ext = path.extname(item.virtualPath);
-
-      // Write media to CAS
-      await this.store.writeMedia(hash, ext, item.content);
-
-      // Update release manifest metadata
+    // 2. Hash media
+    const mediaHashes = rawMedia.map((item) => sha256(item.content));
+    rawMedia.forEach((item, i) => {
       mediaMeta[item.virtualPath] = {
-        hash,
+        hash: mediaHashes[i],
         size: item.content.length,
         mimeType: item.mimeType
       };
-    }
+    });
 
     // 3. Measure translation completeness against the source locale and the channel's current release
     const { locale: sourceLocale, origin } = await this.resolveSourceLocale(options.sourceLocale, rawCollections);
     const previousCollections = await this.readChannelCollections(channel);
     const translations = analyzeTranslations(rawCollections, sourceLocale, origin, previousCollections);
 
-    // 4. Construct and write the Release Manifest
+    // 4. Check targets; an unmet requirement fails the build before anything is written
+    const resolved = resolveTargets(options.targets ?? []);
+    const content = buildContentReport(rawCollections, translations, resolved, sourceMap);
+    const artifacts: PublishArtifacts = { translations, content, targets: resolved.effective };
+    if (sourceMap) {
+      artifacts.sourceMap = { releaseId, ...sourceMap };
+    }
+    if (content.issues.some((i) => i.severity === "requirement")) {
+      throw new PublishRequirementsError(artifacts);
+    }
+
+    // 5. Write objects and media to CAS
+    for (const { hash, serialized } of objects) {
+      await this.store.writeObject(hash, serialized);
+    }
+    for (const [i, item] of rawMedia.entries()) {
+      await this.store.writeMedia(mediaHashes[i], path.extname(item.virtualPath), item.content);
+    }
+
+    // 6. Construct and write the Release Manifest
     const releaseManifest: ReleaseManifest = {
       schemaVersion: 1,
       releaseId,
       createdAt: new Date().toISOString(),
       collections: collectionsMeta,
       media: mediaMeta,
-      translations: toTranslationSummary(translations)
+      translations: toTranslationSummary(translations),
+      targets: Object.keys(content.targets).sort()
     };
 
     validateReleaseManifest(releaseManifest);
     await this.store.writeRelease(releaseId, releaseManifest);
 
-    // 5. Update the Channel Manifest (LAST atomic step)
+    // 7. Update the Channel Manifest (LAST atomic step)
     const channelManifest: ChannelManifest = {
       schemaVersion: 1,
       channel,
@@ -154,13 +187,8 @@ export class Publisher {
     validateChannelManifest(channelManifest);
     await this.store.writeChannelManifest(channel, channelManifest);
 
-    // 6. Clean up old releases if they exceed retention limit
+    // 8. Clean up old releases if they exceed retention limit
     await this.manageReleaseRetention();
-
-    const artifacts: PublishArtifacts = { translations };
-    if (sourceMap) {
-      artifacts.sourceMap = { releaseId, ...sourceMap };
-    }
 
     return { manifest: releaseManifest, artifacts };
   }

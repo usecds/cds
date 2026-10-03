@@ -7,7 +7,8 @@ import { fileURLToPath } from "url";
 import { 
   Publisher, 
   FixtureSource, 
-  FilesystemStore 
+  FilesystemStore,
+  loadTargets
 } from "@cds/server";
 
 // Client imports
@@ -107,10 +108,14 @@ async function run() {
 
   console.log("📝 [Server] Publishing content release to simulated CDN storage...");
   const releaseId = `release_demo_${Date.now()}`;
-  const { artifacts } = await publisher.publish("demo-channel", releaseId, { sourceLocale: "en" });
+  const targets = await loadTargets(path.join(rootDir, "targets"));
+  const { artifacts } = await publisher.publish("demo-channel", releaseId, { sourceLocale: "en", targets });
   console.log(`✅ [Server] Published successfully: ${releaseId}`);
   for (const [locale, counts] of Object.entries(artifacts.translations.locales)) {
     console.log(`🌐 [Server] Translations ${locale}: ${counts.translated}/${counts.expected} (missing ${counts.missing}, stale ${counts.stale})`);
+  }
+  for (const [target, result] of Object.entries(artifacts.content.targets)) {
+    console.log(`🎯 [Server] Target ${target}: ${result.satisfied ? "satisfied" : "failed"} (${result.recommendations} recommendations)`);
   }
 
   // -------------------------------------------------------------
@@ -121,7 +126,8 @@ async function run() {
   const downloader = new DemoLocalDownloader(publishedDir);
   const client = new CDSClient({
     storage: clientStorage,
-    downloader
+    downloader,
+    target: "landing-page"
   });
 
   await client.initialize();

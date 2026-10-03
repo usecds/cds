@@ -99,7 +99,7 @@ interface ClientStorage {
 ## `CDSClient`
 
 ```ts
-new CDSClient({ storage, downloader, retentionCount?: number /* default 3 */ })
+new CDSClient({ storage, downloader, retentionCount?: number /* default 3 */, target?: string })
 ```
 
 ### `initialize(): Promise<void>`
@@ -124,6 +124,7 @@ Algorithm:
 2. validate channel manifest; require schemaVersion === 1
 3. releaseId === active? ── save channel manifest ─▶ { success, updated: false }
 4. fetchReleaseManifest(releaseId); validate
+   target set and not in manifest.targets? ─▶ { success: false } (release refused)
 5. STAGE (in memory, nothing written yet):
      for each collection hash not in storage:
        fetchObject → sha256 must equal hash → JSON.parse → validate collection

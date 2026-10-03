@@ -9,24 +9,14 @@ import {
   ContentSource,
   translationSourceHash
 } from "../server/src/index.js";
-import { CDSClient, MemoryStorage, RemoteDownloader } from "../client/src/index.js";
+import { CDSClient, MemoryStorage } from "../client/src/index.js";
+import { downloaderFor } from "./helpers.js";
 
 function sourceOf(collections: Record<string, CollectionItem[]>, sourceLocale?: string): ContentSource {
   return {
     getCollections: async () => collections,
     getMedia: async () => [],
     ...(sourceLocale ? { getSourceLocale: async () => sourceLocale } : {})
-  };
-}
-
-// Reads a FilesystemStore directory directly
-function downloaderFor(dir: string): RemoteDownloader {
-  const read = (...p: string[]) => fs.readFile(path.join(dir, ...p));
-  return {
-    fetchChannelManifest: async (channel) => ({ manifest: JSON.parse((await read("channels", channel, "manifest.json")).toString()) }),
-    fetchReleaseManifest: async (id) => JSON.parse((await read("releases", `${id}.json`)).toString()),
-    fetchObject: async (hash) => (await read("objects", `${hash}.json`)).toString("utf-8"),
-    fetchMedia: async (hash, ext) => read("media", `${hash}${ext}`)
   };
 }
 

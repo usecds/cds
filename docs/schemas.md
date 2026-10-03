@@ -56,6 +56,7 @@ Lists everything that belongs to one release.
 | `collections` | object of `CollectionMeta` | yes | Keyed by collection name |
 | `media` | object of `MediaMeta` | yes | Keyed by virtual path; may be `{}` |
 | `translations` | `TranslationSummary` | no | Translation completeness, see below |
+| `targets` | array of string | no | Targets whose requirements this release satisfies |
 
 `CollectionMeta`: `{ hash: string, itemCount: integer >= 0, size: integer >= 0 }`. `size` is the byte size of the stored object.
 `MediaMeta`: `{ hash: string, size: integer >= 0, mimeType: string }`
@@ -151,6 +152,10 @@ This has two consequences:
 
 - Two publishes of the same content produce the same hash, so unchanged collections are not re-uploaded or re-downloaded.
 - Reordering `items` changes the hash. Sources should return items in a stable order.
+
+## `target.json`
+
+Validates target definitions (see [server.md](server.md#targets)). Only `id` (`[a-zA-Z0-9_-]+`) is required. `collections.*.localized`, `collections.*.fields` and `recommendations.*` hold JSON Schemas, which are compiled when the target is checked. Target definitions are pipeline configuration and are never published.
 
 ## What the schemas don't check
 

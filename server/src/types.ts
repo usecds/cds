@@ -74,6 +74,7 @@ export interface ReleaseManifest {
   collections: Record<string, CollectionMeta>;
   media: Record<string, MediaMeta>;
   translations?: TranslationSummary;
+  targets?: string[]; // targets whose requirements this release satisfies
 }
 
 // Media asset structure for CMS Source adapter

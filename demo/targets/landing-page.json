@@ -1,0 +1,17 @@
+{
+  "id": "landing-page",
+  "locales": { "required": ["en", "de"], "minCompleteness": 1, "maxStale": 0 },
+  "collections": {
+    "site_settings": {
+      "localized": {
+        "type": "object",
+        "required": ["siteTitle", "heroTitle", "heroSubtitle", "footerText"],
+        "properties": { "heroTitle": { "type": "string", "maxLength": 80 } }
+      }
+    },
+    "features": { "minItems": 1, "localized": { "type": "object", "required": ["title", "description"] } },
+    "goals": { "minItems": 1, "localized": { "type": "object", "required": ["title"] } },
+    "testimonials": { "localized": { "type": "object", "required": ["quote", "author"] } }
+  },
+  "items": [{ "collection": "site_settings", "key": "homepage" }]
+}

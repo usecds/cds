@@ -18,6 +18,7 @@ export interface CDSClientConfig {
   storage: ClientStorage;
   downloader: RemoteDownloader;
   retentionCount?: number; // default: 3
+  target?: string; // only activate releases that satisfy this target
 }
 
 export interface SyncResult {
@@ -31,6 +32,7 @@ export class CDSClient {
   private storage: ClientStorage;
   private downloader: RemoteDownloader;
   private retentionCount: number;
+  private target?: string;
   private activeRelease: ReleaseManifest | null = null;
   
   // In-memory cache for fast, sub-millisecond lookups
@@ -40,6 +42,7 @@ export class CDSClient {
     this.storage = config.storage;
     this.downloader = config.downloader;
     this.retentionCount = config.retentionCount ?? 3;
+    this.target = config.target;
   }
 
   /**
@@ -122,6 +125,11 @@ export class CDSClient {
       const targetReleaseId = channelManifest.releaseId;
       const releaseManifest = await this.downloader.fetchReleaseManifest(targetReleaseId);
       validateReleaseManifest(releaseManifest);
+
+      // Refuse releases not built and checked for this client's target
+      if (this.target && !(releaseManifest.targets ?? []).includes(this.target)) {
+        throw new Error(`Release ${targetReleaseId} does not satisfy target ${this.target}`);
+      }
 
       // 3. Download, hash-verify, and stage all missing objects & media
       const stagedObjects = new Map<string, string>();

@@ -21,7 +21,7 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - Relative imports need a `.js` extension (`./types.js`), because of NodeNext ESM.
 - `server/src/types.ts` and `client/src/types.ts` duplicate the wire types on purpose (the packages are independent). Change both together, along with the schema in `schemas/v1/`.
 - Collection hash = `sha256(deterministicStringify(collection))`, which sorts keys recursively and adds no whitespace. The exact serialized string is what gets stored, and the client hashes the raw downloaded text. Never pretty-print, re-stringify or reorder object bytes.
-- Commit ordering is the atomicity guarantee. Server: objects/media → release manifest → **channel manifest last**. Client: stage in memory, verify every hash, then save, then `setActiveReleaseId`. Preserve this order.
+- Commit ordering is the atomicity guarantee. Server: validate and check targets in memory (an unmet requirement throws before any write) → objects/media → release manifest → **channel manifest last**. Client: stage in memory, verify every hash, then save, then `setActiveReleaseId`. Preserve this order.
 - `CDSClient.sync()` never throws. It returns `{ success: false, error }` and keeps serving the old release.
 - Release retention sorts IDs **lexicographically**, so IDs must sort chronologically. Stores map characters outside `[a-zA-Z0-9_-]` in IDs and channel names to `_`.
 - The client passes the active release ID as `currentEtag` (it's not a real HTTP ETag).

@@ -32,6 +32,7 @@ function loadSchema(filename: string): any {
 const channelManifestSchema = loadSchema("channel-manifest.json");
 const releaseManifestSchema = loadSchema("release-manifest.json");
 const collectionSchema = loadSchema("collection.json");
+const targetSchema = loadSchema("target.json");
 
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
@@ -39,6 +40,11 @@ addFormats(ajv);
 const validateChannelManifestFn = ajv.compile(channelManifestSchema);
 const validateReleaseManifestFn = ajv.compile(releaseManifestSchema);
 const validateCollectionFn = ajv.compile(collectionSchema);
+const validateTargetFn = ajv.compile(targetSchema);
+
+// Target-provided schemas are often partial (e.g. only "required"), so strict-mode type hints are off
+const contentAjv = new Ajv({ allErrors: true, strict: false });
+addFormats(contentAjv);
 
 export function validateChannelManifest(data: any): void {
   const valid = validateChannelManifestFn(data);
@@ -65,4 +71,29 @@ export function validateCollection(data: any): void {
       `Invalid Collection (${data.collection || "unknown"}): ${ajv.errorsText(validateCollectionFn.errors)}`
     );
   }
+}
+
+export function validateTargetDefinition(data: any): void {
+  const valid = validateTargetFn(data);
+  if (!valid) {
+    throw new Error(
+      `Invalid Target Definition (${data?.id || "unknown"}): ${ajv.errorsText(validateTargetFn.errors)}`
+    );
+  }
+}
+
+export interface ContentSchemaError {
+  keyword: string; // e.g. "required", "minLength", "maxLength", "type"
+  instancePath: string; // e.g. "/alt"
+  params: Record<string, any>;
+  message?: string;
+}
+
+/**
+ * Compiles a JSON Schema declared in a target definition (requirements/recommendations).
+ * The returned function lists all violations; an empty list means valid.
+ */
+export function compileContentSchema(schema: object): (data: any) => ContentSchemaError[] {
+  const validate = contentAjv.compile(schema);
+  return (data: any) => (validate(data) ? [] : (validate.errors as ContentSchemaError[]));
 }

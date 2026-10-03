@@ -52,6 +52,10 @@
       },
       "required": ["sourceLocale", "locales", "overall"],
       "additionalProperties": true
+    },
+    "targets": {
+      "type": "array",
+      "items": { "type": "string" }
     }
   },
   "definitions": {
