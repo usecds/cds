@@ -20,6 +20,14 @@ export interface PublisherConfig {
   retentionCount?: number; // How many releases to keep (default: 3)
 }
 
+// Per-publish outputs meant for the pipeline (reports, source maps), never written to the store
+export interface PublishArtifacts {}
+
+export interface PublishResult {
+  manifest: ReleaseManifest;
+  artifacts: PublishArtifacts;
+}
+
 export class Publisher {
   private source: ContentSource;
   private store: ObjectStore;
@@ -38,7 +46,7 @@ export class Publisher {
    * Compiles the source content and publishes a new release to the object store.
    * Updates the channel manifest as the final atomic action.
    */
-  async publish(channel: string, releaseId: string): Promise<ReleaseManifest> {
+  async publish(channel: string, releaseId: string): Promise<PublishResult> {
     const rawCollections = await this.source.getCollections();
     const rawMedia = await this.source.getMedia();
 
@@ -66,7 +74,8 @@ export class Publisher {
       // Update release manifest metadata
       collectionsMeta[colName] = {
         hash,
-        itemCount: items.length
+        itemCount: items.length,
+        size: Buffer.byteLength(serialized, "utf-8")
       };
     }
 
@@ -112,7 +121,7 @@ export class Publisher {
     // 5. Clean up old releases if they exceed retention limit
     await this.manageReleaseRetention();
 
-    return releaseManifest;
+    return { manifest: releaseManifest, artifacts: {} };
   }
 
   /**

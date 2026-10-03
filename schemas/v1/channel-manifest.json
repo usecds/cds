@@ -19,5 +19,5 @@
     }
   },
   "required": ["schemaVersion", "channel", "releaseId", "updatedAt"],
-  "additionalProperties": false
+  "additionalProperties": true
 }

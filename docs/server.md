@@ -27,7 +27,7 @@ const source = new FixtureSource({
 const store = new FilesystemStore("./published");
 const publisher = new Publisher(source, store, { retentionCount: 5 });
 
-const release = await publisher.publish("production", "2026-10-03T12-00-00Z");
+const { manifest, artifacts } = await publisher.publish("production", "2026-10-03T12-00-00Z");
 const { deletedObjects, deletedMedia } = await publisher.garbageCollect();
 ```
 
@@ -93,7 +93,16 @@ new Publisher(source: ContentSource, store: ObjectStore, config?: { retentionCou
 
 `retentionCount` defaults to `3`.
 
-### `publish(channel, releaseId): Promise<ReleaseManifest>`
+### `publish(channel, releaseId): Promise<PublishResult>`
+
+```ts
+interface PublishResult {
+  manifest: ReleaseManifest;   // the published release
+  artifacts: PublishArtifacts; // pipeline outputs, never written to the store
+}
+```
+
+`artifacts` is where per-publish outputs for the pipeline go (reports, source maps; see [goals.md](goals.md)). It's empty for now. Store it as a job artifact and don't publish it.
 
 Steps, in order:
 
@@ -103,7 +112,7 @@ Steps, in order:
    - validate against `collection.json` (throws on failure, which aborts the publish)
    - serialize with `deterministicStringify`, hash with SHA-256
    - `store.writeObject(hash, serialized)`
-   - record `{ hash, itemCount }`
+   - record `{ hash, itemCount, size }` (`size` = UTF-8 byte length of the stored string)
 3. For each media file: hash the bytes, `store.writeMedia(hash, extname(virtualPath), bytes)`, record `{ hash, size, mimeType }` under its virtual path.
 4. Build the release manifest (`createdAt = now`), validate it, and write it to `releases/<releaseId>.json`.
 5. Build the channel manifest (`updatedAt = createdAt`), validate it, and write it. **This is the commit point.** Until this write, clients still see the previous release.

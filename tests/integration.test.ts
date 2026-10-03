@@ -151,7 +151,7 @@ describe("CDS Integration Tests (Milestone 1)", () => {
     const publisher = new Publisher(source, serverStore, { retentionCount: 2 });
 
     // Publish release-1 on "production" channel
-    const rel1Manifest = await publisher.publish("production", "release-1");
+    const { manifest: rel1Manifest } = await publisher.publish("production", "release-1");
 
     expect(rel1Manifest.releaseId).toBe("release-1");
     expect(rel1Manifest.collections.categories).toBeDefined();
@@ -164,6 +164,10 @@ describe("CDS Integration Tests (Milestone 1)", () => {
     expect(existsSync(path.join(tempServerDir, "objects", `${rel1Manifest.collections.categories.hash}.json`))).toBe(true);
     expect(existsSync(path.join(tempServerDir, "objects", `${rel1Manifest.collections.books.hash}.json`))).toBe(true);
     expect(existsSync(path.join(tempServerDir, "media", `${rel1Manifest.media["covers/hobbit.jpg"].hash}.jpg`))).toBe(true);
+
+    // Collection size matches the stored object's byte size
+    const booksStat = await fs.stat(path.join(tempServerDir, "objects", `${rel1Manifest.collections.books.hash}.json`));
+    expect(rel1Manifest.collections.books.size).toBe(booksStat.size);
 
     // -------------------------------------------------------------
     // STEP 2: CLIENT INITIALIZATION & INITIAL SYNC
@@ -268,7 +272,7 @@ describe("CDS Integration Tests (Milestone 1)", () => {
     const source2 = new FixtureSource(secondCollections, initialMedia);
     const publisher2 = new Publisher(source2, serverStore, { retentionCount: 2 });
 
-    const rel2Manifest = await publisher2.publish("production", "release-2");
+    const { manifest: rel2Manifest } = await publisher2.publish("production", "release-2");
     expect(rel2Manifest.releaseId).toBe("release-2");
 
     // Ensure the categories collection SHA-256 hash is IDENTICAL to release-1
@@ -326,7 +330,7 @@ describe("CDS Integration Tests (Milestone 1)", () => {
     const source3 = new FixtureSource(thirdCollections, []);
     const publisher3 = new Publisher(source3, serverStore, { retentionCount: 2 });
 
-    const rel3Manifest = await publisher3.publish("production", "release-3");
+    const { manifest: rel3Manifest } = await publisher3.publish("production", "release-3");
     expect(rel3Manifest.releaseId).toBe("release-3");
 
     // Since retentionCount = 2, and we have published release-1, release-2, and release-3:
@@ -355,7 +359,7 @@ describe("CDS Integration Tests (Milestone 1)", () => {
     const source4 = new FixtureSource(fourthCollections, []);
     const publisher4 = new Publisher(source4, serverStore, { retentionCount: 2 });
 
-    const rel4Manifest = await publisher4.publish("production", "release-4");
+    const { manifest: rel4Manifest } = await publisher4.publish("production", "release-4");
     expect(rel4Manifest.releaseId).toBe("release-4");
 
     const retainedAfter4 = await serverStore.listReleases();
@@ -374,5 +378,49 @@ describe("CDS Integration Tests (Milestone 1)", () => {
     // Verify file deletion on server disk
     const mediaFiles = await serverStore.listMedia();
     expect(mediaFiles).toHaveLength(0); // covers/hobbit.jpg is gone!
+  });
+
+  it("should accept unknown additional fields in v1 manifests and collections (forward compatibility)", async () => {
+    const serverStore = new FilesystemStore(tempServerDir);
+    const publisher = new Publisher(new FixtureSource(), serverStore);
+    const { manifest, artifacts } = await publisher.publish("production", "release-1");
+    expect(artifacts).toEqual({});
+
+    // Simulate a newer publisher: add unknown fields at every level of the published files.
+    // The collection envelope is content-addressed, so rewrite it under its new hash.
+    const objectPath = (hash: string) => path.join(tempServerDir, "objects", `${hash}.json`);
+    const categories = JSON.parse(await fs.readFile(objectPath(manifest.collections.categories.hash), "utf-8"));
+    categories.futureEnvelopeField = { anything: true };
+    const serialized = deterministicStringify(categories);
+    const newHash = sha256(serialized);
+    await fs.writeFile(objectPath(newHash), serialized, "utf-8");
+
+    const extendedRelease = {
+      ...manifest,
+      futureReleaseField: "x",
+      collections: {
+        ...manifest.collections,
+        categories: { hash: newHash, itemCount: categories.items.length, futureMetaField: 1 }
+      },
+      media: Object.fromEntries(
+        Object.entries(manifest.media).map(([p, m]) => [p, { ...m, futureMediaField: [1, 2] }])
+      )
+    };
+    await fs.writeFile(path.join(tempServerDir, "releases", "release-1.json"), JSON.stringify(extendedRelease), "utf-8");
+
+    const channelPath = path.join(tempServerDir, "channels", "production", "manifest.json");
+    const channel = JSON.parse(await fs.readFile(channelPath, "utf-8"));
+    await fs.writeFile(channelPath, JSON.stringify({ ...channel, futureChannelField: true }), "utf-8");
+
+    const client = new CDSClient({
+      storage: new FilesystemStorage(tempClientDir),
+      downloader: new LocalStoreDownloader(tempServerDir)
+    });
+    const result = await client.sync("production");
+
+    expect(result.error).toBeUndefined();
+    expect(result.success).toBe(true);
+    expect(result.releaseId).toBe("release-1");
+    expect(await client.getCollection("categories")).toHaveLength(2);
   });
 });

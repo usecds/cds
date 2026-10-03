@@ -29,7 +29,7 @@ None of these exist in code yet. Each one records the request, the design direct
 
 ### Decided: schemas allow additional properties
 
-All v1 schema objects will switch to `additionalProperties: true`, so new optional fields don't break existing clients. *Not yet applied to `schemas/v1/`.*
+All v1 schema objects will switch to `additionalProperties: true`, so new optional fields don't break existing clients. Applied in `schemas/v1/` (G1).
 
 ### Decided: `_` prefix for CDS fields on items
 

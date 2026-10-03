@@ -33,7 +33,7 @@
                 "id": { "type": "string" }
               },
               "required": ["collection", "id"],
-              "additionalProperties": false
+              "additionalProperties": true
             }
           },
           "media": {
@@ -49,5 +49,5 @@
     }
   },
   "required": ["schemaVersion", "collection", "items"],
-  "additionalProperties": false
+  "additionalProperties": true
 }

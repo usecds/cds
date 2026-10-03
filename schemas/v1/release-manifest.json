@@ -20,10 +20,11 @@
         "type": "object",
         "properties": {
           "hash": { "type": "string" },
-          "itemCount": { "type": "integer", "minimum": 0 }
+          "itemCount": { "type": "integer", "minimum": 0 },
+          "size": { "type": "integer", "minimum": 0 }
         },
         "required": ["hash", "itemCount"],
-        "additionalProperties": false
+        "additionalProperties": true
       }
     },
     "media": {
@@ -36,10 +37,10 @@
           "mimeType": { "type": "string" }
         },
         "required": ["hash", "size", "mimeType"],
-        "additionalProperties": false
+        "additionalProperties": true
       }
     }
   },
   "required": ["schemaVersion", "releaseId", "createdAt", "collections", "media"],
-  "additionalProperties": false
+  "additionalProperties": true
 }

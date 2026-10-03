@@ -4,6 +4,8 @@ The wire format is defined by three JSON Schema (draft-07) files in [`schemas/v1
 
 Every document carries `"schemaVersion": 1`. The schemas pin it with `const: 1`, so a v2 document fails validation on a v1 client instead of being misread.
 
+**Extensibility:** every object in the v1 schemas allows additional properties. New **optional** fields can be added within v1 without breaking existing clients, which validate the fields they know and ignore the rest. Breaking changes (removed, renamed or newly required fields, changed meaning) need a new `schemaVersion`.
+
 ## Storage layout
 
 The schemas describe the files under a storage root (a directory today; an S3 bucket or CDN origin later):
@@ -31,7 +33,7 @@ Points a channel at its current release.
 | `releaseId` | string | yes | ID of the active release |
 | `updatedAt` | string, `date-time` | yes | Set to the release's `createdAt` by the publisher |
 
-`additionalProperties: false`, so unknown fields are rejected.
+Unknown fields are allowed and ignored.
 
 ```json
 {
@@ -54,10 +56,10 @@ Lists everything that belongs to one release.
 | `collections` | object of `CollectionMeta` | yes | Keyed by collection name |
 | `media` | object of `MediaMeta` | yes | Keyed by virtual path; may be `{}` |
 
-`CollectionMeta`: `{ hash: string, itemCount: integer >= 0 }`
+`CollectionMeta`: `{ hash: string, itemCount: integer >= 0, size?: integer >= 0 }`. `size` is the byte size of the stored object. It's optional because releases published before it existed don't have it.
 `MediaMeta`: `{ hash: string, size: integer >= 0, mimeType: string }`
 
-All three objects use `additionalProperties: false`.
+All three objects allow additional properties.
 
 ```json
 {
@@ -65,8 +67,8 @@ All three objects use `additionalProperties: false`.
   "releaseId": "release-2",
   "createdAt": "2026-09-04T12:00:00.000Z",
   "collections": {
-    "categories": { "hash": "3f1c…", "itemCount": 2 },
-    "products":   { "hash": "a9b0…", "itemCount": 42 }
+    "categories": { "hash": "3f1c…", "itemCount": 2, "size": 412 },
+    "products":   { "hash": "a9b0…", "itemCount": 42, "size": 18734 }
   },
   "media": {
     "products/tshirt.png": { "hash": "9f8e…", "size": 102450, "mimeType": "image/png" }
@@ -97,7 +99,7 @@ The content of `objects/<hash>.json`.
 | `media` | array of string | no | Virtual paths into the release's `media` map |
 | *any other field* | any | no | Items allow additional properties for non-localized data |
 
-The top-level object is closed (`additionalProperties: false`); items are open (`additionalProperties: true`).
+All levels allow additional properties. On items, extra top-level fields hold non-localized data. Field names starting with `_` are reserved for CDS metadata (e.g. `_translation`, planned), and only names the schema defines are CDS fields.
 
 ```json
 {
