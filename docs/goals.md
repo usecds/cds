@@ -145,8 +145,26 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_provenance`)
 - A client helper resolves this chain for an item and locale, applies the mapping, and turns references into nested entities. It returns JSON-LD **data without URLs**; the generator adds `url`/`@id` and renders the `<script>` tag.
 - Publish check: at most one `appliesTo` per collection. Two fail the build.
 
-**Open questions:**
-- Mapping language: plain field paths only, or also simple templates?
+**Decided: mapping uses plain field paths, no templates.** Paths can be checked at publish, and templates would transform content. Values that need combining are provided by the CMS (e.g. `fullName`) or combined by the generator.
+
+| Path | Resolves to |
+| --- | --- |
+| `name` | `translations[locale].name`, else the item's own field `name` (a name in both is reported) |
+| `address.city` | Nested field |
+| `amenities[0]` | Array element |
+| `media[0]` | `ImageObject` from `_media` metadata (caption, description, size) with `"_media": "<virtual path>"`; the generator replaces it with the URL |
+| `ref:<collection>` | The referenced item in that collection, rendered with that collection's JSON-LD. **One level deep** by default, so cycles can't occur. |
+
+- `values` (fixed values) can be localized through the `jsonld` item's `translations`.
+- Publish checks: invalid path syntax, `ref:` to an unknown collection, or two `appliesTo` for one collection **fail the build**. A path that's empty for some items is a **recommendation** in the content report, unless a target requires the field.
+
+Example result for a `HotelRoom` in `de` (no URLs yet):
+
+```json
+{ "@type": "HotelRoom", "name": "Suite mit Seeblick",
+  "image": { "@type": "ImageObject", "_media": "rooms/suite.jpg", "caption": "Suite mit Seeblick", "width": 3000, "height": 2000 },
+  "containedInPlace": { "@type": "Hotel", "name": "Hotel Bern", "address": { "streetAddress": "Bahnhofstr. 1" } } }
+```
 
 ### P6: Source map (deep links back to the origin) as a build artifact
 
