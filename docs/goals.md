@@ -27,15 +27,19 @@ Status reflects the code on `dev` as of 2026-10-03.
 
 None of these exist in code yet. Each one records the request, the design direction agreed so far, and the open questions. When a proposal is agreed, move it into the table above.
 
+### Decided: CDS reports, it doesn't transform
+
+CDS carries, checks and reports on content. It doesn't change content. Machine translation, AI image processing (focal point, descriptions) and image rendering happen in the CMS or in complementary projects. CDS carries their results with provenance markers and reports what's missing, stale or machine-made.
+
 ### Decided: schemas allow additional properties
 
 All v1 schema objects will switch to `additionalProperties: true`, so new optional fields don't break existing clients. Applied in `schemas/v1/` (G1).
 
 ### Decided: `_` prefix for CDS fields on items
 
-Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_translation`). Unlike `$`, it works everywhere: MongoDB, GraphQL, Python attribute access.
-- `_` is also used by other systems (`_id`, `_rev`, `_source`, ...). So CDS reserves **specific names**, not the whole prefix. Only the names listed in the collection schema are CDS fields, and the schema validates their shape, so a pass-through `_translation` with the wrong shape fails the publish instead of being misread.
-- Keep the list of reserved names short. So far: `_translation`.
+Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_provenance`). Unlike `$`, it works everywhere: MongoDB, GraphQL, Python attribute access.
+- `_` is also used by other systems (`_id`, `_rev`, `_source`, ...). So CDS reserves **specific names**, not the whole prefix. Only the names listed in the collection schema are CDS fields, and the schema validates their shape, so a pass-through `_provenance` with the wrong shape fails the publish instead of being misread.
+- Keep the list of reserved names short. Item fields: `_provenance`. Collection names: `_media` (P8).
 
 ### P1: Translation completeness (per language and overall)
 
@@ -44,22 +48,21 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_translation`
 **Problem:** There's no way to see how complete each language is before publishing, or from the client.
 **Direction:** The publisher computes completeness while it iterates the collections. Per collection × locale it counts translated, missing and **stale** fields (see P2), then rolls that up per locale and overall. The result goes in the publish result and in the release manifest.
 **Open questions:**
-- *Decided:* the **source locale is a runtime argument** of the publish run (e.g. `--source-locale en` / `publish(..., { sourceLocale })`). "Expected" fields are the source locale's fields. Without the argument it is detected from the source (adapter, then `_translation` markers), falling back to `en`.
+- *Decided:* the **source locale is a runtime argument** of the publish run (e.g. `--source-locale en` / `publish(..., { sourceLocale })`). "Expected" fields are the source locale's fields. Without the argument it is detected from the source (adapter, then `_provenance` markers), falling back to `en`.
 - *Decided:* an empty (`""`) or `null` translation counts as **missing only if the source locale value is a string longer than zero**. If the source value is empty too, the field isn't expected and isn't counted. Non-string source values (numbers, objects) are ignored.
-- Report only, or also a publish gate (e.g. "production requires `de` ≥ 100%, 0 stale")?
+- *Decided:* gates are target requirements (P7), e.g. "`de` ≥ 100%, 0 stale". An unmet requirement fails the build.
 
 ### P2: Auto-translation, provenance and review
 
-**Status: markers, stale detection and the previous-release fallback implemented in G3.** Running machine translation stays outside CDS (CMS/adapter).
+**Status: markers, stale detection and the previous-release fallback implemented in G3.** Machine translation runs in the CMS, not in CDS (see "CDS reports, it doesn't transform").
 
 **Problem:** Missing translations should be fillable automatically. Consumers and editors need to know whether text is original, machine-translated or reviewed. And when the original changes, its translations must be flagged for review.
-**Direction:** Each translated field records its provenance, plus the hash of the source text it was translated from:
+**Direction:** Each translated field records its provenance, plus the hash of the source text it was translated from. The same `_provenance` field also marks non-localized values (e.g. an AI-detected focal point, P9):
 
 ```json
-"_translation": {
-  "de": {
-    "title": { "status": "machine", "from": "en", "sourceHash": "<sha256 of en.title when translated>" }
-  }
+"_provenance": {
+  "translations": { "de": { "title": { "status": "machine", "from": "en", "sourceHash": "<sha256 of en.title when translated>" } } },
+  "fields": { "focalPoint": { "status": "machine", "model": "vision-x@2" } }
 }
 ```
 
@@ -68,11 +71,15 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_translation`
 - Granularity is per field, because reviewers fix single fields.
 - Fallback when the CMS doesn't track source hashes: compare against the previous release. If the source field changed and the translation didn't, flag it as stale.
 
-**Open questions:**
-- Where does translation run? Leaning towards the CMS/adapter, so review happens where editors work. CDS carries and evaluates the markers. A publish-time translator would need a cache keyed by `(source hash, from, to, engine)` to stay deterministic.
-- Does `machine` count as complete in P1? Proposed: complete, but reported separately.
+**Decided:**
+- Translation runs in the CMS, where review happens. CDS carries and evaluates the markers.
+- `machine` counts as translated in P1, and is also reported separately.
+- The marker field is `_provenance` (renamed from `_translation`), so it also covers non-localized fields.
 
 ### P3: Optimized media (pre-rendered, imgproxy-compatible)
+
+**Status: moved out of CDS.** Following "CDS reports, it doesn't transform", image rendering becomes a **separate, complementary project**. CDS provides its inputs: original media, focal point and intrinsic size (P8), and the presets/breakpoints declared in targets (P7). The design below is kept as the starting point for that project.
+**Open:** how rendered variants come back into a release (e.g. as additional media through a `ContentSource`, with a variant map in the release), and whether CDS reports the required variants per target as a build artifact for the image project to consume.
 
 **Problem:** Clients get original media only. Resized or cropped variants would normally need a live image server.
 
@@ -82,7 +89,7 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_translation`
 3. optionally **in a client** that has the original but not the variant it needs (Node clients; browsers would need a wasm/canvas port)
 
 **Who declares what:**
-- **Media source:** intrinsic facts: original width/height, focal point (`0..1`) if available, later alt text. These go on `SourceMedia` / `MediaMeta`.
+- **Media source:** intrinsic facts: original width/height, focal point (`0..1`) if available, alt text. These live in the `_media` collection (P8).
 - **Target:** wanted outputs as **named presets** (e.g. `thumb: 320×320 fill`, `hero: 1920×800 fill`) plus breakpoints, declared in the **target definition** (P7). A preset renders only for the media in its target's scope. Content and layouts refer to preset names, never pixels.
 - **Render engine (client):** chooses which variant to load. Browsers do this natively given a `srcset` with widths, so CDS emits the variant set per preset. Native clients use a helper such as `pickVariant(path, preset, { width, dpr })` that returns the smallest variant ≥ the needed size.
 
@@ -121,15 +128,25 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_translation`
 ### P5: Schema.org / JSON-LD as a collection
 
 **Problem:** Consumers that want SEO or JSON-LD have to hand-map content to schema.org.
-**Direction:** JSON-LD definitions are ordinary content in a dedicated collection (e.g. `jsonld`), linked with the existing `references`. This needs no core schema change, and editors can manage it in the CMS.
+**Decided: CDS carries and checks the JSON-LD data; the site generator renders it.** JSON-LD needs page URLs (`url`, `@id`) and page context, which only the site generator knows. The same applies to llms.txt: it describes a rendered site, so the generator builds it from the pages it rendered, using image descriptions (P8). The demo shows both.
+
+**Direction:** JSON-LD definitions are ordinary content in a dedicated collection (e.g. `jsonld`), linked with the existing `references`. This needs no core schema change, and editors can manage it in the CMS. Example, a hotel location:
+
+```json
+{ "id": "ld_hotel", "key": "hotel", "appliesTo": "site_settings",
+  "type": "Hotel",
+  "values": { "address": { "streetAddress": "Bahnhofstr. 1", "addressLocality": "Bern" },
+              "geo": { "latitude": 46.948, "longitude": 7.439 } },
+  "map": { "name": "siteTitle" } }
+```
 - A `jsonld` item holds a schema.org `@type`, a **field mapping** (schema.org property → item field path, e.g. `name ← title`, `image ← media[0]`) and/or **static values** (e.g. publisher organization). Static values can be localized through the item's normal `translations`.
 - **Decided: everything JSON-LD lives in the `jsonld` collection, defaults included.** A default is a `jsonld` item that declares `appliesTo: "<collection>"`. Nothing JSON-LD-related goes on other collections.
 - **Resolution order** for a content item: its own reference to a `jsonld` item → the `jsonld` item with `appliesTo` = its collection → none.
-- A client helper `toJsonLd(item, locale)` resolves this chain, applies the mapping, and turns references into nested entities.
+- A client helper resolves this chain for an item and locale, applies the mapping, and turns references into nested entities. It returns JSON-LD **data without URLs**; the generator adds `url`/`@id` and renders the `<script>` tag.
+- Publish check: at most one `appliesTo` per collection. Two fail the build.
 
 **Open questions:**
 - Mapping language: plain field paths only, or also simple templates?
-- Validation: at most one `appliesTo` per collection (publish error if two)?
 
 ### P6: Source map (deep links back to the origin) as a build artifact
 
@@ -171,11 +188,11 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_translation`
 **Problem:** A release is built for consumers that have concrete expectations, but nothing states or checks them. For example:
 - a kiosk must have the `contact_info` item `emergency`, or it can't show emergency contacts
 - a hotel website needs a `rooms` collection whose items have `name`, `description` and an `amenities` object
-- each consumer has its own screen sizes, so it needs different image variants
+- each consumer has its own screen sizes, so it needs different image variants (rendered by the image project, P3)
 
 Today a release that breaks these expectations publishes and syncs without complaint.
 
-**Direction:** A **target definition** is a declarative contract between one consumer and the content. A job run takes a **default target** plus **0–n named targets** and produces exactly **one dist output** (one release). Targets don't produce separate outputs. They only decide what goes into the single dist (which variants get rendered) and which checks it must pass.
+**Direction:** A **target definition** is a declarative contract between one consumer and the content. A job run takes a **default target** plus **0–n named targets** and produces exactly **one dist output** (one release). Targets don't produce separate outputs. They decide which checks the dist must pass, and declare the image presets the image project (P3) renders.
 
 A target can declare:
 
@@ -184,8 +201,9 @@ A target can declare:
 | `locales` | Required locales, minimum completeness, max stale | P1, P2 |
 | `collections` | Required collections, with an expected item schema (JSON Schema for localized fields and for top-level fields), `minItems` | |
 | `items` | Required named items (`collection` + `key`) | |
-| `scope` | The subset of collections (later perhaps a filter) the target applies to. Image presets render **only for media referenced by items in scope**. | P3 |
-| `media` | Breakpoints, DPR, named presets (aspect, fit/fill, format, quality) | P3 |
+| `scope` | The subset of collections (later perhaps a filter) the target applies to. Image presets apply **only to media referenced by items in scope**. | P3 |
+| `media` | Breakpoints, DPR, named presets (aspect, fit/fill, format, quality): the contract for the image project | P3 |
+| `recommendations` | Like `collections`, but only reported, never failing (e.g. text lengths) | P10 |
 
 Sketch:
 
@@ -223,11 +241,13 @@ Sketch:
 ```
 
 **Where requirements are enforced:**
-1. **At publish:** a target whose requirements fail makes the publish fail, or warn, configurable per target. Results go into the build artifacts (P6).
-2. **At client sync (optional):** the release manifest records which targets it satisfies. Variants from all targets go into the release's **single** media/variant map (keyed by virtual path → preset), so a preset name must mean the same thing in every target (see merge rules below). A client configured as `hotel-web` refuses to activate a release that doesn't satisfy `hotel-web` and keeps the last good one. That's goal #2 (no broken content) extended to *semantically* broken content.
+1. **At publish:** an unmet requirement **fails the build**. Recommendations (P10) are only reported. Results go into the build artifacts (P6).
+2. **At client sync (optional):** the release manifest records which targets it satisfies. Variants from all targets go into the release's **single** media/variant map (keyed by virtual path → preset), so a preset name must mean the same thing in every target (see merge rules below). A client configured as `hotel-web` refuses to activate a release that doesn't satisfy `hotel-web`, **or doesn't list it at all**, and keeps the last good one. That's goal #2 (no broken content) extended to *semantically* broken content.
 
 **Decided:**
-- **Default target:** always present, and applies to **everything** (all collections). It may define requirements and presets, but it doesn't have to define any image resolutions. When no named targets exist, it is the only target.
+- **Default target:** always present, and applies to **everything** (all collections). It may define requirements and presets, but it doesn't have to define any image resolutions. When no named targets exist, it is the only target. **If no default target is provided, CDS uses built-in fixed defaults** (including the default recommendations, P10).
+- **Loading:** `targets/*.json` (`default.json` = default target), with the folder passed as a runtime argument of the publish job. Definitions can also be passed in code.
+- **Required translated fields:** a target's item schema decides which localized fields are required per locale. Completeness (P1) only feeds the thresholds (`minCompleteness`, `maxStale`), so a gap is reported once.
 - **Named targets merge with the default.** The effective definition of a named target is the default plus the named target's own declarations.
 - **Scope is the exception to merging.** A named target's `scope` limits only its **own** presets and requirements. Inheriting the default's "everything" would cancel out subset rendering. Default presets still apply to all media.
 - **Location:** versioned files next to the pipeline config (e.g. `targets/*.json`), owned by the consumer's team, validated by a new `schemas/v1/target.json`. Not CMS content.
@@ -235,10 +255,48 @@ Sketch:
 - **Merging is additive only. Nothing is overwritten or replaced.** Lists (`locales.required`, `items`, breakpoints, DPR, presets, required collections) are combined. Requirements accumulate, so a named target can add or tighten but never loosen: for a threshold declared twice (e.g. `minCompleteness`), both apply and the stricter one wins. A preset or item schema defined differently under the same name is a conflict and fails the build. Identical definitions are fine and are rendered once.
 - **Number of targets:** no hard cap. The recommended maximum is **8**.
 
-**Image cost:** Variants from different targets with the same source and options get the same variant key, so they're rendered and stored once (P3). Build cost grows with *media in scope × presets × widths*, not with the number of targets.
+**Image cost (for the image project):** Variants from different targets with the same source and options get the same variant key, so they're rendered and stored once (P3). Cost grows with *media in scope × presets × widths*, not with the number of targets.
 
 **Open questions:**
-- *Deferred, to be defined when image rendering is implemented:* should breakpoints derive preset widths automatically (breakpoint × DPR), or does each preset list explicit widths?
+- *Deferred, to be defined with the image project:* should breakpoints derive preset widths automatically (breakpoint × DPR), or does each preset list explicit widths?
+
+### P8: Media metadata as content (`_media` collection)
+
+**Problem:** Images have no alt text, description, focal point or intrinsic size. Accessibility, llms.txt, JSON-LD and image rendering all need them.
+**Decided:** Media metadata is content, in a reserved collection `_media`, one item per media file keyed by its virtual path:
+
+```json
+{ "id": "rooms/suite.jpg", "key": "rooms/suite.jpg",
+  "translations": { "en": { "alt": "Suite with lake view", "description": "Corner suite on the 4th floor…" },
+                    "de": { "alt": "Suite mit Seeblick" } },
+  "focalPoint": { "x": 0.62, "y": 0.4 },
+  "width": 3000, "height": 2000 }
+```
+
+- `alt`: short functional text for accessibility. `description`: longer text for llms.txt, SEO and JSON-LD `image.description`. Both are localized.
+- `focalPoint` (`0..1`) and intrinsic `width`/`height` are non-localized fields. The media source declares them.
+- Because it's an ordinary collection, completeness and stale detection (P1/P2), provenance markers, source map links (P6) and target requirements (P7) apply without extra code.
+- Not in the release manifest's `media` entries, so texts in every language don't bloat the manifest clients poll.
+
+### P9: AI processing of media (focal point, descriptions)
+
+**Problem:** Focal points and descriptions are tedious to enter by hand for many images.
+**Decided: runs in the CMS, not in CDS** (e.g. a Directus flow on upload). The CMS writes the values together with a provenance marker (`status: "machine"`, `model`), and editors review them where they already work. CDS carries the markers, counts machine-made values and reports them (P10). An image-processing service could be part of the complementary image project (P3).
+
+### P10: Content report with recommendations
+
+**Problem:** Editors don't know what's missing or below standard (missing alt text, descriptions that are too short or too long).
+**Direction:** A **content report** in the build artifacts, extending the G3 issue list. Each issue carries its severity, the recommendation and a source map link (P6) back to the CMS record:
+
+```json
+{ "collection": "_media", "id": "rooms/suite.jpg", "locale": "de", "field": "description",
+  "issue": "missing", "severity": "recommendation", "recommended": "50–300 characters",
+  "source": "https://cms.example.com/admin/files/7f3a" }
+```
+
+- **Severities:** `requirement` (from targets, fails the build) and `recommendation` (reported only).
+- **Recommendations** use the same JSON Schema keywords as requirements (`required`, `minLength`, `maxLength`), so a target turns one into a hard rule by declaring it as a requirement.
+- **Built-in defaults** (used when no default target is provided): `_media` `alt` 1–125 characters, `description` 50–300 characters. More defaults are added as needed.
 
 ## Principles
 
@@ -246,11 +304,13 @@ Sketch:
 - **Adapters adapt, the schema doesn't bend.** If a CMS lacks a feature (e.g. per-field translations), its source adapter maps or emulates it into the standard item shape.
 - **Only the channel pointer changes.** Releases, objects and media are written once, so a CDN can cache them indefinitely.
 - **Verify, then activate.** The client never activates content it hasn't hashed and validated.
+- **Report, don't transform.** CDS checks content and reports problems back to the content source. Translation, AI processing and image rendering happen in the CMS or in complementary projects.
 
 ## Non-goals
 
 - **Not a CMS.** CDS doesn't author or edit content.
-- **Not a renderer.** Turning content into UI is the application's job. The demo shows one way.
+- **Not a renderer.** Turning content into UI, JSON-LD script tags or llms.txt is the site generator's job. The demo shows one way.
+- **Not a transformer.** No machine translation, AI processing or image rendering inside CDS.
 - **Not a live query API.** Clients query a local snapshot. Edits become visible only through a new release.
 - **No semantics in the core.** Routing, page layouts and SEO metadata are meant as optional specs layered on top (root README, "Tier 2"), not as part of the core schema.
 

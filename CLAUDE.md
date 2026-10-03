@@ -16,6 +16,8 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - No lint config exists, even though a `lint` script is defined.
 
 ## Conventions and gotchas
+- **CDS reports, it doesn't transform.** No machine translation, AI processing or image rendering in CDS; those run in the CMS or complementary projects. CDS carries their results (`_provenance` markers) and reports.
+- Reserved names: item field `_provenance`; collection `_media` (planned). Only names the schema defines are CDS fields.
 - Relative imports need a `.js` extension (`./types.js`), because of NodeNext ESM.
 - `server/src/types.ts` and `client/src/types.ts` duplicate the wire types on purpose (the packages are independent). Change both together, along with the schema in `schemas/v1/`.
 - Collection hash = `sha256(deterministicStringify(collection))`, which sorts keys recursively and adds no whitespace. The exact serialized string is what gets stored, and the client hashes the raw downloaded text. Never pretty-print, re-stringify or reorder object bytes.
@@ -27,7 +29,7 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - The server throws if schema files are missing. The client falls back to loose inline schemas (`client/src/validation.ts`).
 
 ## Not implemented yet (don't assume these exist)
-S3 store, Directus source, IndexedDB storage, HTTP downloader, client-side rollback API, client object/media GC, delta sync (Milestone 2).
+S3 store, Directus source, IndexedDB storage, HTTP downloader, client-side rollback API, client object/media GC, delta sync (Milestone 2). Image rendering is a separate project, not part of CDS.
 
 ## Git
 Branch `dev`, main branch `main`. Commit style: conventional commits (`feat(cds): …`, `feat(demo): …`).
