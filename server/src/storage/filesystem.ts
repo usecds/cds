@@ -42,6 +42,25 @@ export class FilesystemStore implements ObjectStore {
     await fs.writeFile(filePath, JSON.stringify(manifest, null, 2), "utf-8");
   }
 
+  async listChannels(): Promise<string[]> {
+    const dir = path.join(this.baseDir, "channels");
+    if (!existsSync(dir)) return [];
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    return entries
+      .filter((e) => e.isDirectory() && existsSync(path.join(dir, e.name, "manifest.json")))
+      .map((e) => e.name);
+  }
+
+  async readChannelManifest(channel: string): Promise<ChannelManifest | null> {
+    const safeChannel = channel.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filePath = path.join(this.baseDir, "channels", safeChannel, "manifest.json");
+    if (!existsSync(filePath)) {
+      return null;
+    }
+    const content = await fs.readFile(filePath, "utf-8");
+    return JSON.parse(content);
+  }
+
   async readRelease(releaseId: string): Promise<ReleaseManifest | null> {
     const safeReleaseId = releaseId.replace(/[^a-zA-Z0-9_-]/g, "_");
     const filePath = path.join(this.baseDir, "releases", `${safeReleaseId}.json`);
@@ -85,6 +104,10 @@ export class FilesystemStore implements ObjectStore {
     }
   }
 
+  async objectSize(hash: string): Promise<number | null> {
+    return this.fileSize(path.join(this.baseDir, "objects", `${hash}.json`));
+  }
+
   async listMedia(): Promise<string[]> {
     const dir = path.join(this.baseDir, "media");
     if (!existsSync(dir)) return [];
@@ -96,5 +119,14 @@ export class FilesystemStore implements ObjectStore {
     if (existsSync(filePath)) {
       await fs.unlink(filePath);
     }
+  }
+
+  async mediaSize(filename: string): Promise<number | null> {
+    return this.fileSize(path.join(this.baseDir, "media", filename));
+  }
+
+  private async fileSize(filePath: string): Promise<number | null> {
+    if (!existsSync(filePath)) return null;
+    return (await fs.stat(filePath)).size;
   }
 }

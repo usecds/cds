@@ -9,6 +9,7 @@ server/src/
 ├── utils.ts               deterministicStringify, sha256
 ├── validation.ts          Ajv validators for the three schemas
 ├── core/publisher.ts      Publisher (publish, retention, garbage collection)
+├── core/storage-report.ts analyzeStorage (per-release usage, diffs, orphans)
 ├── sources/fixture.ts     FixtureSource (in-memory ContentSource)
 └── storage/filesystem.ts  FilesystemStore (ObjectStore on local disk)
 ```
@@ -28,7 +29,8 @@ const store = new FilesystemStore("./published");
 const publisher = new Publisher(source, store, { retentionCount: 5 });
 
 const { manifest, artifacts } = await publisher.publish("production", "2026-10-03T12-00-00Z");
-const { deletedObjects, deletedMedia } = await publisher.garbageCollect();
+const preview = await publisher.garbageCollect({ dryRun: true }); // report only
+const { deletedObjects, deletedMedia, freedBytes } = await publisher.garbageCollect();
 ```
 
 ## Extension points
@@ -41,6 +43,7 @@ The publisher depends on two interfaces only. New CMS integrations and storage t
 interface ContentSource {
   getCollections(): Promise<Record<string, CollectionItem[]>>;
   getMedia(): Promise<SourceMedia[]>;
+  getSourceMap?(): Promise<SourceMap>; // optional, see "Source map" below
 }
 
 interface SourceMedia {
@@ -53,7 +56,7 @@ interface SourceMedia {
 A source returns content already shaped as CDS items (`id`, `key`, `translations`, ...). Mapping a CMS's own field names into this shape is the source adapter's job (the "custom mapper" tier in the root README). If the CMS lacks a feature such as per-field translations, the adapter has to emulate it, for example by merging `title_en` / `title_de` into `translations.en.title` / `translations.de.title`.
 
 **Bundled implementation: `FixtureSource`**
-Takes `(collections?, media?)` in its constructor and returns them unchanged. When called with no arguments it returns a small built-in data set (`categories` + `products` with two fake PNGs), which is handy in tests. The demo uses it to publish JSON files read from disk.
+Takes `(collections?, media?, sourceMap?)` in its constructor and returns them unchanged. It provides `getSourceMap()` only when a source map is passed. When called with no arguments it returns a small built-in data set (`categories` + `products` with two fake PNGs), which is handy in tests. The demo uses it to publish JSON files read from disk.
 
 ### `ObjectStore`
 
@@ -64,15 +67,20 @@ interface ObjectStore {
   writeRelease(releaseId, manifest): Promise<void>;
   writeChannelManifest(channel, manifest): Promise<void>;
 
+  listChannels(): Promise<string[]>;
+  readChannelManifest(channel): Promise<ChannelManifest | null>;
+
   readRelease(releaseId): Promise<ReleaseManifest | null>;
   listReleases(): Promise<string[]>;
   deleteRelease(releaseId): Promise<void>;
 
   listObjects(): Promise<string[]>;   // hashes
   deleteObject(hash): Promise<void>;
+  objectSize(hash): Promise<number | null>;     // bytes, null if missing
 
   listMedia(): Promise<string[]>;     // file names "<hash>.<ext>"
   deleteMedia(filename): Promise<void>;
+  mediaSize(filename): Promise<number | null>;  // bytes, null if missing
 }
 ```
 
@@ -102,11 +110,15 @@ interface PublishResult {
 }
 ```
 
-`artifacts` is where per-publish outputs for the pipeline go (reports, source maps; see [goals.md](goals.md)). It's empty for now. Store it as a job artifact and don't publish it.
+`artifacts` holds per-publish outputs for the pipeline. Store it as a job artifact and don't publish it. Currently:
+
+| Artifact | Present when |
+| --- | --- |
+| `sourceMap` | The source implements `getSourceMap()` (see below) |
 
 Steps, in order:
 
-1. Load all collections and media from the source.
+1. Load all collections, media and (if provided) the source map from the source.
 2. For each collection:
    - wrap the items as `{ schemaVersion: 1, collection, items }`
    - validate against `collection.json` (throws on failure, which aborts the publish)
@@ -122,21 +134,59 @@ Objects and media are written whether or not they already exist. With content ad
 
 If a step fails partway, some objects or the release manifest may already be written, but the channel still points at the old release. The leftovers become garbage once they fall outside retention.
 
+### Source map
+
+A source map links published content back to the source system, e.g. for "edit in CMS" deep links. It's returned as `artifacts.sourceMap` (with the `releaseId` added) and is **never written to the store**, so internal IDs and admin paths stay private.
+
+```ts
+interface SourceMap {
+  sources: Record<string, { baseUrl?: string }>;           // per adapter
+  collections: Record<string, {                              // per CDS collection
+    source?: { adapter: string; collection: string };
+    items: Record<string, { id: string; path?: string }>;    // per CDS item id
+  }>;
+  media: Record<string, { adapter: string; id: string; path?: string }>; // per virtual path
+}
+```
+
+`path` is relative to the source's `baseUrl`, so moving the CMS host changes only the artifact. The publisher passes the map through as is, without checking it against the published content.
+
 ### Release retention
 
-After each publish, `listReleases()` is sorted **lexicographically** and the oldest entries beyond `retentionCount` are deleted (manifest files only, not objects).
+After each publish, `listReleases()` is sorted **lexicographically** and the oldest entries beyond `retentionCount` are deleted (manifest files only, not objects). A release that any channel currently points to is **never** deleted, even if it's outside the window.
 
 Lexicographic order counts as chronological only if release IDs sort that way. Use zero-padded timestamps (`2026-10-03T12-00-00Z`, `release_demo_1759492800000`) and avoid IDs such as `release-9` / `release-10`.
 
-Retention is store-wide, not per channel. All channels in one store share one retention window. A channel that hasn't been republished recently can point to a release that retention has deleted.
+Retention is store-wide, not per channel: all channels in one store share one retention window. Channel-pinned releases are kept on top of that window, so the number of stored releases can exceed `retentionCount`.
 
-### `garbageCollect(): Promise<{ deletedObjects, deletedMedia }>`
+### `analyzeStorage(): Promise<StorageReport>`
 
-Mark-and-sweep over the store:
+A read-only walk over the store:
 
-1. Read every remaining release manifest and collect all referenced collection hashes and media hashes.
-2. Delete every `objects/<hash>.json` whose hash wasn't collected.
-3. Delete every `media/<hash>.<ext>` whose hash (the part before the first `.`) wasn't collected.
+| Field | Contents |
+| --- | --- |
+| `releases[]` | Per retained release, oldest first: `channels` pointing at it, object/media counts, `bytes`, `uniqueBytes` (referenced by no other retained release, so freed if it's deleted), `missing` files, and a `diff` against the previous release (`added` / `removed` file paths, `shared` count) |
+| `channels` | `channel → { releaseId, retained }` (`retained: false` means the channel points at a deleted release) |
+| `totals` | Count and bytes of all stored objects and media |
+| `orphans` | Files referenced by no retained release, with sizes: exactly what GC deletes |
+
+File paths are relative to the storage root (`objects/<hash>.json`, `media/<hash><ext>`). `analyzeStorage` is also exported as a standalone function taking an `ObjectStore`.
+
+### `garbageCollect({ dryRun? }): Promise<GarbageCollectResult>`
+
+Runs `analyzeStorage()` and deletes exactly the files in `report.orphans`. With `dryRun: true` nothing is deleted.
+
+```ts
+interface GarbageCollectResult {
+  dryRun: boolean;
+  deletedObjects: number;  // in a dry run: would be deleted
+  deletedMedia: number;
+  freedBytes: number;
+  report: StorageReport;   // state before deletion
+}
+```
+
+Media files are matched by hash (the part of the file name before the first `.`).
 
 GC is **not** called by `publish()`. Run it separately, for example after each publish or on a schedule. Don't run it while a publish to the same store is in progress: objects already written for the new, not-yet-manifested release would look unreferenced and get deleted.
 

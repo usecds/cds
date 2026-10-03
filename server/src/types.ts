@@ -52,10 +52,31 @@ export interface SourceMedia {
   mimeType: string;
 }
 
+// Where an item or media file lives in the source system (paths are relative to the source's baseUrl)
+export interface SourceItemRef {
+  id: string;
+  path?: string;
+}
+
+export interface SourceMediaRef extends SourceItemRef {
+  adapter: string;
+}
+
+// Source map: build artifact linking published content back to the source system. Never published.
+export interface SourceMap {
+  sources: Record<string, { baseUrl?: string }>; // keyed by adapter name
+  collections: Record<string, {
+    source?: { adapter: string; collection: string };
+    items: Record<string, SourceItemRef>; // keyed by CDS item id
+  }>;
+  media: Record<string, SourceMediaRef>; // keyed by virtual path
+}
+
 // CMS source adapter interface
 export interface ContentSource {
   getCollections(): Promise<Record<string, CollectionItem[]>>;
   getMedia(): Promise<SourceMedia[]>;
+  getSourceMap?(): Promise<SourceMap>;
 }
 
 // Target storage adapter interface
@@ -64,6 +85,9 @@ export interface ObjectStore {
   writeMedia(hash: string, ext: string, content: Buffer): Promise<void>;
   writeRelease(releaseId: string, manifest: ReleaseManifest): Promise<void>;
   writeChannelManifest(channel: string, manifest: ChannelManifest): Promise<void>;
+
+  listChannels(): Promise<string[]>;
+  readChannelManifest(channel: string): Promise<ChannelManifest | null>;
   
   readRelease(releaseId: string): Promise<ReleaseManifest | null>;
   listReleases(): Promise<string[]>;
@@ -71,7 +95,9 @@ export interface ObjectStore {
   
   listObjects(): Promise<string[]>;
   deleteObject(hash: string): Promise<void>;
+  objectSize(hash: string): Promise<number | null>; // bytes, null if missing
   
   listMedia(): Promise<string[]>; // Returns filenames like "<hash>.<ext>"
   deleteMedia(filename: string): Promise<void>;
+  mediaSize(filename: string): Promise<number | null>; // bytes, null if missing
 }

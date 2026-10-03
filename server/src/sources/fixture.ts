@@ -1,13 +1,19 @@
-import { ContentSource, CollectionItem, SourceMedia } from "../types.js";
+import { ContentSource, CollectionItem, SourceMedia, SourceMap } from "../types.js";
 
 export class FixtureSource implements ContentSource {
   private collections: Record<string, CollectionItem[]>;
   private media: SourceMedia[];
+  getSourceMap?: () => Promise<SourceMap>;
 
   constructor(
     collections?: Record<string, CollectionItem[]>,
-    media?: SourceMedia[]
+    media?: SourceMedia[],
+    sourceMap?: SourceMap
   ) {
+    if (sourceMap) {
+      this.getSourceMap = async () => sourceMap;
+    }
+
     this.collections = collections || {
       categories: [
         {

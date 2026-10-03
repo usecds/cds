@@ -7,7 +7,8 @@ import {
   ReleaseManifest, 
   ChannelManifest, 
   CollectionMeta, 
-  MediaMeta 
+  MediaMeta,
+  SourceMap
 } from "../types.js";
 import { deterministicStringify, sha256 } from "../utils.js";
 import { 
@@ -15,17 +16,32 @@ import {
   validateReleaseManifest, 
   validateChannelManifest 
 } from "../validation.js";
+import { analyzeStorage, StorageReport } from "./storage-report.js";
 
 export interface PublisherConfig {
   retentionCount?: number; // How many releases to keep (default: 3)
 }
 
 // Per-publish outputs meant for the pipeline (reports, source maps), never written to the store
-export interface PublishArtifacts {}
+export interface PublishArtifacts {
+  sourceMap?: SourceMap & { releaseId: string };
+}
 
 export interface PublishResult {
   manifest: ReleaseManifest;
   artifacts: PublishArtifacts;
+}
+
+export interface GarbageCollectOptions {
+  dryRun?: boolean; // report what would be deleted without deleting anything
+}
+
+export interface GarbageCollectResult {
+  dryRun: boolean;
+  deletedObjects: number; // in a dry run: objects that would be deleted
+  deletedMedia: number; // in a dry run: media files that would be deleted
+  freedBytes: number;
+  report: StorageReport; // state before deletion
 }
 
 export class Publisher {
@@ -49,6 +65,7 @@ export class Publisher {
   async publish(channel: string, releaseId: string): Promise<PublishResult> {
     const rawCollections = await this.source.getCollections();
     const rawMedia = await this.source.getMedia();
+    const sourceMap = this.source.getSourceMap ? await this.source.getSourceMap() : undefined;
 
     const collectionsMeta: Record<string, CollectionMeta> = {};
     const mediaMeta: Record<string, MediaMeta> = {};
@@ -121,11 +138,17 @@ export class Publisher {
     // 5. Clean up old releases if they exceed retention limit
     await this.manageReleaseRetention();
 
-    return { manifest: releaseManifest, artifacts: {} };
+    const artifacts: PublishArtifacts = {};
+    if (sourceMap) {
+      artifacts.sourceMap = { releaseId, ...sourceMap };
+    }
+
+    return { manifest: releaseManifest, artifacts };
   }
 
   /**
    * Cleans up old releases that exceed the configured retention limit.
+   * Releases that a channel currently points to are never deleted.
    */
   private async manageReleaseRetention(): Promise<void> {
     const limit = this.config.retentionCount ?? 3;
@@ -136,58 +159,48 @@ export class Publisher {
     releases.sort();
 
     if (releases.length > limit) {
+      const pinned = new Set<string>();
+      for (const channel of await this.store.listChannels()) {
+        const manifest = await this.store.readChannelManifest(channel);
+        if (manifest) pinned.add(manifest.releaseId);
+      }
+
       const toDelete = releases.slice(0, releases.length - limit);
       for (const relId of toDelete) {
+        if (pinned.has(relId)) continue;
         await this.store.deleteRelease(relId);
       }
     }
   }
 
   /**
-   * Scans all objects/media in storage and garbage-collects any files
-   * not referenced by any of the currently retained releases.
+   * Reports per-release storage usage, diffs between releases, channel pointers
+   * and orphaned files. Read-only.
    */
-  async garbageCollect(): Promise<{ deletedObjects: number; deletedMedia: number }> {
-    const activeReleases = await this.store.listReleases();
-    
-    const referencedObjects = new Set<string>();
-    const referencedMediaHashes = new Set<string>();
+  async analyzeStorage(): Promise<StorageReport> {
+    return analyzeStorage(this.store);
+  }
 
-    // 1. Gather all referenced hashes from all active releases
-    for (const relId of activeReleases) {
-      const manifest = await this.store.readRelease(relId);
-      if (manifest) {
-        for (const col of Object.values(manifest.collections)) {
-          referencedObjects.add(col.hash);
-        }
-        for (const med of Object.values(manifest.media)) {
-          referencedMediaHashes.add(med.hash);
-        }
-      }
-    }
+  /**
+   * Deletes all objects/media not referenced by any retained release.
+   * Deletes exactly the orphans listed in the returned report.
+   */
+  async garbageCollect(options: GarbageCollectOptions = {}): Promise<GarbageCollectResult> {
+    const dryRun = options.dryRun ?? false;
+    const report = await analyzeStorage(this.store);
 
-    // 2. Scan and GC Objects
     let deletedObjects = 0;
-    const allObjects = await this.store.listObjects();
-    for (const objHash of allObjects) {
-      if (!referencedObjects.has(objHash)) {
-        await this.store.deleteObject(objHash);
-        deletedObjects++;
-      }
-    }
-
-    // 3. Scan and GC Media
     let deletedMedia = 0;
-    const allMediaFiles = await this.store.listMedia();
-    for (const filename of allMediaFiles) {
-      // Filename is <hash>.<ext>
-      const hash = filename.split(".")[0];
-      if (!referencedMediaHashes.has(hash)) {
-        await this.store.deleteMedia(filename);
+    for (const orphan of report.orphans.files) {
+      if (orphan.kind === "object") {
+        if (!dryRun) await this.store.deleteObject(orphan.hash);
+        deletedObjects++;
+      } else {
+        if (!dryRun) await this.store.deleteMedia(orphan.file.slice("media/".length));
         deletedMedia++;
       }
     }
 
-    return { deletedObjects, deletedMedia };
+    return { dryRun, deletedObjects, deletedMedia, freedBytes: report.orphans.bytes, report };
   }
 }

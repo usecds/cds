@@ -19,8 +19,8 @@ Status reflects the code on `dev` as of 2026-10-03.
 | 5 | **App code is coupled to one CMS's data model** | All content is normalized into one item shape (`id`, `key`, `translations`, `references`, `media`). CMS specifics live in a `ContentSource` adapter, and storage specifics in `ObjectStore` / `ClientStorage` / `RemoteDownloader`. | `types.ts` interfaces | Interfaces done. Only fixture, filesystem and memory adapters exist. |
 | 6 | **Multilingual and related content is awkward to query** | Translations are grouped per locale on every item. The client answers `getLocales()`, `getItemByKey()`, `getItemById()` and `resolveReferences()` from memory. | `CDSClient` query API | Done |
 | 7 | **Checking for updates is expensive** | Clients poll one small channel manifest. If it points at the release they already have, sync stops there. The downloader can answer `notModified`. | `CDSClient.sync` steps 1–3 | Done, but the client uses the release ID as its "ETag" rather than a real HTTP ETag |
-| 8 | **Different environments need different content** | Channels (`production`, `staging`, ...) are independent pointers to releases in the same store. Promoting or reverting a channel means rewriting one small file. | Channel manifests | Done (retention is shared across channels) |
-| 9 | **Published storage grows without bound** | The server keeps the last N releases and has a mark-and-sweep GC that deletes objects and media no retained release references. | `Publisher` retention, `garbageCollect()` | Server done (GC runs manually). Client prunes manifests only, not objects or media. |
+| 8 | **Different environments need different content** | Channels (`production`, `staging`, ...) are independent pointers to releases in the same store. Promoting or reverting a channel means rewriting one small file. | Channel manifests | Done (retention window is shared across channels, but a channel's current release is never deleted) |
+| 9 | **Published storage grows without bound** | The server keeps the last N releases and has a mark-and-sweep GC that deletes objects and media no retained release references. | `Publisher` retention, `analyzeStorage()`, `garbageCollect({ dryRun })` | Server done, with storage report and dry run (GC runs manually). Client prunes manifests only, not objects or media. |
 | 10 | **Large collections change by a few records at a time** | Record-level delta files between releases, with full download as fallback. | — | Planned (Milestone 2) |
 
 ## Proposed goals (under discussion)
@@ -99,6 +99,8 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_translation`
 
 ### P4: GC report across releases
 
+**Status: implemented in G2** (`analyzeStorage()`, `garbageCollect({ dryRun })`, channel-pinned retention). Still open: a human-readable formatter, and client-side GC.
+
 **Problem:** GC deletes immediately and returns two counts. Nobody can see what each release costs or what a GC run would free, which matters for large media.
 **Direction:** An analysis pass (dry run) that walks the store and reports:
 - per release: referenced objects/media/variants, total bytes, and bytes **unique** to that release (what deleting it would free)
@@ -126,6 +128,8 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_translation`
 - Validation: at most one `appliesTo` per collection (publish error if two)?
 
 ### P6: Source map (deep links back to the origin) as a build artifact
+
+**Status: implemented in G2** (`ContentSource.getSourceMap()` → `artifacts.sourceMap`).
 
 **Problem:** Starting from a published item or media file, there's no way to find it in the source system (e.g. to open the CMS editor). That information must not become public.
 **Direction (decided): a separate output, not part of the release.** Each publish produces a **source map** as a job artifact: kept by the pipeline (CI artifact, internal storage), never written to the storage root or CDN.
@@ -259,6 +263,5 @@ Not assigned to a milestone yet, but needed before the table above is fully "don
 - Production adapters: S3-compatible `ObjectStore`, Directus `ContentSource`, HTTP `RemoteDownloader`, IndexedDB `ClientStorage` (#1, #5)
 - Browser-compatible hashing (WebCrypto) in the client (#1, #4)
 - Real HTTP ETag handling in `sync()` (#7)
-- Per-channel retention, or retention that protects every channel's current release (#8, #9)
 - Client rollback API and client-side object/media GC (#9)
 - Tier 2 specs: routing, layout tree, SEO metadata
