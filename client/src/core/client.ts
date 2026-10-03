@@ -3,7 +3,9 @@ import {
   RemoteDownloader, 
   ReleaseManifest, 
   Collection, 
-  CollectionItem 
+  CollectionItem,
+  TranslationStatus,
+  TranslationSummary
 } from "../types.js";
 import { sha256 } from "../utils.js";
 import { 
@@ -261,6 +263,34 @@ export class CDSClient {
       }
     }
     return Array.from(localesSet).sort();
+  }
+
+  /**
+   * Translation completeness summary of the active release, or null if it has none.
+   */
+  getTranslationSummary(): TranslationSummary | null {
+    return this.activeRelease?.translations ?? null;
+  }
+
+  /**
+   * Provenance of one translated field. Staleness is detected via the marker's sourceHash only;
+   * the publisher's previous-release fallback appears in the build report, not here.
+   */
+  getTranslationStatus(
+    item: CollectionItem,
+    locale: string,
+    field: string
+  ): { status: TranslationStatus | null; stale: boolean } {
+    const marker = item._translation?.[locale]?.[field];
+    if (!marker) return { status: null, stale: false };
+
+    let stale = false;
+    if (marker.sourceHash) {
+      const fromLocale = marker.from ?? this.activeRelease?.translations?.sourceLocale;
+      const reference = fromLocale ? item.translations[fromLocale]?.[field] : undefined;
+      stale = typeof reference === "string" && sha256(reference) !== marker.sourceHash;
+    }
+    return { status: marker.status, stale };
   }
 
   /**

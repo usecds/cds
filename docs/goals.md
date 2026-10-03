@@ -39,14 +39,18 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_translation`
 
 ### P1: Translation completeness (per language and overall)
 
+**Status: implemented in G3** (`artifacts.translations`, `manifest.translations`). Publish gates are left to G4 (targets).
+
 **Problem:** There's no way to see how complete each language is before publishing, or from the client.
 **Direction:** The publisher computes completeness while it iterates the collections. Per collection × locale it counts translated, missing and **stale** fields (see P2), then rolls that up per locale and overall. The result goes in the publish result and in the release manifest.
 **Open questions:**
-- *Decided:* the **source locale is a runtime argument** of the publish run (e.g. `--source-locale en` / `publish(..., { sourceLocale })`). "Expected" fields are the source locale's fields. Open: the fallback when the argument is omitted (proposed: union across locales).
-- *Decided:* an empty (`""`) or `null` translation counts as **missing only if the source locale value is a string longer than zero**. If the source value is empty too, the field isn't expected and isn't counted. Open: how non-string source values (numbers, objects) are counted.
+- *Decided:* the **source locale is a runtime argument** of the publish run (e.g. `--source-locale en` / `publish(..., { sourceLocale })`). "Expected" fields are the source locale's fields. Without the argument it is detected from the source (adapter, then `_translation` markers), falling back to `en`.
+- *Decided:* an empty (`""`) or `null` translation counts as **missing only if the source locale value is a string longer than zero**. If the source value is empty too, the field isn't expected and isn't counted. Non-string source values (numbers, objects) are ignored.
 - Report only, or also a publish gate (e.g. "production requires `de` ≥ 100%, 0 stale")?
 
 ### P2: Auto-translation, provenance and review
+
+**Status: markers, stale detection and the previous-release fallback implemented in G3.** Running machine translation stays outside CDS (CMS/adapter).
 
 **Problem:** Missing translations should be fillable automatically. Consumers and editors need to know whether text is original, machine-translated or reviewed. And when the original changes, its translations must be flagged for review.
 **Direction:** Each translated field records its provenance, plus the hash of the source text it was translated from:

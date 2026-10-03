@@ -44,6 +44,7 @@ interface ContentSource {
   getCollections(): Promise<Record<string, CollectionItem[]>>;
   getMedia(): Promise<SourceMedia[]>;
   getSourceMap?(): Promise<SourceMap>; // optional, see "Source map" below
+  getSourceLocale?(): Promise<string | undefined>; // optional: the CMS's original-content language
 }
 
 interface SourceMedia {
@@ -74,6 +75,7 @@ interface ObjectStore {
   listReleases(): Promise<string[]>;
   deleteRelease(releaseId): Promise<void>;
 
+  readObject(hash): Promise<string | null>;
   listObjects(): Promise<string[]>;   // hashes
   deleteObject(hash): Promise<void>;
   objectSize(hash): Promise<number | null>;     // bytes, null if missing
@@ -101,7 +103,9 @@ new Publisher(source: ContentSource, store: ObjectStore, config?: { retentionCou
 
 `retentionCount` defaults to `3`.
 
-### `publish(channel, releaseId): Promise<PublishResult>`
+### `publish(channel, releaseId, options?): Promise<PublishResult>`
+
+`options.sourceLocale`: the language of the original content, used for [translation completeness](#translation-completeness). Usually passed as a runtime argument of the publish job.
 
 ```ts
 interface PublishResult {
@@ -115,6 +119,7 @@ interface PublishResult {
 | Artifact | Present when |
 | --- | --- |
 | `sourceMap` | The source implements `getSourceMap()` (see below) |
+| `translations` | Always: the full translation report (see below) |
 
 Steps, in order:
 
@@ -126,13 +131,40 @@ Steps, in order:
    - `store.writeObject(hash, serialized)`
    - record `{ hash, itemCount, size }` (`size` = UTF-8 byte length of the stored string)
 3. For each media file: hash the bytes, `store.writeMedia(hash, extname(virtualPath), bytes)`, record `{ hash, size, mimeType }` under its virtual path.
-4. Build the release manifest (`createdAt = now`), validate it, and write it to `releases/<releaseId>.json`.
-5. Build the channel manifest (`updatedAt = createdAt`), validate it, and write it. **This is the commit point.** Until this write, clients still see the previous release.
-6. Apply release retention (below).
+4. Measure translation completeness (below), comparing against the release the channel currently points to.
+5. Build the release manifest (`createdAt = now`, including the translation summary), validate it, and write it to `releases/<releaseId>.json`.
+6. Build the channel manifest (`updatedAt = createdAt`), validate it, and write it. **This is the commit point.** Until this write, clients still see the previous release.
+7. Apply release retention (below).
 
 Objects and media are written whether or not they already exist. With content addressing, rewriting identical bytes under the same name has no effect on the result. A remote store can skip the upload with a `HEAD` check to save bandwidth.
 
 If a step fails partway, some objects or the release manifest may already be written, but the channel still points at the old release. The leftovers become garbage once they fall outside retention.
+
+### Translation completeness
+
+Every publish measures how complete each language is, relative to a **source locale**.
+
+**Source locale**, first match wins:
+1. `options.sourceLocale` passed to `publish()`
+2. `ContentSource.getSourceLocale()`
+3. inferred from `_translation` markers, if they name exactly one origin language (locales marked `original` plus all `from` values)
+4. `"en"`
+
+The report says which rule was used (`sourceLocaleOrigin`: `argument` | `source` | `inferred` | `fallback`).
+
+**Counting**, per collection × target locale (every locale in the content except the source):
+
+| Count | Rule |
+| --- | --- |
+| `expected` | Source-locale fields whose value is a **non-empty string**. Empty and non-string source values (numbers, arrays, objects) are ignored. |
+| `missing` | Expected, but the translation is absent, `null` or `""` |
+| `translated` | Expected and not missing (includes stale and machine) |
+| `machine` | Translated, with marker status `machine` |
+| `stale` | Translated, but the source text changed since: the marker's `sourceHash` no longer matches. Without a `sourceHash`, the publisher compares with the channel's current release: the source text changed and the translation didn't. |
+
+Items that have no source-locale entry at all are listed in `itemsWithoutSource` and not counted.
+
+`artifacts.translations` contains the counts per collection, per locale and overall, plus `issues` (every missing or stale field with collection, item id, locale and field) for editors. The release manifest gets only the summary (`sourceLocale`, per-locale counts, overall).
 
 ### Source map
 

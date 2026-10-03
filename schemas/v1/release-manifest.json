@@ -39,6 +39,33 @@
         "required": ["hash", "size", "mimeType"],
         "additionalProperties": true
       }
+    },
+    "translations": {
+      "type": "object",
+      "properties": {
+        "sourceLocale": { "type": "string" },
+        "locales": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/translationCounts" }
+        },
+        "overall": { "$ref": "#/definitions/translationCounts" }
+      },
+      "required": ["sourceLocale", "locales", "overall"],
+      "additionalProperties": true
+    }
+  },
+  "definitions": {
+    "translationCounts": {
+      "type": "object",
+      "properties": {
+        "expected": { "type": "integer", "minimum": 0 },
+        "translated": { "type": "integer", "minimum": 0 },
+        "missing": { "type": "integer", "minimum": 0 },
+        "stale": { "type": "integer", "minimum": 0 },
+        "machine": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["expected", "translated", "missing", "stale", "machine"],
+      "additionalProperties": true
     }
   },
   "required": ["schemaVersion", "releaseId", "createdAt", "collections", "media"],

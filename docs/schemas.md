@@ -55,9 +55,11 @@ Lists everything that belongs to one release.
 | `createdAt` | string, `date-time` | yes | |
 | `collections` | object of `CollectionMeta` | yes | Keyed by collection name |
 | `media` | object of `MediaMeta` | yes | Keyed by virtual path; may be `{}` |
+| `translations` | `TranslationSummary` | no | Translation completeness, see below |
 
 `CollectionMeta`: `{ hash: string, itemCount: integer >= 0, size: integer >= 0 }`. `size` is the byte size of the stored object.
 `MediaMeta`: `{ hash: string, size: integer >= 0, mimeType: string }`
+`TranslationSummary`: `{ sourceLocale: string, locales: { [locale]: TranslationCounts }, overall: TranslationCounts }`, where `TranslationCounts` is `{ expected, translated, missing, stale, machine }` (integers). `locales` excludes the source locale. See [server.md](server.md#translation-completeness) for how the counts are computed.
 
 All three objects allow additional properties.
 
@@ -97,9 +99,10 @@ The content of `objects/<hash>.json`.
 | `translations` | `{ [locale]: { [field]: any } }` | yes | All localized fields live here, grouped by locale |
 | `references` | array of `{ collection, id }` | no | Links to items in other collections |
 | `media` | array of string | no | Virtual paths into the release's `media` map |
+| `_translation` | `{ [locale]: { [field]: TranslationMarker } }` | no | Translation provenance, see below |
 | *any other field* | any | no | Items allow additional properties for non-localized data |
 
-All levels allow additional properties. On items, extra top-level fields hold non-localized data. Field names starting with `_` are reserved for CDS metadata (e.g. `_translation`, planned), and only names the schema defines are CDS fields.
+All levels allow additional properties. On items, extra top-level fields hold non-localized data. Field names starting with `_` are reserved for CDS metadata, and only names the schema defines (currently `_translation`) are CDS fields. The schema validates their shape, so a pass-through field with the same name but the wrong shape fails the publish.
 
 ```json
 {
@@ -119,6 +122,26 @@ All levels allow additional properties. On items, extra top-level fields hold no
   ]
 }
 ```
+
+### Translation provenance (`_translation`)
+
+Per locale and field, a marker records where a translation came from:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `status` | `original` | `human` | `machine` | `reviewed` | yes | `reviewed` = machine translation checked by a human |
+| `from` | string | no | Locale it was translated from (defaults to the release's source locale) |
+| `sourceHash` | string | no | SHA-256 (hex) of the source text at translation time |
+
+```json
+"_translation": {
+  "de": {
+    "title": { "status": "machine", "from": "en", "sourceHash": "5f2b…" }
+  }
+}
+```
+
+If the current source text no longer matches `sourceHash`, the translation is **stale** and needs review. Whoever translates or reviews (CMS, adapter) writes the hash of the source text they worked from. The server exports `translationSourceHash(text)` for this. Markers are optional: items without them are still counted for completeness.
 
 ### Hashing and serialization
 

@@ -41,6 +41,22 @@
             "items": {
               "type": "string"
             }
+          },
+          "_translation": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "status": { "enum": ["original", "human", "machine", "reviewed"] },
+                  "from": { "type": "string" },
+                  "sourceHash": { "type": "string" }
+                },
+                "required": ["status"],
+                "additionalProperties": true
+              }
+            }
           }
         },
         "required": ["id", "key", "translations"],

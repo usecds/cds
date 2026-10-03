@@ -26,7 +26,7 @@ demo/data/*.json ──▶ FixtureSource ──▶ Publisher ──▶ demo/publ
 ```
 
 1. **Clean.** Deletes `demo/published`, `demo/cache` and `demo/dist`, so every run starts from scratch (all three are git-ignored).
-2. **Server side.** Reads the four JSON files in `demo/data/`, wraps them in a `FixtureSource` (no media), and publishes them with a `Publisher` + `FilesystemStore` to channel `demo-channel` as release `release_demo_<Date.now()>`.
+2. **Server side.** Reads the four JSON files in `demo/data/`, wraps them in a `FixtureSource` (no media), and publishes them with a `Publisher` + `FilesystemStore` to channel `demo-channel` as release `release_demo_<Date.now()>`. The source locale is `en`, and the translation completeness per locale is printed to the console.
 3. **Client side.** Creates a `CDSClient` with `FilesystemStorage("demo/cache")` and a `DemoLocalDownloader` that reads files from `demo/published` (a local stand-in for HTTP). Calls `initialize()` and then `sync("demo-channel")`, and aborts if the sync fails.
 4. **Generator.** For each locale returned by `client.getLocales()`, it:
    - gets the `homepage` item from `site_settings` by key, for hero, CTA and footer texts

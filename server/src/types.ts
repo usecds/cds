@@ -10,12 +10,21 @@ export interface Reference {
   id: string;
 }
 
+export type TranslationStatus = "original" | "human" | "machine" | "reviewed";
+
+export interface TranslationMarker {
+  status: TranslationStatus;
+  from?: string; // locale the text was translated from
+  sourceHash?: string; // sha256 of the source text at translation time
+}
+
 export interface CollectionItem {
   id: string;
   key: string;
   translations: Record<string, Record<string, any>>;
   references?: Reference[];
   media?: string[];
+  _translation?: Record<string, Record<string, TranslationMarker>>; // locale -> field -> marker
   [key: string]: any;
 }
 
@@ -37,12 +46,27 @@ export interface MediaMeta {
   mimeType: string;
 }
 
+export interface TranslationCounts {
+  expected: number; // fields with a non-empty source text
+  translated: number; // includes stale and machine
+  missing: number;
+  stale: number; // source text changed after translation
+  machine: number;
+}
+
+export interface TranslationSummary {
+  sourceLocale: string;
+  locales: Record<string, TranslationCounts>; // excludes the source locale
+  overall: TranslationCounts;
+}
+
 export interface ReleaseManifest {
   schemaVersion: 1;
   releaseId: string;
   createdAt: string; // ISO date-time string
   collections: Record<string, CollectionMeta>;
   media: Record<string, MediaMeta>;
+  translations?: TranslationSummary;
 }
 
 // Media asset structure for CMS Source adapter
@@ -77,6 +101,7 @@ export interface ContentSource {
   getCollections(): Promise<Record<string, CollectionItem[]>>;
   getMedia(): Promise<SourceMedia[]>;
   getSourceMap?(): Promise<SourceMap>;
+  getSourceLocale?(): Promise<string | undefined>; // the CMS's original-content language, if known
 }
 
 // Target storage adapter interface
@@ -93,6 +118,7 @@ export interface ObjectStore {
   listReleases(): Promise<string[]>;
   deleteRelease(releaseId: string): Promise<void>;
   
+  readObject(hash: string): Promise<string | null>;
   listObjects(): Promise<string[]>;
   deleteObject(hash: string): Promise<void>;
   objectSize(hash: string): Promise<number | null>; // bytes, null if missing

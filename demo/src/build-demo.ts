@@ -107,8 +107,11 @@ async function run() {
 
   console.log("📝 [Server] Publishing content release to simulated CDN storage...");
   const releaseId = `release_demo_${Date.now()}`;
-  await publisher.publish("demo-channel", releaseId);
+  const { artifacts } = await publisher.publish("demo-channel", releaseId, { sourceLocale: "en" });
   console.log(`✅ [Server] Published successfully: ${releaseId}`);
+  for (const [locale, counts] of Object.entries(artifacts.translations.locales)) {
+    console.log(`🌐 [Server] Translations ${locale}: ${counts.translated}/${counts.expected} (missing ${counts.missing}, stale ${counts.stale})`);
+  }
 
   // -------------------------------------------------------------
   // 2. CLIENT-SIDE: Syncing Content from simulated CDN

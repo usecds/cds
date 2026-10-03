@@ -88,6 +88,14 @@ export class FilesystemStore implements ObjectStore {
     }
   }
 
+  async readObject(hash: string): Promise<string | null> {
+    const filePath = path.join(this.baseDir, "objects", `${hash}.json`);
+    if (!existsSync(filePath)) {
+      return null;
+    }
+    return await fs.readFile(filePath, "utf-8");
+  }
+
   async listObjects(): Promise<string[]> {
     const dir = path.join(this.baseDir, "objects");
     if (!existsSync(dir)) return [];

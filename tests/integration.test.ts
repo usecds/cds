@@ -383,8 +383,7 @@ describe("CDS Integration Tests (Milestone 1)", () => {
   it("should accept unknown additional fields in v1 manifests and collections (forward compatibility)", async () => {
     const serverStore = new FilesystemStore(tempServerDir);
     const publisher = new Publisher(new FixtureSource(), serverStore);
-    const { manifest, artifacts } = await publisher.publish("production", "release-1");
-    expect(artifacts).toEqual({});
+    const { manifest } = await publisher.publish("production", "release-1");
 
     // Simulate a newer publisher: add unknown fields at every level of the published files.
     // The collection envelope is content-addressed, so rewrite it under its new hash.

@@ -17,14 +17,27 @@ import {
   validateChannelManifest 
 } from "../validation.js";
 import { analyzeStorage, StorageReport } from "./storage-report.js";
+import {
+  analyzeTranslations,
+  inferSourceLocale,
+  toTranslationSummary,
+  DEFAULT_SOURCE_LOCALE,
+  SourceLocaleOrigin,
+  TranslationReport
+} from "./translations.js";
 
 export interface PublisherConfig {
   retentionCount?: number; // How many releases to keep (default: 3)
 }
 
+export interface PublishOptions {
+  sourceLocale?: string; // original-content language; detected from the source if omitted
+}
+
 // Per-publish outputs meant for the pipeline (reports, source maps), never written to the store
 export interface PublishArtifacts {
   sourceMap?: SourceMap & { releaseId: string };
+  translations: TranslationReport;
 }
 
 export interface PublishResult {
@@ -62,7 +75,7 @@ export class Publisher {
    * Compiles the source content and publishes a new release to the object store.
    * Updates the channel manifest as the final atomic action.
    */
-  async publish(channel: string, releaseId: string): Promise<PublishResult> {
+  async publish(channel: string, releaseId: string, options: PublishOptions = {}): Promise<PublishResult> {
     const rawCollections = await this.source.getCollections();
     const rawMedia = await this.source.getMedia();
     const sourceMap = this.source.getSourceMap ? await this.source.getSourceMap() : undefined;
@@ -112,19 +125,25 @@ export class Publisher {
       };
     }
 
-    // 3. Construct and write the Release Manifest
+    // 3. Measure translation completeness against the source locale and the channel's current release
+    const { locale: sourceLocale, origin } = await this.resolveSourceLocale(options.sourceLocale, rawCollections);
+    const previousCollections = await this.readChannelCollections(channel);
+    const translations = analyzeTranslations(rawCollections, sourceLocale, origin, previousCollections);
+
+    // 4. Construct and write the Release Manifest
     const releaseManifest: ReleaseManifest = {
       schemaVersion: 1,
       releaseId,
       createdAt: new Date().toISOString(),
       collections: collectionsMeta,
-      media: mediaMeta
+      media: mediaMeta,
+      translations: toTranslationSummary(translations)
     };
 
     validateReleaseManifest(releaseManifest);
     await this.store.writeRelease(releaseId, releaseManifest);
 
-    // 4. Update the Channel Manifest (LAST atomic step)
+    // 5. Update the Channel Manifest (LAST atomic step)
     const channelManifest: ChannelManifest = {
       schemaVersion: 1,
       channel,
@@ -135,15 +154,49 @@ export class Publisher {
     validateChannelManifest(channelManifest);
     await this.store.writeChannelManifest(channel, channelManifest);
 
-    // 5. Clean up old releases if they exceed retention limit
+    // 6. Clean up old releases if they exceed retention limit
     await this.manageReleaseRetention();
 
-    const artifacts: PublishArtifacts = {};
+    const artifacts: PublishArtifacts = { translations };
     if (sourceMap) {
       artifacts.sourceMap = { releaseId, ...sourceMap };
     }
 
     return { manifest: releaseManifest, artifacts };
+  }
+
+  /**
+   * Source locale precedence: publish argument → ContentSource → inferred from markers → "en".
+   */
+  private async resolveSourceLocale(
+    argument: string | undefined,
+    collections: Record<string, CollectionItem[]>
+  ): Promise<{ locale: string; origin: SourceLocaleOrigin }> {
+    if (argument) return { locale: argument, origin: "argument" };
+    const fromSource = this.source.getSourceLocale ? await this.source.getSourceLocale() : undefined;
+    if (fromSource) return { locale: fromSource, origin: "source" };
+    const inferred = inferSourceLocale(collections);
+    if (inferred) return { locale: inferred, origin: "inferred" };
+    return { locale: DEFAULT_SOURCE_LOCALE, origin: "fallback" };
+  }
+
+  /**
+   * Reads the collections of the release a channel currently points to, or undefined
+   * if the channel, its release or any of its objects are missing.
+   */
+  private async readChannelCollections(channel: string): Promise<Record<string, CollectionItem[]> | undefined> {
+    const channelManifest = await this.store.readChannelManifest(channel);
+    if (!channelManifest) return undefined;
+    const release = await this.store.readRelease(channelManifest.releaseId);
+    if (!release) return undefined;
+
+    const collections: Record<string, CollectionItem[]> = {};
+    for (const [name, meta] of Object.entries(release.collections)) {
+      const content = await this.store.readObject(meta.hash);
+      if (content === null) return undefined;
+      collections[name] = (JSON.parse(content) as Collection).items;
+    }
+    return collections;
   }
 
   /**
