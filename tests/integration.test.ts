@@ -400,7 +400,7 @@ describe("CDS Integration Tests (Milestone 1)", () => {
       futureReleaseField: "x",
       collections: {
         ...manifest.collections,
-        categories: { hash: newHash, itemCount: categories.items.length, futureMetaField: 1 }
+        categories: { hash: newHash, itemCount: categories.items.length, size: Buffer.byteLength(serialized), futureMetaField: 1 }
       },
       media: Object.fromEntries(
         Object.entries(manifest.media).map(([p, m]) => [p, { ...m, futureMediaField: [1, 2] }])

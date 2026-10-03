@@ -92,7 +92,7 @@ describe("Build artifacts, storage report and GC (G2)", () => {
     expect(r1.diff).toBeNull();
     // big.png and the v1 pages object are unique to r1
     const r1Pages = (await store.readRelease("r1"))!.collections.pages;
-    expect(r1.uniqueBytes).toBe(1000 + r1Pages.size!);
+    expect(r1.uniqueBytes).toBe(1000 + r1Pages.size);
 
     expect(r2.channels).toEqual(["production"]);
     expect(r1.channels).toEqual([]);

@@ -28,7 +28,7 @@ export interface Collection {
 export interface CollectionMeta {
   hash: string;
   itemCount: number;
-  size?: number; // bytes of the stored object; absent in older releases
+  size: number; // bytes of the stored object
 }
 
 export interface MediaMeta {

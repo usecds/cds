@@ -56,7 +56,7 @@ Lists everything that belongs to one release.
 | `collections` | object of `CollectionMeta` | yes | Keyed by collection name |
 | `media` | object of `MediaMeta` | yes | Keyed by virtual path; may be `{}` |
 
-`CollectionMeta`: `{ hash: string, itemCount: integer >= 0, size?: integer >= 0 }`. `size` is the byte size of the stored object. It's optional because releases published before it existed don't have it.
+`CollectionMeta`: `{ hash: string, itemCount: integer >= 0, size: integer >= 0 }`. `size` is the byte size of the stored object.
 `MediaMeta`: `{ hash: string, size: integer >= 0, mimeType: string }`
 
 All three objects allow additional properties.
