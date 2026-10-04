@@ -117,7 +117,8 @@ function renderLlmsTxt(
     const body = page.html
       .replace(/^[\s\S]*?<body[^>]*>/, "")
       .replace(/<\/body>[\s\S]*$/, "")
-      .replace(/<header[\s\S]*?<\/header>/, ""); // navigation and language switcher
+      .replace(/<header[\s\S]*?<\/header>/, "") // navigation and language switcher
+      .replace(/<p[^>]*data-llms="skip"[^>]*>[\s\S]*?<\/p>/g, ""); // e.g. the link to llms.txt itself
     const converted = NodeHtmlMarkdown.translate(body)
       // Nest the page's headings below the language heading
       .replace(/^(#{1,4}) /gm, "##$1 ");
@@ -443,6 +444,7 @@ async function run() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${content.siteTitle}</title>
+    <link rel="alternate" type="text/markdown" href="llms.txt" title="llms.txt">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -754,6 +756,10 @@ async function run() {
     <footer class="py-12 border-t border-slate-900 bg-slate-950">
         <div class="max-w-6xl mx-auto px-6 text-center text-sm text-slate-500">
             <p>${content.footerText}</p>
+            <p class="mt-3" data-llms="skip">
+                <a href="llms.txt" class="code-font text-xs text-slate-400 hover:text-teal-400 underline underline-offset-4">llms.txt</a>
+                <span class="text-slate-600"> · ${locale === "en" ? "page text and image descriptions for language models" : "Seitentext und Bildbeschreibungen für Sprachmodelle"}</span>
+            </p>
         </div>
     </footer>
 
