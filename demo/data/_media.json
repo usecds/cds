@@ -4,16 +4,77 @@
     "key": "hero.svg",
     "translations": {
       "en": {
-        "alt": "Diagram: content flows from the CMS through CDS to kiosk, TV and web clients",
-        "description": "Illustration of the CDS pipeline. A CMS on the left publishes into CDS in the middle, which distributes verified releases to three clients on the right: a kiosk, a TV app and a website."
+        "alt": "Diagram: content flows from the CMS through CDS to web, app and digital signage clients",
+        "description": "Illustration of the CDS pipeline. A CMS on the left publishes into CDS in the middle, which distributes verified releases to three clients on the right: a website, an app and digital signage."
       },
       "de": {
-        "alt": "Diagramm: Inhalte fließen vom CMS über CDS zu Kiosk-, TV- und Web-Clients",
-        "description": "Darstellung der CDS-Pipeline. Ein CMS links veröffentlicht in CDS in der Mitte, das geprüfte Releases an drei Clients rechts verteilt: einen Kiosk, eine TV-App und eine Website."
+        "alt": "Diagramm: Inhalte fließen vom CMS über CDS zu Web-, App- und Digital-Signage-Clients",
+        "description": "Darstellung der CDS-Pipeline. Ein CMS links veröffentlicht in CDS in der Mitte, das geprüfte Releases an drei Clients rechts verteilt: eine Website, eine App und Digital Signage."
       }
     },
-    "focalPoint": { "x": 0.63, "y": 0.5 },
+    "focalPoint": {
+      "x": 0.63,
+      "y": 0.5
+    },
     "width": 1200,
     "height": 600
+  },
+  {
+    "id": "cds-flow.png",
+    "key": "cds-flow.png",
+    "translations": {
+      "en": {
+        "alt": "Diagram of the CDS pipeline from content source to client storage",
+        "description": "A ContentSource adapter feeds the Publisher, which runs in a CI/CD job and writes channels, releases, objects and media to the storage root. The CDSClient fetches from there and saves to client storage."
+      }
+    },
+    "width": 1900,
+    "height": 900
+  },
+  {
+    "id": "cds-flow-de.png",
+    "key": "cds-flow-de.png",
+    "translations": {
+      "de": {
+        "alt": "Diagramm der CDS-Pipeline von der Inhaltsquelle bis zum Client-Speicher",
+        "description": "Ein ContentSource-Adapter liefert an den Publisher, der in einem CI/CD-Job läuft und Channels, Releases, Objekte und Medien in den Speicher schreibt. Der CDSClient ruft sie dort ab und speichert sie lokal."
+      }
+    },
+    "width": 1900,
+    "height": 900
+  },
+  {
+    "id": "coast-with-lighthouse-balloon-sailboat.png",
+    "key": "coast-with-lighthouse-balloon-sailboat.png",
+    "translations": {
+      "en": {
+        "alt": "Rocky coast with a red and white lighthouse, a hot-air balloon and a sailboat",
+        "description": "A sunny coastline with green cliffs. A red and white lighthouse stands on the left, a colourful hot-air balloon floats in the sky on the right, and a white sailboat crosses the sea below it."
+      },
+      "de": {
+        "alt": "Felsige Küste mit rot-weißem Leuchtturm, Heißluftballon und Segelboot",
+        "description": "Eine sonnige Küste mit grünen Klippen. Links steht ein rot-weißer Leuchtturm, rechts schwebt ein bunter Heißluftballon am Himmel, und darunter fährt ein weißes Segelboot über das Meer."
+      }
+    },
+    "focalPoint": {
+      "x": 0.33,
+      "y": 0.39
+    },
+    "focalPoints": {
+      "lighthouse": {
+        "x": 0.33,
+        "y": 0.39
+      },
+      "balloon": {
+        "x": 0.87,
+        "y": 0.18
+      },
+      "sailboat": {
+        "x": 0.91,
+        "y": 0.67
+      }
+    },
+    "width": 1536,
+    "height": 1024
   }
 ]

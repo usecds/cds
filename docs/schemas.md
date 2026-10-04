@@ -99,7 +99,7 @@ The content of `objects/<hash>.json`.
 | `key` | string | yes | Stable, human-readable lookup key (slug) |
 | `translations` | `{ [locale]: { [field]: any } }` | yes | All localized fields live here, grouped by locale |
 | `references` | array of `{ collection, id }` | no | Links to items in other collections |
-| `media` | array of string | no | Virtual paths into the release's `media` map |
+| `media` | array of string | no | Virtual paths into the release's `media` map, used in every locale. Language-specific media goes in `translations[locale].media` instead (see below). |
 | `_provenance` | `{ translations?, fields? }` | no | Where values came from (human, machine, ...), see below |
 | *any other field* | any | no | Items allow additional properties for non-localized data |
 
@@ -171,9 +171,27 @@ Alt texts, descriptions, focal points and sizes of media files are content, kept
 | `translations[locale].alt` | string | Short functional text for accessibility (recommended 1–125 characters) |
 | `translations[locale].description` | string | Longer text for llms.txt, SEO and JSON-LD (recommended 50–300 characters) |
 | `focalPoint` | `{ x, y }`, each `0..1` | The important point of the image, relative to width and height; used when cropping |
+| `focalPoints` | `{ [name]: { x, y } }` | Named points of interest (e.g. `lighthouse`, `balloon`), so different crops can center different subjects |
 | `width`, `height` | integer ≥ 1 | Intrinsic size in pixels |
 
-`media-metadata.json` validates each `_media` item at publish, in addition to `collection.json`. The publisher also rejects items for media files that aren't in the release, and media files described twice.
+`media-metadata.json` validates each `_media` item at publish, in addition to `collection.json`. Media files described twice fail the publish.
+
+### Which media is published
+
+Only **referenced** media is published. A media file is referenced if an item lists it in `media` (all locales) or in `translations[locale].media` (that locale only). The publisher leaves out everything else, together with its `_media` entry, and reports it in `artifacts.content.warnings`. A referenced path the source doesn't provide is reported as well.
+
+### Language-specific media
+
+When an image differs per language (e.g. a diagram with translated labels), each locale references its own file:
+
+```json
+{ "id": "home", "key": "home",
+  "translations": {
+    "en": { "title": "Home",  "media": ["cds-flow.png"] },
+    "de": { "title": "Start", "media": ["cds-flow-de.png"] } } }
+```
+
+Each file gets its own `_media` entry with texts in **its** language only. CDS derives from the references where an image is used: its alt text and description are expected (translation completeness, recommendations, target rules) only in those locales. An image not used in the source locale isn't a translation at all, so it's left out of completeness.
 
 ## `target.json`
 

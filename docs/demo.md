@@ -31,7 +31,9 @@ demo/data/*.json ──▶ FixtureSource ──▶ Publisher ──▶ demo/publ
 4. **Generator.** For each locale returned by `client.getLocales()`, it:
    - gets the `homepage` item from `site_settings` by key, for hero, CTA and footer texts
    - gets the `features`, `goals` and `testimonials` collections
-   - gets the hero image with `getMediaInfo("hero.svg", locale)` and renders it with its localized alt text, size, and the focal point as CSS `object-position` (so cropping keeps the important part visible). Media files are copied from the client cache to `demo/dist/media/`.
+   - gets the hero image with `getMediaInfo("hero.svg", locale)` and renders it with its localized alt text, size, and the focal point as CSS `object-position` (so cropping keeps the important part visible). Media files of the release are copied from the client cache to `demo/dist/media/`.
+   - shows the **language-specific pipeline diagram**: the homepage item references `cds-flow.png` in `translations.en.media` and `cds-flow-de.png` in `translations.de.media`, and the generator takes `content.media[0]` for the current locale.
+   - shows **one image in three crops**: `coast-with-lighthouse-balloon-sailboat.png` at the `banner` (3:1), `square` (1:1) and `portrait` (2:3) presets from `landing-page.json`, each centered on a different named focal point (`lighthouse`, `balloon`, `sailboat`) from `_media`. The crop is emulated with CSS `object-fit: cover` and a computed `object-position`; real resized files would come from the image project.
    - renders an HTML page with `item.translations[locale]` and writes `index.html` (for `en`) or `index-<locale>.html`
    - adds a "release log" panel showing the active release ID, loaded collections and synced locales, read from the client
 
@@ -43,9 +45,9 @@ demo/data/*.json ──▶ FixtureSource ──▶ Publisher ──▶ demo/publ
 | `features.json` | `features` | 4 | `title`, `description` |
 | `goals.json` | `goals` | 4 | `title`, `icon` |
 | `testimonials.json` | `testimonials` | 2 | `quote`, `author`, `role` |
-| `_media.json` | `_media` | 1 (`hero.svg`) | `alt`, `description` (plus `focalPoint`, `width`, `height`) |
+| `_media.json` | `_media` | 4 (`hero.svg`, both diagrams, coast image) | `alt`, `description` (plus `focalPoint`, `focalPoints`, `width`, `height`) |
 
-Media files live in `demo/data/media/`, named by their virtual path.
+Media files live in `demo/data/media/`, named by their virtual path. `unused-example.svg` isn't referenced by any item, so the publisher leaves it out and prints a warning; it never reaches `demo/dist/`.
 
 Each file is a plain array of CDS items (`id`, `key`, `translations`). To change the page, edit the JSON and run `pnpm demo` again.
 

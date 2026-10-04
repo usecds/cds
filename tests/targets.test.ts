@@ -80,7 +80,8 @@ describe("Targets and content report (G4)", () => {
       media: { "hero.jpg": { adapter: "cms", id: "7f3a", path: "/admin/files/7f3a" } }
     };
 
-    const { manifest, artifacts } = await new Publisher(sourceOf({ _media: media }, sourceMap), store)
+    const gallery = [room("gallery", {}, undefined, { media: ["hero.jpg", "logo.png"] })];
+    const { manifest, artifacts } = await new Publisher(sourceOf({ gallery, _media: media }, sourceMap), store)
       .publish("production", "r1", { sourceLocale: "en" });
 
     expect(manifest.targets).toEqual(["default"]);

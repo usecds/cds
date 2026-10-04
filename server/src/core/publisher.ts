@@ -27,7 +27,7 @@ import {
 } from "./translations.js";
 import { resolveTargets, TargetDefinition } from "./targets.js";
 import { buildContentReport, ContentReport } from "./content-report.js";
-import { MEDIA_COLLECTION, validateMediaMetadata } from "./media-metadata.js";
+import { collectMediaUsage, mediaLocales, MEDIA_COLLECTION, validateMediaMetadata } from "./media-metadata.js";
 
 export interface PublisherConfig {
   retentionCount?: number; // How many releases to keep (default: 3)
@@ -97,9 +97,21 @@ export class Publisher {
    * Updates the channel manifest as the final atomic action.
    */
   async publish(channel: string, releaseId: string, options: PublishOptions = {}): Promise<PublishResult> {
-    const rawCollections = await this.source.getCollections();
-    const rawMedia = await this.source.getMedia();
+    const sourceCollections = await this.source.getCollections();
+    const sourceMedia = await this.source.getMedia();
     const sourceMap = this.source.getSourceMap ? await this.source.getSourceMap() : undefined;
+
+    // Only media referenced by content is published; the rest (and its _media entries) is ignored
+    const usage = collectMediaUsage(sourceCollections);
+    const rawMedia = sourceMedia.filter((m) => usage.has(m.virtualPath));
+    const warnings = mediaWarnings(sourceCollections, sourceMedia, usage);
+    const published = new Set(rawMedia.map((m) => m.virtualPath));
+    const rawCollections = { ...sourceCollections };
+    if (rawCollections[MEDIA_COLLECTION]) {
+      rawCollections[MEDIA_COLLECTION] = rawCollections[MEDIA_COLLECTION].filter((m) => published.has(m.id));
+    }
+    const itemLocales = (collection: string, item: CollectionItem) =>
+      collection === MEDIA_COLLECTION ? mediaLocales(usage, item.id) : undefined;
 
     const collectionsMeta: Record<string, CollectionMeta> = {};
     const mediaMeta: Record<string, MediaMeta> = {};
@@ -147,11 +159,12 @@ export class Publisher {
     // 3. Measure translation completeness against the source locale and the channel's current release
     const { locale: sourceLocale, origin } = await this.resolveSourceLocale(options.sourceLocale, rawCollections);
     const previousCollections = await this.readChannelCollections(channel);
-    const translations = analyzeTranslations(rawCollections, sourceLocale, origin, previousCollections);
+    const translations = analyzeTranslations(rawCollections, sourceLocale, origin, previousCollections, itemLocales);
 
     // 4. Check targets; an unmet requirement fails the build before anything is written
     const resolved = resolveTargets(options.targets ?? []);
-    const content = buildContentReport(rawCollections, translations, resolved, sourceMap);
+    const content = buildContentReport(rawCollections, translations, resolved, sourceMap, itemLocales);
+    content.warnings.push(...warnings);
     const artifacts: PublishArtifacts = { translations, content, targets: resolved.effective };
     if (sourceMap) {
       artifacts.sourceMap = { releaseId, ...sourceMap };
@@ -290,4 +303,26 @@ export class Publisher {
 
     return { dryRun, deletedObjects, deletedMedia, freedBytes: report.orphans.bytes, report };
   }
+}
+
+// Reports media the publisher leaves out, and references to media the source doesn't provide
+function mediaWarnings(
+  collections: Record<string, CollectionItem[]>,
+  media: { virtualPath: string }[],
+  usage: Map<string, unknown>
+): string[] {
+  const warnings: string[] = [];
+  const provided = new Set(media.map((m) => m.virtualPath));
+  for (const path of provided) {
+    if (!usage.has(path)) warnings.push(`Media ${path} is not referenced by any item and was not published`);
+  }
+  for (const item of collections[MEDIA_COLLECTION] ?? []) {
+    if (!provided.has(item.id) || !usage.has(item.id)) {
+      warnings.push(`_media entry ${item.id} was ignored because the media isn't published`);
+    }
+  }
+  for (const path of usage.keys()) {
+    if (!provided.has(path)) warnings.push(`Media ${path} is referenced but not provided by the source`);
+  }
+  return warnings;
 }

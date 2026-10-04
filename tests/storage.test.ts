@@ -10,10 +10,11 @@ import {
   SourceMap
 } from "../server/src/index.js";
 
-const item = (id: string, title: string): CollectionItem => ({
+const item = (id: string, title: string, media?: string[]): CollectionItem => ({
   id,
   key: id,
-  translations: { en: { title } }
+  translations: { en: { title } },
+  ...(media ? { media } : {})
 });
 
 const media = (virtualPath: string, content: string) => ({
@@ -53,7 +54,7 @@ describe("Build artifacts, storage report and GC (G2)", () => {
         "hero.png": { adapter: "directus", id: "f-1", path: "/admin/files/f-1" }
       }
     };
-    const source = new FixtureSource({ pages: [item("home", "Home")] }, [media("hero.png", "hero")], sourceMap);
+    const source = new FixtureSource({ pages: [item("home", "Home", ["hero.png"])] }, [media("hero.png", "hero")], sourceMap);
 
     const { artifacts } = await new Publisher(source, store).publish("production", "r1");
 
@@ -75,10 +76,10 @@ describe("Build artifacts, storage report and GC (G2)", () => {
     const small = media("small.png", "y".repeat(10));
 
     // r1: pages v1 + big + small
-    await new Publisher(new FixtureSource({ pages: [item("a", "v1")] }, [big, small]), store, { retentionCount: 2 })
+    await new Publisher(new FixtureSource({ pages: [item("a", "v1", ["big.png", "small.png"])] }, [big, small]), store, { retentionCount: 2 })
       .publish("production", "r1");
     // r2: pages v2 + small (big dropped)
-    await new Publisher(new FixtureSource({ pages: [item("a", "v2")] }, [small]), store, { retentionCount: 2 })
+    await new Publisher(new FixtureSource({ pages: [item("a", "v2", ["small.png"])] }, [small]), store, { retentionCount: 2 })
       .publish("production", "r2");
 
     const publisher = new Publisher(new FixtureSource(), store, { retentionCount: 2 });
@@ -114,7 +115,7 @@ describe("Build artifacts, storage report and GC (G2)", () => {
       ["r2", "v2", []],
       ["r3", "v3", []]
     ] as const) {
-      await new Publisher(new FixtureSource({ pages: [item("a", title)] }, [...files]), store, { retentionCount: 2 })
+      await new Publisher(new FixtureSource({ pages: [item("a", title, files.map((f) => f.virtualPath))] }, [...files]), store, { retentionCount: 2 })
         .publish("production", releaseId);
     }
     // r1 is out of retention, so its pages object and big.png are orphans

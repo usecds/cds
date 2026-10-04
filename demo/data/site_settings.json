@@ -9,7 +9,14 @@
         "heroSubtitle": "Bridge the gap between your CMS and client applications with resilient, static, content-addressed delivery.",
         "ctaPrimary": "Explore Goals",
         "ctaSecondary": "View on GitHub",
-        "footerText": "© 2026 CDS Project. Open Source & CMS-independent."
+        "footerText": "© 2026 CDS Project. Open Source & CMS-independent.",
+        "flowTitle": "How a release travels",
+        "flowIntro": "The same diagram exists per language. Each locale references its own image, so its texts are only expected in that language.",
+        "galleryTitle": "One image, three crops",
+        "galleryIntro": "The image is stored once. Each crop uses a size from the landing-page target and centers a different focal point from the _media metadata.",
+        "media": [
+          "cds-flow.png"
+        ]
       },
       "de": {
         "siteTitle": "Content Distribution System (CDS)",
@@ -17,8 +24,19 @@
         "heroSubtitle": "Schließen Sie die Lücke zwischen Ihrem CMS und Ihren Client-Anwendungen mit einer resilienten, statischen und inhaltsadressierten Bereitstellung.",
         "ctaPrimary": "Ziele erkunden",
         "ctaSecondary": "Auf GitHub ansehen",
-        "footerText": "© 2026 CDS-Projekt. Open Source & CMS-unabhängig."
+        "footerText": "© 2026 CDS-Projekt. Open Source & CMS-unabhängig.",
+        "flowTitle": "So läuft ein Release ab",
+        "flowIntro": "Das Diagramm gibt es pro Sprache. Jede Sprache referenziert ihr eigenes Bild, daher werden dessen Texte nur in dieser Sprache erwartet.",
+        "galleryTitle": "Ein Bild, drei Ausschnitte",
+        "galleryIntro": "Das Bild wird nur einmal gespeichert. Jeder Ausschnitt nutzt eine Größe aus dem Target „landing-page“ und zentriert einen anderen Fokuspunkt aus den _media-Metadaten.",
+        "media": [
+          "cds-flow-de.png"
+        ]
       }
-    }
+    },
+    "media": [
+      "hero.svg",
+      "coast-with-lighthouse-balloon-sailboat.png"
+    ]
   }
 ]

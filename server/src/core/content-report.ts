@@ -2,7 +2,7 @@ import { CollectionItem, SourceMap } from "../types.js";
 import { compileContentSchema, ContentSchemaError } from "../validation.js";
 import { deterministicStringify } from "../utils.js";
 import { CollectionRules, DEFAULT_TARGET_ID, ResolvedTargets, TargetDefinition } from "./targets.js";
-import { TranslationReport } from "./translations.js";
+import { ItemLocales, TranslationReport } from "./translations.js";
 
 export type IssueSeverity = "requirement" | "recommendation";
 
@@ -37,6 +37,7 @@ interface Context {
   translations: TranslationReport;
   sourceMap?: SourceMap;
   allLocales: string[];
+  itemLocales?: ItemLocales;
 }
 
 /**
@@ -48,13 +49,14 @@ export function buildContentReport(
   collections: Record<string, CollectionItem[]>,
   translations: TranslationReport,
   resolved: ResolvedTargets,
-  sourceMap?: SourceMap
+  sourceMap?: SourceMap,
+  itemLocales?: ItemLocales
 ): ContentReport {
   const allLocales = new Set<string>();
   for (const items of Object.values(collections)) {
     items.forEach((item) => Object.keys(item.translations).forEach((l) => allLocales.add(l)));
   }
-  const ctx: Context = { collections, translations, sourceMap, allLocales: [...allLocales].sort() };
+  const ctx: Context = { collections, translations, sourceMap, allLocales: [...allLocales].sort(), itemLocales };
 
   const report: ContentReport = { targets: {}, issues: [], warnings: [...resolved.warnings] };
 
@@ -187,8 +189,9 @@ function checkRules(
 
   for (const item of items) {
     const base = { severity, target, collection, id: item.id, source: sourceLink(ctx, collection, item.id) };
+    const usedIn = ctx.itemLocales?.(collection, item);
     if (localized) {
-      for (const locale of locales) {
+      for (const locale of usedIn ? locales.filter((l) => usedIn.includes(l)) : locales) {
         const data = withoutEmpty(item.translations[locale] ?? {});
         for (const error of localized(data)) {
           issues.push({ ...base, locale, ...describe(error, data, rules.localized!) });

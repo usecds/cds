@@ -39,6 +39,7 @@ export interface CollectionItem {
 export interface MediaMetadataItem extends CollectionItem {
   translations: Record<string, { alt?: string | null; description?: string | null; [field: string]: any }>;
   focalPoint?: { x: number; y: number }; // 0..1, relative to width/height
+  focalPoints?: Record<string, { x: number; y: number }>; // named points of interest, e.g. per crop
   width?: number; // intrinsic size in pixels
   height?: number;
 }
@@ -94,6 +95,7 @@ export interface MediaInfo {
   width?: number;
   height?: number;
   focalPoint?: { x: number; y: number };
+  focalPoints?: Record<string, { x: number; y: number }>;
   alt?: string; // in the requested locale
   description?: string;
 }

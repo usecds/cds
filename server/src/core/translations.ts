@@ -64,6 +64,9 @@ function addCounts(target: TranslationCounts, add: TranslationCounts): void {
 
 const isEmpty = (value: unknown) => value === undefined || value === null || value === "";
 
+// Restricts an item to the locales it's used in (e.g. language-specific media); undefined = all locales
+export type ItemLocales = (collection: string, item: CollectionItem) => string[] | undefined;
+
 /**
  * Measures translation completeness against the source locale.
  *
@@ -71,12 +74,15 @@ const isEmpty = (value: unknown) => value === undefined || value === null || val
  * - Missing: the translation is absent, null or "".
  * - Stale: the marker's sourceHash differs from the current source text. Without a sourceHash,
  *   falls back to the previous release: source text changed but the translation didn't.
+ * - Items restricted by itemLocales are only measured in those locales, and skipped entirely
+ *   if they aren't used in the source locale (their texts are originals, not translations).
  */
 export function analyzeTranslations(
   collections: Record<string, CollectionItem[]>,
   sourceLocale: string,
   sourceLocaleOrigin: SourceLocaleOrigin,
-  previous?: Record<string, CollectionItem[]>
+  previous?: Record<string, CollectionItem[]>,
+  itemLocales?: ItemLocales
 ): TranslationReport {
   const locales = new Set<string>();
   for (const items of Object.values(collections)) {
@@ -105,6 +111,8 @@ export function analyzeTranslations(
     const previousById = new Map((previous?.[collection] ?? []).map((i) => [i.id, i]));
 
     for (const item of items) {
+      const usedIn = itemLocales?.(collection, item);
+      if (usedIn && !usedIn.includes(sourceLocale)) continue;
       const sourceFields = item.translations[sourceLocale];
       if (!sourceFields) {
         report.itemsWithoutSource.push({ collection, id: item.id });
@@ -116,6 +124,7 @@ export function analyzeTranslations(
         if (typeof sourceValue !== "string" || sourceValue.length === 0) continue;
 
         for (const locale of targetLocales) {
+          if (usedIn && !usedIn.includes(locale)) continue;
           const counts = perLocale[locale];
           counts.expected++;
           const value = item.translations[locale]?.[field];

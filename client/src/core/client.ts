@@ -335,6 +335,7 @@ export class CDSClient {
     if (typeof item.width === "number") info.width = item.width;
     if (typeof item.height === "number") info.height = item.height;
     if (item.focalPoint) info.focalPoint = item.focalPoint;
+    if (item.focalPoints) info.focalPoints = item.focalPoints;
     const texts = locale ? item.translations[locale] : undefined;
     if (typeof texts?.alt === "string" && texts.alt) info.alt = texts.alt;
     if (typeof texts?.description === "string" && texts.description) info.description = texts.description;

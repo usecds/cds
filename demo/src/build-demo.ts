@@ -74,6 +74,26 @@ class DemoLocalDownloader implements RemoteDownloader {
 const escapeAttr = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+// "3:1" -> 3
+const parseAspect = (aspect: string) => {
+  const [w, h] = aspect.split(":").map(Number);
+  return w / h;
+};
+
+/**
+ * CSS object-position that centers a focal point in a box cropped with object-fit: cover,
+ * as far as the image edges allow. Stands in for the image project's real crop.
+ */
+function focalPosition(point: { x: number; y: number }, width: number, height: number, boxAspect: number): string {
+  const imageAspect = width / height;
+  // overflow = scaled image size / box size along the cropped axis
+  const axis = (focal: number, overflow: number) =>
+    overflow <= 1 ? 50 : Math.min(1, Math.max(0, (focal * overflow - 0.5) / (overflow - 1))) * 100;
+  const x = imageAspect > boxAspect ? axis(point.x, imageAspect / boxAspect) : 50;
+  const y = imageAspect < boxAspect ? axis(point.y, boxAspect / imageAspect) : 50;
+  return `${x.toFixed(1)}% ${y.toFixed(1)}%`;
+}
+
 async function run() {
   console.log("🚀 Starting CDS Demo Builder...");
 
@@ -130,6 +150,9 @@ async function run() {
   for (const [locale, counts] of Object.entries(artifacts.translations.locales)) {
     console.log(`🌐 [Server] Translations ${locale}: ${counts.translated}/${counts.expected} (missing ${counts.missing}, stale ${counts.stale})`);
   }
+  for (const warning of artifacts.content.warnings) {
+    console.log(`⚠️  [Server] ${warning}`);
+  }
   for (const [target, result] of Object.entries(artifacts.content.targets)) {
     console.log(`🎯 [Server] Target ${target}: ${result.satisfied ? "satisfied" : "failed"} (${result.recommendations} recommendations)`);
   }
@@ -179,6 +202,24 @@ async function run() {
     const goals = await client.getCollection("goals");
     const testimonials = await client.getCollection("testimonials");
     const hero = client.getMediaInfo("hero.svg", locale);
+
+    // Language-specific diagram: each locale references its own image in translations[locale].media
+    const flow = content.media?.[0] ? client.getMediaInfo(content.media[0], locale) : null;
+
+    // One stored image, three crops: preset sizes from the landing-page target, focal points from _media
+    const coast = client.getMediaInfo("coast-with-lighthouse-balloon-sailboat.png", locale);
+    const presets = (artifacts.targets["landing-page"].media?.presets ?? {}) as Record<string, { aspect: string }>;
+    const crops = coast?.width && coast.height && coast.focalPoints
+      ? [
+          { preset: "banner", focus: "lighthouse" },
+          { preset: "square", focus: "balloon" },
+          { preset: "portrait", focus: "sailboat" }
+        ].map(({ preset, focus }) => {
+          const aspect = presets[preset].aspect;
+          const position = focalPosition(coast.focalPoints![focus], coast.width!, coast.height!, parseAspect(aspect));
+          return { preset, focus, aspect, position };
+        })
+      : [];
     // The focal point keeps the important part of the image visible when CSS crops it
     const heroPosition = hero?.focalPoint ? `${hero.focalPoint.x * 100}% ${hero.focalPoint.y * 100}%` : "center";
 
@@ -284,6 +325,39 @@ async function run() {
             </div>
         </div>
     </section>
+
+    <!-- Language-specific diagram -->
+    ${flow ? `<section class="py-20 bg-slate-950/50 border-b border-slate-900">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl font-bold text-white mb-4">${content.flowTitle}</h2>
+                <p class="text-slate-400 max-w-2xl mx-auto">${content.flowIntro}</p>
+            </div>
+            <figure>
+                <img src="media/${flow.path}" alt="${escapeAttr(flow.alt ?? "")}" width="${flow.width ?? ""}" height="${flow.height ?? ""}"
+                     class="w-full h-auto rounded-2xl border border-slate-800 bg-white">
+                <figcaption class="text-sm text-slate-500 mt-3 text-center">${flow.description ?? ""}</figcaption>
+            </figure>
+        </div>
+    </section>` : ""}
+
+    <!-- One image, three crops around different focal points -->
+    ${coast && crops.length ? `<section class="py-20 bg-slate-950 border-b border-slate-900">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl font-bold text-white mb-4">${content.galleryTitle}</h2>
+                <p class="text-slate-400 max-w-2xl mx-auto">${content.galleryIntro}</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
+                ${crops.map((crop, i) => `<figure class="${i === 0 ? "md:col-span-5" : i === 1 ? "md:col-span-3" : "md:col-span-2"}">
+                    <img src="media/${coast.path}" alt="${escapeAttr(coast.alt ?? "")}"
+                         class="w-full object-cover rounded-2xl border border-slate-800"
+                         style="aspect-ratio: ${crop.aspect.replace(":", " / ")}; object-position: ${crop.position}">
+                    <figcaption class="text-xs code-font text-slate-500 mt-2">${crop.preset} ${crop.aspect} · focus: ${crop.focus} · object-position ${crop.position}</figcaption>
+                </figure>`).join("")}
+            </div>
+        </div>
+    </section>` : ""}
 
     <!-- Features Section -->
     <section class="py-20 bg-slate-950/50 border-b border-slate-900">

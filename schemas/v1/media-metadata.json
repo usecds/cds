@@ -16,7 +16,16 @@
         "additionalProperties": true
       }
     },
-    "focalPoint": {
+    "focalPoint": { "$ref": "#/definitions/point" },
+    "focalPoints": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/point" }
+    },
+    "width": { "type": "integer", "minimum": 1 },
+    "height": { "type": "integer", "minimum": 1 }
+  },
+  "definitions": {
+    "point": {
       "type": "object",
       "properties": {
         "x": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -24,9 +33,7 @@
       },
       "required": ["x", "y"],
       "additionalProperties": true
-    },
-    "width": { "type": "integer", "minimum": 1 },
-    "height": { "type": "integer", "minimum": 1 }
+    }
   },
   "required": ["id"],
   "additionalProperties": true
