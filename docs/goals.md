@@ -440,6 +440,50 @@ edit:  frontend ──{ collection, item, field, locale, value, basedOn }──�
 
 **Status: implemented.** A consumer (here: a template's collection bundle) declares the collections it needs as content types; adapters map to them generically (`mapContentTypes` in `@cds/directus`) and the declaration yields the publish checks (`contentTypeTarget`). On hotelplatform.io the integrations bundle and the templates' style schemas are the contract for their content; site structure (routes, pages, blocks, menus) stays in the site's mapping.
 
+### P15: Icons as editable values
+
+**Status: proposed (todo).**
+
+**Problem:** icons in content (menu entries' `icon` and `trailingIcon`, feature icons, category icons) are names such as `heroicons:lock-closed`. The preview can't change them, and nothing checks that a name exists.
+
+**Direction:**
+- An `icon` field kind in content types, naming the icon libraries it allows (e.g. `heroicons`). The publish checks names against the library (an unknown icon is a requirement or a recommendation).
+- In the preview, a marked icon opens an icon picker from the allowed libraries (search, preview), writing the name through the adapter's editor like any other value.
+- Menu entry icons are the first case.
+
+### P16: Images in the preview
+
+**Status: proposed (todo).**
+
+**Problem:** images can only be edited as text attributes today (alt via the field behind it). Editors need to pick or replace an image, and edit its metadata.
+
+**Direction:**
+- **Media browser** in the preview: the release's media (`_media`: name, size, alt, focal point) plus the source system's files, searchable. Selecting one sets an image field (a block's `image`, an image block, a post cover) through the adapter's editor.
+- **New blocks with an image:** "add a block" offers image fields for the types that have them.
+- **Image metadata:** alt, caption and description edited where the image is shown. These are `_media` values, written to the source's file record (Directus: `directus_files` title and description), with their source fields in the source map like any other value.
+- **Upload** (later): an upload goes to the source system, not into CDS; the next publish picks it up.
+- Fits P8 (`_media`) and the imaging project: focal points could be set here too.
+
+### P17: Translation bridge
+
+**Status: proposed (todo).**
+
+**Problem:** CDS reports missing and stale translations (P1, P2), but filling them is manual.
+
+**Direction:**
+- **A companion package, not CDS core.** It follows "CDS reports, it doesn't transform" and works like `@cds/imaging`: one plugin per provider (DeepL first, others behind the same interface).
+- **Flow:**
+  - read the release's translation report (missing and stale fields per locale);
+  - translate those values with the provider;
+  - write them back to the source system through the adapter's editor, with the provenance marker `machine` (model or provider, source hash) where the source supports it (P2);
+  - publish.
+- **Review gap, on purpose:** machine translations are flagged in the content report and in the preview until a person reviews them, and reviewing them in the preview clears the marker. Directus' own translation rows are the write target (`<collection>_translations`), so the source stays the place where translations live.
+- **Open:**
+  - which fields to send (text and rich text only, with HTML kept intact);
+  - glossary and terms per site;
+  - cost limits per run;
+  - whether the bridge runs in CI or from the preview.
+
 ### Verification against the demo
 
 The demo page mapped onto P11/P12:

@@ -55,6 +55,12 @@ An `ObjectStore` for S3-compatible storage (AWS, R2, MinIO), with cache headers 
 - Route patterns for dynamic routing (`/rooms/{key}`), now that the Hono mode gives a use case
 - Whether rendered image variants should go into releases (verified, available offline on clients)
 
+### Todo from the hotelplatform.io preview
+
+- **Icons (P15):** an `icon` field kind with allowed libraries, publish checks, an icon picker in the preview (menu entry icons first).
+- **Images (P16):** media browser in the preview (release media + source files), set or replace images in blocks and posts, image metadata (alt, caption, description) written to the source file record; upload later.
+- **Translation bridge (P17):** a companion package with one plugin per provider (DeepL first): translate missing and stale fields from the content report, write them back through the adapter with `machine` provenance, flag them for review in the report and the preview.
+
 ### Milestone 2: Delta sync
 
 Record-level deltas between releases, with full download as fallback. See [goals.md](goals.md#milestones).
