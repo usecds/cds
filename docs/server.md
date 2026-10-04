@@ -241,6 +241,24 @@ Empty values (`""`, `null`) count as missing, as in translation completeness.
 
 `issue` is one of `missing`, `too-short`, `too-long`, `invalid`, `missing-collection`, `too-few-items`, `missing-item`, `missing-locale`, `incomplete-locale`, `too-many-stale`, plus the translation issues `untranslated` and `stale` and `meaningless-name`, `jsonld-empty`, `unrouted-page`, `unused-block` and `missing-label` (always recommendations). `meaningless-name` flags published media whose file name (or `_media` name) has no descriptive word: camera and phone defaults (`IMG_2034`, `DSC00012`, `PXL_…`), messenger and screenshot names (`photo_2026-10-01_12-07-10`, `WhatsApp Image …`, `Screenshot …`), AI tool defaults (`ChatGPT Image 24. Sept. 2026, 12_41_16`, `DALL·E …`), UUIDs, hashes, and names made only of dates, numbers or generic words (`image1`, `untitled-copy-final`). It suggests a name from the alt text (`recommended`). See `meaninglessNameReason` and `suggestMediaName`. `source` is a deep link built from the source map, if one is available.
 
+### Content types
+
+A content type declares a collection a consumer needs (e.g. a template's bundle), independent of the CMS: its fields and their kinds. Source adapters map their records to it, and `contentTypeTarget(types, id?)` turns the declarations into a target, so content that doesn't fit fails the publish.
+
+```ts
+interface ContentType { collection: string; fields: ContentField[]; declaredBy?: string }
+interface ContentField {
+  field: string;
+  kind: "text" | "richText"                                  // → translations[locale][field]
+      | "string" | "number" | "boolean" | "date" | "select" | "status" | "sort" | "slug" // → item[field] (slug also the key)
+      | "file"                                               // → item[field] = media path
+      | "reference" | "references";                          // → id / ids of items in `related` (references: one-to-many via `via`)
+  required?: boolean; options?: string[]; related?: string; via?: string; label?: string;
+}
+```
+
+The derived target (scoped to the declared collections) requires the declared required fields (texts in the source locale, values on the item) and restricts selects to their options. A declared collection without items passes: declaring a type doesn't require content. `mapContentTypes` in `@cds/directus` maps Directus records to content types ([directus.md](directus.md#content-types)).
+
 ### Publish report
 
 `createPublishReport({ channel, releaseId, artifacts, manifest?, error? })` turns a publish result into one structured report, for both a successful and a failed publish (pass `err.artifacts` and `err` from `PublishRequirementsError`). `renderPublishReportHtml(report)` renders it as a self-contained HTML page (no external resources, light and dark).

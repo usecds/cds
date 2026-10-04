@@ -9,7 +9,8 @@
     ".": "./dist/index.js",
     "./compat": "./dist/compat.js",
     "./source": "./dist/source.js",
-    "./editor": "./dist/editor.js"
+    "./editor": "./dist/editor.js",
+    "./content-types": "./dist/content-types.js"
   },
   "bin": {
     "cds-directus-publish": "./dist/cli.js"
@@ -20,7 +21,9 @@
   },
   "devDependencies": {
     "@cds/client": "workspace:*",
-    "@cds/server": "workspace:*",
     "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@cds/server": "workspace:*"
   }
 }

@@ -66,13 +66,14 @@ importers:
         version: 5.9.3
 
   directus:
+    dependencies:
+      '@cds/server':
+        specifier: workspace:*
+        version: link:../server
     devDependencies:
       '@cds/client':
         specifier: workspace:*
         version: link:../client
-      '@cds/server':
-        specifier: workspace:*
-        version: link:../server
       typescript:
         specifier: ^5.5.4
         version: 5.9.3

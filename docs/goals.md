@@ -436,6 +436,10 @@ edit:  frontend ──{ collection, item, field, locale, value, basedOn }──�
 - Where the editing UI lives (likely a companion package, like `@cds/imaging`).
 - How the preview obtains the editor's credentials for the backend.
 
+### P14: Content types declared by consumers
+
+**Status: implemented.** A consumer (here: a template's collection bundle) declares the collections it needs as content types; adapters map to them generically (`mapContentTypes` in `@cds/directus`) and the declaration yields the publish checks (`contentTypeTarget`). On hotelplatform.io the integrations bundle and the templates' style schemas are the contract for their content; site structure (routes, pages, blocks, menus) stays in the site's mapping.
+
 ### Verification against the demo
 
 The demo page mapped onto P11/P12:

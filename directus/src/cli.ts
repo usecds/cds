@@ -5,8 +5,10 @@
 //                        [--mapping cds/mapping.ts] [--channel production] [--release <id>]
 //                        [--targets targets/] [--report .cds/report]
 //
-// --mapping: a module whose default export (or `map`) maps the records to the CDS contract, and
-// optionally exports `mediaPath`. TypeScript modules work on Node 23.6+ (type stripping).
+// --mapping: a module whose default export (or `map`) maps the records to the CDS contract. It may
+// also export `mediaPath`, `collections` (more to fetch, merged into the config), `optional` (collections
+// that may be missing) and `targets` (checks, e.g. contentTypeTarget for declared content types).
+// TypeScript modules work on Node 23.6+ (type stripping).
 //
 // The Directus URL and read token come from the config, or DIRECTUS_URL / DIRECTUS_API_TOKEN.
 import fs from "fs/promises";
@@ -20,7 +22,8 @@ import {
   renderPublishReportHtml,
   PublishRequirementsError,
   PublishArtifacts,
-  ReleaseManifest
+  ReleaseManifest,
+  TargetDefinition
 } from "@cds/server";
 import { DirectusSource, DirectusSourceConfig } from "./source.js";
 
@@ -49,17 +52,25 @@ async function main() {
   const targetsDir = arg("targets");
   const reportDir = arg("report") ?? path.join(path.dirname(out), "report");
 
+  let mappingTargets: TargetDefinition[] = [];
   const mappingPath = arg("mapping");
   if (mappingPath) {
     const mod = await import(pathToFileURL(path.resolve(mappingPath)).href);
     config.map = mod.map ?? mod.default;
     if (typeof config.map !== "function") throw new Error(`${mappingPath} exports no mapping function (default or map)`);
     if (typeof mod.mediaPath === "function") config.mediaPath = mod.mediaPath;
+    // Collections the mapping needs fetched (e.g. derived from declared content types)
+    if (mod.collections && typeof mod.collections === "object") config.collections = { ...mod.collections, ...config.collections };
+    // Checks the mapping brings (e.g. a content types target)
+    if (Array.isArray(mod.targets)) mappingTargets = mod.targets;
+    if (Array.isArray(mod.optional)) config.optional = [...(config.optional ?? []), ...mod.optional];
   }
 
   const source = new DirectusSource({ ...config, log: (m) => console.log(`[directus] ${m}`) });
   const publisher = new Publisher(source, new FilesystemStore(out), { retentionCount: 5 });
-  const targets = targetsDir ? await loadTargets(targetsDir) : undefined;
+  const fromDir = targetsDir ? await loadTargets(targetsDir) : undefined;
+  const all = [...(fromDir ?? []), ...mappingTargets];
+  const targets = all.length ? all : undefined;
 
   const writeReport = async (artifacts: PublishArtifacts, manifest?: ReleaseManifest, error?: Error) => {
     const report = createPublishReport({ channel, releaseId, artifacts, manifest, error });

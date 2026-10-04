@@ -78,6 +78,22 @@ cds-directus-publish --config directus-source.json --out .cds/published [--mappi
 
 `--mapping` loads a module whose default export (or `map`) is the mapping and that may export `mediaPath`. TypeScript modules work on Node 23.6+ (type stripping: erasable syntax, imports with their `.ts` extension). `DIRECTUS_URL` and `DIRECTUS_API_TOKEN` (or `DIRECTUS_TOKEN`) override the config. Release IDs default to the ISO time, so they sort chronologically. The report directory gets `report.json`, `index.html` and `source-map.json`; with `DEBUG` set, failures print their stack.
 
+## Content types
+
+Collections a consumer declares (CDS [content types](server.md#content-types)) don't need hand-written mapping code:
+
+```ts
+import { contentTypeCollections, contentTypeTarget, mapContentTypes } from "@cds/directus/content-types";
+
+export const collections = contentTypeCollections(types); // what to fetch: top-level types, children nested
+export const targets = [contentTypeTarget(types)];        // publish checks from the declaration
+export default function map(records, ctx) {
+  return { ...siteStructure(records, ctx), ...mapContentTypes(types, records, ctx) };
+}
+```
+
+`mapContentTypes` puts texts into `translations[locale]` with their source fields (editable in a preview; `richText` as HTML), values onto the item (with source fields too, for a preview's field popover), files into media, references as ids, and one-to-many children into their own collection, referenced by id in their `sort` order. Every declared type becomes a collection, empty when Directus has no records (or the collection doesn't exist yet). A mapping module may export `collections`, `optional` and `targets`; the CLI merges them into the config and the publish.
+
 ## Editing: `DirectusEditor`
 
 The optional write side ([`SourceEditor`](server.md#editing-sourceeditor-optional)):
@@ -124,7 +140,7 @@ The Nuxt 4 site (`hotelplatform-io`, template `hotelplatform`) was rewritten in 
 
 - `cds/content.ts`: the synced client (`CDS_URL` folder or CDN, `CDS_CHANNEL`, `CDS_CACHE_DIR`, `CDS_SYNC_INTERVAL`), media by asset id, and image rendering with sharp (variants, icons, `/api/assets/<id>?width=…`).
 - `cds/site.ts`: builds the frontend data and the `/api` responses the templates consume from the contract. The Directus query helper and all Directus mappers are gone; the build hooks (paths, assets, covers, favicon, icons, build style) and the canonical redirects read CDS too.
-- The template's integrations bundle reads its collections through the auto-imported `cdsCollection(name)`.
+- The template's integrations bundle reads its collections through the auto-imported `cdsCollection(name)`. Their contract is the bundle's own declaration (`collection.ts`): `cds/bundles.ts` loads every installed template's bundles and style schemas (with jiti) as content types, and the mapping maps and checks them generically. The first publish with these checks failed on real content: seven integration interfaces use the transport `tcp`, which the declaration didn't list; the declaration was updated (rendering is unchanged).
 
 **Result** (`NUXT_ASSETS_MODE=local nuxt generate`, no Directus variable set, compared with the unmodified app built from the same Directus): the same 41 pages and 92 routes; **identical markup on all 41 pages** (build hashes and Nuxt's random ids aside); identical asset files, asset manifest, web manifest, cover map, sitemap and robots.txt; identical page payloads and `/api` data except two values that are no longer part of the contract (the globals row id as a number, and FAQ junction row ids). The page-mapping snapshot tests of the old Directus mappers pass unchanged against the CDS path (two snapshots updated: orphaned `faqs_faq_groups` module rows without an item are no longer passed through).
 
