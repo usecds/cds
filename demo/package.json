@@ -9,8 +9,9 @@
   },
   "dependencies": {
     "@cds/client": "workspace:*",
+    "@cds/imaging": "workspace:*",
     "@cds/server": "workspace:*",
-    "@cds/imaging": "workspace:*"
+    "node-html-markdown": "^2.0.0"
   },
   "devDependencies": {
     "typescript": "^5.5.4"

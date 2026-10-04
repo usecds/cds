@@ -39,6 +39,7 @@ demo/data/*.json ──▶ FixtureSource ──▶ Publisher ──▶ demo/publ
    - shows **one image in three crops**: `coast-with-lighthouse-balloon-sailboat.png` at the `banner` (3:1), `square` (1:1) and `portrait` (2:3) presets, each centered on a different named focal point (`lighthouse`, `balloon`, `sailboat`) from `_media`, with zoom 1, 1.5 and 1.3 so the crops isolate their subject.
    - renders an HTML page with `item.translations[locale]` and writes `index.html` (for `en`) or `index-<locale>.html`
    - adds a "release log" panel showing the active release ID, loaded collections and synced locales, read from the client
+5. **llms.txt.** After all pages, writes `demo/dist/llms.txt` ([llmstxt.org](https://llmstxt.org/) format): the site name as H1, the summary as a blockquote, then one section per language (default page first) with that page converted from the rendered HTML to Markdown (`node-html-markdown`), without the language switcher. HTML only carries alt texts, so the generator records which media each `<img>` shows and adds the localized `_media` description after the image: once per source image and language, and not when the page already shows it as a caption.
 
 ## Content
 

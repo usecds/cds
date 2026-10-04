@@ -26,6 +26,9 @@ import {
   MediaInfo
 } from "@cds/client";
 
+// HTML -> Markdown for llms.txt
+import { NodeHtmlMarkdown } from "node-html-markdown";
+
 // Image processor (complementary to CDS): renders crops and sizes from target presets
 import {
   render,
@@ -94,6 +97,52 @@ class DemoLocalDownloader implements RemoteDownloader {
 
 const escapeAttr = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+const LANGUAGE_NAMES: Record<string, string> = { en: "English", de: "Deutsch" };
+const IMAGE_DESCRIPTION: Record<string, string> = { en: "Image description", de: "Bildbeschreibung" };
+
+/**
+ * Builds llms.txt (llmstxt.org): site name, summary, then one section per language with the page
+ * converted from HTML to Markdown. The language switcher is left out; each image is followed by its
+ * description from the _media collection, which the HTML itself doesn't contain.
+ */
+function renderLlmsTxt(
+  pages: { locale: string; file: string; title: string; summary: string; html: string; images: Map<string, MediaInfo> }[],
+  releaseId: string
+): string {
+  // The default page (index.html) comes first and provides the title and summary
+  const ordered = [...pages].sort((a, b) => Number(b.file === "index.html") - Number(a.file === "index.html"));
+  const [primary] = ordered;
+  const sections = ordered.map((page) => {
+    const body = page.html
+      .replace(/^[\s\S]*?<body[^>]*>/, "")
+      .replace(/<\/body>[\s\S]*$/, "")
+      .replace(/<header[\s\S]*?<\/header>/, ""); // navigation and language switcher
+    const converted = NodeHtmlMarkdown.translate(body)
+      // Nest the page's headings below the language heading
+      .replace(/^(#{1,4}) /gm, "##$1 ");
+    // Add each source image's description once, unless the page already shows it (e.g. as a caption)
+    const described = new Set<string>();
+    const markdown = converted
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, _alt, src) => {
+        const image = page.images.get(src);
+        if (!image?.description || described.has(image.path) || converted.includes(image.description)) return match;
+        described.add(image.path);
+        const label = IMAGE_DESCRIPTION[page.locale] ?? IMAGE_DESCRIPTION.en;
+        return `${match}\n\n*${label}: ${image.description}*\n`;
+      })
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    return `## ${LANGUAGE_NAMES[page.locale] ?? page.locale} (${page.file})\n\n${markdown}`;
+  });
+
+  return [
+    `# ${primary.title}`,
+    `> ${primary.summary}`,
+    `Text of every page of this site for language models, with descriptions of all images. Languages: ${ordered.map((p) => LANGUAGE_NAMES[p.locale] ?? p.locale).join(", ")}. Generated from release ${releaseId}.`,
+    ...sections
+  ].join("\n\n") + "\n";
+}
 
 async function run() {
   console.log("🚀 Starting CDS Demo Builder...");
@@ -214,6 +263,8 @@ async function run() {
     mobileBytes: number;
   }
   const variants = new Map<string, Variant>();
+  // <img src> -> media shown, for the page being rendered (descriptions are per locale)
+  let pageImages = new Map<string, MediaInfo>();
   const stats = { rendered: 0, reused: 0, skipped: 0, vector: 0 };
   const copied = new Set<string>();
 
@@ -236,6 +287,7 @@ async function run() {
         copied.add(info.path);
         stats.vector++;
       }
+      pageImages.set(`media/${info.path}`, info);
       return {
         html: `<img src="media/${info.path}" alt="${alt}" width="${info.width ?? ""}" height="${info.height ?? ""}" class="${imgClass}">`,
         report: {
@@ -320,6 +372,7 @@ async function run() {
     });
     // <img> fallback: smallest breakpoint in the last listed (most widely supported) format
     const fallback = entries[entries.length - 1][1].get(formats[formats.length - 1])!;
+    pageImages.set(fallback[0].file, info);
     const html = `<picture>${sources.join("")}<img src="${fallback[0].file}" srcset="${srcset(fallback)}" alt="${alt}" width="${fallback[0].width}" height="${fallback[0].height}" class="${imgClass}"></picture>`;
 
     const smallest1x = (byFormat: Map<ImageFormat, (Variant & { dpr: number })[]>) => bySize(byFormat)[0][1][0].bytes;
@@ -340,7 +393,10 @@ async function run() {
   const locales = client.getLocales();
   console.log(`🌍 Available Locales: ${locales.join(", ")}`);
 
+  const pages: { locale: string; file: string; title: string; summary: string; html: string; images: Map<string, MediaInfo> }[] = [];
+
   for (const locale of locales) {
+    pageImages = new Map();
     // Query homepage settings
     const settingsItem = await client.getItemByKey("site_settings", "homepage");
     if (!settingsItem) throw new Error("Site settings item not found in CDS cache!");
@@ -708,7 +764,13 @@ async function run() {
     const outPath = path.join(distDir, outFilename);
     await fs.writeFile(outPath, html, "utf-8");
     console.log(`🌍 [Generator] Rendered and wrote ${outFilename} to: ${outPath}`);
+    pages.push({ locale, file: outFilename, title: content.siteTitle, summary: content.heroSubtitle, html, images: pageImages });
   }
+
+  // llms.txt: the text of every page, converted from the rendered HTML, plus image descriptions
+  const llms = renderLlmsTxt(pages, syncResult.releaseId!);
+  await fs.writeFile(path.join(distDir, "llms.txt"), llms, "utf-8");
+  console.log(`🤖 [Generator] Wrote llms.txt (${(Buffer.byteLength(llms) / 1024).toFixed(1)} KB)`);
 
   console.log(`🖼️  [Imaging] ${stats.rendered} variants rendered, ${stats.reused} reused, ${stats.skipped} high-DPR sizes skipped (source too small), ${stats.vector} vector images passed through`);
   console.log("🎉 CDS Demo Website generated successfully under demo/dist/");
