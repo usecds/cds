@@ -22,8 +22,10 @@ export interface MediaPreset {
   aspect?: string; // "3:1"
   fit?: "fill" | "fit";
   widths: Record<string, number>; // breakpoint name -> width in CSS px
-  format?: "webp" | "jpeg" | "png" | "avif";
+  formats?: ("avif" | "webp" | "jpeg" | "png")[]; // the last one is the universal fallback
   quality?: number;
+  lossless?: boolean;
+  background?: string; // jpeg: color behind transparent areas
 }
 
 export interface TargetDefinition {

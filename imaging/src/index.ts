@@ -6,14 +6,28 @@ export interface Point {
   y: number; // 0..1
 }
 
+export type ImageFormat = "avif" | "webp" | "jpeg" | "png";
+
+export const MIME_TYPES: Record<ImageFormat, string> = {
+  avif: "image/avif",
+  webp: "image/webp",
+  jpeg: "image/jpeg",
+  png: "image/png"
+};
+
+// Quality scales differ per format: AVIF 50 looks roughly like WebP/JPEG 80 at about half the size
+export const DEFAULT_QUALITY: Record<ImageFormat, number> = { avif: 50, webp: 80, jpeg: 80, png: 80 };
+
 export interface RenderOptions {
   width: number; // output width in pixels
   height?: number; // required for "fill"; for "fit" it only bounds the height
   fit?: "fill" | "fit"; // fill: crop to exactly width x height (default); fit: scale inside, no crop
   focalPoint?: Point; // fill only: point kept as close to the center as the image edges allow
   zoom?: number; // fill only: >= 1, crops a smaller region around the focal point (default 1)
-  format?: "webp" | "jpeg" | "png" | "avif"; // default webp
-  quality?: number; // 1..100, default 80
+  format?: ImageFormat; // default webp
+  quality?: number; // 1..100, default per format (DEFAULT_QUALITY); ignored when lossless
+  lossless?: boolean; // webp/avif/png; png without it is palette-quantized (lossy); ignored for jpeg
+  background?: string; // jpeg only: color behind transparent areas (default #ffffff)
 }
 
 export interface Region {
@@ -29,6 +43,7 @@ export interface RenderResult {
   height: number;
   format: string;
   upscaled: boolean; // the output is larger than the source region it came from
+  flattened: boolean; // a transparent source was flattened onto the background (jpeg)
 }
 
 // Image preset as declared in a target definition's media.presets
@@ -36,8 +51,10 @@ export interface Preset {
   aspect?: string; // "3:1"; required for fill
   fit?: "fill" | "fit";
   widths: Record<string, number>; // breakpoint name -> rendered width in CSS pixels
-  format?: RenderOptions["format"];
+  formats?: ImageFormat[]; // candidates, the last one is the universal fallback (default ["webp"])
   quality?: number;
+  lossless?: boolean; // e.g. diagrams and screenshots, where lossy compression blurs text
+  background?: string; // jpeg: color behind transparent areas
 }
 
 export interface ResponsiveSize {
@@ -113,19 +130,27 @@ export function responsiveSizes(
   return sizes.sort((a, b) => b.minWidth - a.minWidth || a.dpr - b.dpr);
 }
 
+// Formats a preset renders, in declared order; the last one is the fallback for <img>
+export function presetFormats(preset: Preset): ImageFormat[] {
+  return preset.formats?.length ? preset.formats : ["webp"];
+}
+
 /**
  * Canonical form of the options, containing only what affects the output:
- * focal point and zoom matter for "fill" only.
+ * focal point and zoom matter for "fill" only, lossless for webp/avif, background for jpeg.
  */
 export function canonicalOptions(options: RenderOptions): string {
   const fit = options.fit ?? "fill";
+  const format = options.format ?? "webp";
+  const lossless = !!options.lossless && format !== "jpeg";
   const parts = [
     `w${options.width}`,
     `h${options.height ?? "auto"}`,
     fit,
-    `f${options.format ?? "webp"}`,
-    `q${options.quality ?? 80}`
+    `f${format}`,
+    lossless ? "lossless" : `q${options.quality ?? DEFAULT_QUALITY[format]}`
   ];
+  if (format === "jpeg") parts.push(`bg${options.background ?? "#ffffff"}`);
   if (fit === "fill") {
     const point = options.focalPoint ?? { x: 0.5, y: 0.5 };
     parts.push(`fp${point.x},${point.y}`, `z${options.zoom ?? 1}`);
@@ -165,8 +190,15 @@ export async function render(input: Buffer, options: RenderOptions): Promise<Ren
   }
 
   const format = options.format ?? "webp";
-  const { data, info } = await pipeline
-    .toFormat(format, { quality: options.quality ?? 80 })
-    .toBuffer({ resolveWithObject: true });
-  return { data, width: info.width, height: info.height, format: info.format, upscaled };
+  // JPEG has no transparency: fill transparent areas with the background instead of black
+  const flattened = format === "jpeg" && !!meta.hasAlpha;
+  if (flattened) pipeline = pipeline.flatten({ background: options.background ?? "#ffffff" });
+
+  // Lossless PNG is plain PNG; a quality makes sharp quantize it to a palette (lossy)
+  const lossless = !!options.lossless && format !== "jpeg";
+  const encoder = lossless
+    ? format === "png" ? {} : { lossless: true }
+    : { quality: options.quality ?? DEFAULT_QUALITY[format] };
+  const { data, info } = await pipeline.toFormat(format, encoder).toBuffer({ resolveWithObject: true });
+  return { data, width: info.width, height: info.height, format: info.format, upscaled, flattened };
 }

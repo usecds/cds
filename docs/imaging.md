@@ -21,8 +21,10 @@ A target declares the screen sizes it supports and, per preset, the width to ren
   "breakpoints": { "mobile": 0, "tablet": 768, "desktop": 1280 },
   "dpr": [1, 2],
   "presets": {
-    "banner":  { "aspect": "3:1", "fit": "fill", "widths": { "mobile": 640, "tablet": 960, "desktop": 1152 } },
-    "content": { "fit": "fit", "widths": { "mobile": 640, "tablet": 960, "desktop": 1152 } }
+    "banner":  { "aspect": "3:1", "fit": "fill", "formats": ["avif", "webp"],
+                 "widths": { "mobile": 640, "tablet": 960, "desktop": 1152 } },
+    "content": { "fit": "fit", "formats": ["webp", "png"], "lossless": true,
+                 "widths": { "mobile": 640, "tablet": 960, "desktop": 1152 } }
   }
 }
 ```
@@ -34,9 +36,34 @@ A target declares the screen sizes it supports and, per preset, the width to ren
 | `presets.*.aspect` | Output aspect ratio, required for `fill`. |
 | `presets.*.fit` | `fill` crops to exactly the aspect ratio (default); `fit` scales inside without cropping. |
 | `presets.*.widths` | Breakpoint name → width in CSS pixels. Only declared breakpoints may be used. |
-| `presets.*.format` / `quality` | Output format (`webp` default, `jpeg`, `png`, `avif`) and quality (default 80). |
+| `presets.*.formats` | Formats to render (`avif`, `webp`, `jpeg`, `png`; default `["webp"]`). The **last** one is the universal fallback for the `<img>` element. |
+| `presets.*.quality` | 1–100; default per format (`DEFAULT_QUALITY`: AVIF 50, WebP/JPEG 80), because the scales differ: AVIF 50 looks about like WebP 80. |
+| `presets.*.lossless` | Lossless output for WebP, AVIF and PNG. Use it for diagrams and screenshots, where lossy compression blurs text and thin lines. |
+| `presets.*.background` | JPEG only: color behind transparent areas (default `#ffffff`). |
 
 Widths are declared explicitly per breakpoint, not derived. Rendered pixels = CSS width × DPR.
+
+## Formats
+
+Measured on the demo images (1152 px wide):
+
+| Format | Coast photo | Pipeline diagram (transparent) |
+| --- | --- | --- |
+| JPEG q80 | 105 KB | 56 KB, **transparency lost** |
+| WebP q80 | 93 KB | 31 KB |
+| WebP lossless | 600 KB | 81 KB |
+| AVIF q50 | 45 KB | 21 KB |
+| PNG (lossless) | 1086 KB | 131 KB |
+
+- **AVIF** is about half the size of WebP for photos, but encodes about 4x slower. That's fine in a build, where each variant is rendered once.
+- **WebP** works in practically every browser and is the usual fallback.
+- **Transparency:** JPEG can't store it. When a transparent source is rendered as JPEG, it's flattened onto `background` and `render()` reports `flattened: true`.
+- **Text and line art:** use `lossless`. Without it, sharp writes PNG as a 256-color palette (lossy).
+- **Non-browser targets** (signage players, some TV apps) may only support JPEG/PNG, which is why formats are declared per target preset.
+
+## Source order: smallest first
+
+Inside `<picture>`, the browser takes the **first** `<source>` whose `media` and `type` both match. So generators should sort the formats within each breakpoint by **measured file size**, smallest first: every browser then loads the smallest format it supports. The order comes from the rendered files, not from a fixed ranking. In the demo, AVIF comes first for the photo, but lossless WebP beats PNG for the diagram, and with lossless output WebP can also beat AVIF.
 
 ## API
 
@@ -48,7 +75,9 @@ Widths are declared explicitly per breakpoint, not derived. Rendered pixels = CS
 | `variantKey(sourceHash, options)` | Identity of a variant, known before rendering: SHA-256 of the source hash and the canonical options |
 | `isVector(mimeType)` | `true` for SVG. Vector images aren't rendered: they scale on their own, and rasterizing makes them larger and blurrier (the demo's 1.3 KB hero SVG became 3.6–5.3 KB per WebP). Generators serve the original. |
 
-`RenderOptions`: `width`, `height` (required for `fill`), `fit`, `focalPoint`, `zoom` (≥ 1, `fill` only), `format`, `quality`.
+`RenderOptions`: `width`, `height` (required for `fill`), `fit`, `focalPoint`, `zoom` (≥ 1, `fill` only), `format`, `quality`, `lossless`, `background`. `RenderResult` adds `upscaled` and `flattened` for reporting.
+
+`presetFormats(preset)` returns a preset's formats (default `["webp"]`), `MIME_TYPES` maps formats to the `type` attribute values, and `DEFAULT_QUALITY` holds the per-format defaults.
 
 **Focal point and zoom.** Without zoom, a crop can only shift along one axis, so a focal point near an edge ends up at that edge. `zoom` crops a smaller region, so the subject can actually be centered. `upscaled: true` means the output has more pixels than the source region; the demo uses `cropRegion` beforehand to skip high-DPR sizes the source can't fill.
 
@@ -60,13 +89,17 @@ The demo's `picture()` helper (`demo/src/build-demo.ts`) shows the full flow. Ve
 
 1. `client.getMediaInfo(path, locale)` → original hash, size, focal points, alt text.
 2. `responsiveSizes(preset, breakpoints, dpr)` → sizes per breakpoint.
-3. For each size: `variantKey` → render once → write `media/<key>.webp`.
-4. Emit one `<source media="(min-width: …)" srcset="… 1x, … 2x">` per breakpoint, with the smallest breakpoint as the `<img>` fallback:
+3. For each size and format: `variantKey` → render once → write `media/<key>.<format>`. File extension and MIME type follow the requested format (sharp reports AVIF output as `heif`).
+4. Emit one `<source media="(min-width: …)" type="…" srcset="… 1x, … 2x">` per breakpoint and format, formats sorted by size within each breakpoint. The smallest breakpoint's sources have no `media`, and the `<img>` uses the fallback format:
 
 ```html
 <picture>
-  <source media="(min-width: 1280px)" srcset="media/b4e7….webp 1x" width="1152" height="384">
-  <source media="(min-width: 768px)" srcset="media/a4dd….webp 1x" width="960" height="320">
+  <source media="(min-width: 1280px)" type="image/avif" srcset="media/7671….avif 1x" width="1152" height="384">  <!-- 34.5 KB -->
+  <source media="(min-width: 1280px)" type="image/webp" srcset="media/b4e7….webp 1x" width="1152" height="384">  <!-- 68.4 KB -->
+  <source media="(min-width: 768px)"  type="image/avif" srcset="media/af67….avif 1x" width="960" height="320">
+  <source media="(min-width: 768px)"  type="image/webp" srcset="media/a4dd….webp 1x" width="960" height="320">
+  <source type="image/avif" srcset="media/6731….avif 1x, media/….avif 2x" width="640" height="213">
+  <source type="image/webp" srcset="media/f2c2….webp 1x, media/8a61….webp 2x" width="640" height="213">
   <img src="media/f2c2….webp" srcset="media/f2c2….webp 1x, media/8a61….webp 2x"
        alt="Rocky coast with a red and white lighthouse…" width="640" height="213">
 </picture>

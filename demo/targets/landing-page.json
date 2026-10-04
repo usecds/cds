@@ -79,7 +79,11 @@
           "mobile": 640,
           "tablet": 720,
           "desktop": 896
-        }
+        },
+        "formats": [
+          "avif",
+          "webp"
+        ]
       },
       "content": {
         "fit": "fit",
@@ -87,7 +91,12 @@
           "mobile": 640,
           "tablet": 960,
           "desktop": 1152
-        }
+        },
+        "formats": [
+          "webp",
+          "png"
+        ],
+        "lossless": true
       },
       "banner": {
         "aspect": "3:1",
@@ -96,7 +105,11 @@
           "mobile": 640,
           "tablet": 960,
           "desktop": 1152
-        }
+        },
+        "formats": [
+          "avif",
+          "webp"
+        ]
       },
       "square": {
         "aspect": "1:1",
@@ -105,7 +118,11 @@
           "mobile": 640,
           "tablet": 560,
           "desktop": 680
-        }
+        },
+        "formats": [
+          "avif",
+          "webp"
+        ]
       },
       "portrait": {
         "aspect": "2:3",
@@ -114,7 +131,11 @@
           "mobile": 400,
           "tablet": 360,
           "desktop": 440
-        }
+        },
+        "formats": [
+          "avif",
+          "webp"
+        ]
       }
     }
   }

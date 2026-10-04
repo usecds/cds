@@ -74,8 +74,16 @@
                 "description": "Breakpoint name -> rendered width in CSS pixels",
                 "additionalProperties": { "type": "integer", "minimum": 1 }
               },
-              "format": { "enum": ["webp", "jpeg", "png", "avif"] },
-              "quality": { "type": "integer", "minimum": 1, "maximum": 100 }
+              "formats": {
+                "type": "array",
+                "description": "Formats to render; the last one is the universal fallback",
+                "items": { "enum": ["avif", "webp", "jpeg", "png"] },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "quality": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "lossless": { "type": "boolean" },
+              "background": { "type": "string" }
             },
             "required": ["widths"],
             "additionalProperties": true

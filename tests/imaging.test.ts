@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import sharp from "sharp";
-import { cropRegion, responsiveSizes, variantKey, render, parseAspect, isVector } from "../imaging/src/index.js";
+import { cropRegion, responsiveSizes, variantKey, render, parseAspect, isVector, presetFormats } from "../imaging/src/index.js";
 
 // 300x200 test image: left half red, right half blue
 async function testImage(): Promise<Buffer> {
@@ -83,5 +83,40 @@ describe("Image processor (@cds/imaging)", () => {
     // fit scales inside the box without cropping or enlarging
     const fitted = await render(input, { width: 150, fit: "fit" });
     expect([fitted.width, fitted.height]).toEqual([150, 100]);
+  });
+
+  it("renders the requested formats, lossless on request, and flattens transparency for jpeg", async () => {
+    const transparent = await sharp({ create: { width: 40, height: 40, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .png()
+      .toBuffer();
+
+    const avif = await render(transparent, { width: 20, height: 20, format: "avif" });
+    expect(avif.format).toBe("heif"); // sharp reports AVIF as its container format
+    expect((await sharp(avif.data).metadata()).compression).toBe("av1");
+
+    const jpeg = await render(transparent, { width: 20, height: 20, format: "jpeg", background: "#ff0000" });
+    expect(jpeg.flattened).toBe(true);
+    const { data } = await sharp(jpeg.data).raw().toBuffer({ resolveWithObject: true });
+    expect(data[0]).toBeGreaterThan(240); // red background instead of black
+    expect(data[1]).toBeLessThan(20);
+
+    const webp = await render(transparent, { width: 20, height: 20, format: "webp" });
+    expect(webp.flattened).toBe(false);
+    expect((await sharp(webp.data).metadata()).hasAlpha).toBe(true);
+  });
+
+  it("keys variants by the options that matter for each format", () => {
+    const base = { width: 100, height: 100 };
+    expect(variantKey("s", { ...base, format: "webp", lossless: true }))
+      .not.toBe(variantKey("s", { ...base, format: "webp" }));
+    // png without lossless is palette-quantized, so lossless changes it
+    expect(variantKey("s", { ...base, format: "png" })).not.toBe(variantKey("s", { ...base, format: "png", lossless: true }));
+    // default quality is per format: an explicit default gives the same key
+    expect(variantKey("s", { ...base, format: "avif" })).toBe(variantKey("s", { ...base, format: "avif", quality: 50 }));
+    // background only matters for jpeg
+    expect(variantKey("s", { ...base, format: "webp", background: "#000" })).toBe(variantKey("s", { ...base, format: "webp" }));
+    expect(variantKey("s", { ...base, format: "jpeg", background: "#000" })).not.toBe(variantKey("s", { ...base, format: "jpeg" }));
+    expect(presetFormats({ widths: { m: 1 } })).toEqual(["webp"]);
+    expect(presetFormats({ widths: { m: 1 }, formats: ["avif", "webp"] })).toEqual(["avif", "webp"]);
   });
 });

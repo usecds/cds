@@ -22,7 +22,19 @@ import {
 } from "@cds/client";
 
 // Image processor (complementary to CDS): renders crops and sizes from target presets
-import { render, responsiveSizes, variantKey, cropRegion, isVector, Preset, RenderOptions, Point } from "@cds/imaging";
+import {
+  render,
+  responsiveSizes,
+  variantKey,
+  cropRegion,
+  isVector,
+  presetFormats,
+  MIME_TYPES,
+  ImageFormat,
+  Preset,
+  RenderOptions,
+  Point
+} from "@cds/imaging";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -171,7 +183,20 @@ async function run() {
   // Variants are named by their variant key, so identical renders (e.g. used on both pages) happen once.
   await fs.mkdir(path.join(distDir, "media"), { recursive: true });
   const imageContract = artifacts.targets["landing-page"].media!;
-  const variants = new Map<string, { file: string; width: number; height: number }>();
+
+  interface Variant { file: string; format: ImageFormat; width: number; height: number; bytes: number; ms: number }
+  interface ImageReport {
+    path: string;
+    preset: string;
+    variants: number;
+    formats: string; // in delivery order at the largest breakpoint
+    storedBytes: number;
+    renderMs: number;
+    originalBytes: number;
+    desktopBytes: number; // what a desktop browser downloads at 1x (smallest supported format)
+    mobileBytes: number;
+  }
+  const variants = new Map<string, Variant>();
   const stats = { rendered: 0, reused: 0, skipped: 0, vector: 0 };
   const copied = new Set<string>();
 
@@ -180,11 +205,12 @@ async function run() {
     presetName: string,
     imgClass: string,
     crop: { focalPoint?: Point; zoom?: number } = {}
-  ): Promise<string> {
+  ): Promise<{ html: string; report: ImageReport }> {
     const preset = imageContract.presets![presetName] as Preset;
     const fill = (preset.fit ?? "fill") === "fill";
     const original = await client.getMediaContent(info.path);
     if (!original) throw new Error(`Media ${info.path} missing from the client cache`);
+    const alt = escapeAttr(info.alt ?? "");
 
     // Vector images scale on their own: serve the original instead of rasterized variants
     if (isVector(info.mimeType)) {
@@ -193,56 +219,105 @@ async function run() {
         copied.add(info.path);
         stats.vector++;
       }
-      return `<img src="media/${info.path}" alt="${escapeAttr(info.alt ?? "")}" width="${info.width ?? ""}" height="${info.height ?? ""}" class="${imgClass}">`;
+      return {
+        html: `<img src="media/${info.path}" alt="${alt}" width="${info.width ?? ""}" height="${info.height ?? ""}" class="${imgClass}">`,
+        report: {
+          path: info.path, preset: "original (vector)", variants: 0, formats: "svg",
+          storedBytes: original.length, renderMs: 0, originalBytes: original.length,
+          desktopBytes: original.length, mobileBytes: original.length
+        }
+      };
     }
 
-    // One group per breakpoint (largest first), each with its pixel-ratio candidates
-    const groups = new Map<number, { file: string; dpr: number; width: number; height: number }[]>();
+    const formats = presetFormats(preset);
+    // breakpoint min width (largest first) -> format -> candidates per pixel ratio
+    const groups = new Map<number, Map<ImageFormat, (Variant & { dpr: number })[]>>();
+    const used = new Set<Variant>();
+
     for (const size of responsiveSizes(preset, imageContract.breakpoints!, imageContract.dpr)) {
-      const options: RenderOptions = {
-        width: size.width,
-        height: size.height,
-        fit: preset.fit,
-        focalPoint: crop.focalPoint ?? info.focalPoint,
-        zoom: crop.zoom,
-        format: preset.format,
-        quality: preset.quality
-      };
+      const focalPoint = crop.focalPoint ?? info.focalPoint;
       // Higher pixel ratios only help if the source has the pixels
       const available = fill && info.width && info.height
-        ? cropRegion(info.width, info.height, size.width / size.height!, options.focalPoint, options.zoom).width
+        ? cropRegion(info.width, info.height, size.width / size.height!, focalPoint, crop.zoom).width
         : info.width;
       if (size.dpr > 1 && available && size.width > available) {
-        stats.skipped++;
+        stats.skipped += formats.length;
         continue;
       }
 
-      const key = variantKey(info.hash, options);
-      let variant = variants.get(key);
-      if (variant) {
-        stats.reused++;
-      } else {
-        const result = await render(original, options);
-        if (result.upscaled) {
-          console.log(`⚠️  [Imaging] ${info.path} ${presetName}@${size.breakpoint} is upscaled to ${result.width}px`);
+      for (const format of formats) {
+        const options: RenderOptions = {
+          width: size.width,
+          height: size.height,
+          fit: preset.fit,
+          focalPoint,
+          zoom: crop.zoom,
+          format,
+          quality: preset.quality,
+          lossless: preset.lossless,
+          background: preset.background
+        };
+        const key = variantKey(info.hash, options);
+        let variant = variants.get(key);
+        if (variant) {
+          stats.reused++;
+        } else {
+          const started = Date.now();
+          const result = await render(original, options);
+          if (result.upscaled) {
+            console.log(`⚠️  [Imaging] ${info.path} ${presetName}@${size.breakpoint} is upscaled to ${result.width}px`);
+          }
+          if (result.flattened) {
+            console.log(`⚠️  [Imaging] ${info.path} ${presetName} as ${format}: transparency flattened onto ${preset.background ?? "#ffffff"}`);
+          }
+          // Name and MIME type follow the requested format (sharp reports AVIF as "heif")
+          variant = {
+            file: `media/${key.slice(0, 16)}.${format === "jpeg" ? "jpg" : format}`,
+            format,
+            width: result.width,
+            height: result.height,
+            bytes: result.data.length,
+            ms: Date.now() - started
+          };
+          await fs.writeFile(path.join(distDir, variant.file), result.data);
+          variants.set(key, variant);
+          stats.rendered++;
         }
-        variant = { file: `media/${key.slice(0, 16)}.${result.format}`, width: result.width, height: result.height };
-        await fs.writeFile(path.join(distDir, variant.file), result.data);
-        variants.set(key, variant);
-        stats.rendered++;
+        used.add(variant);
+        const byFormat = groups.get(size.minWidth) ?? new Map();
+        byFormat.set(format, [...(byFormat.get(format) ?? []), { ...variant, dpr: size.dpr }]);
+        groups.set(size.minWidth, byFormat);
       }
-      const group = groups.get(size.minWidth) ?? [];
-      group.push({ ...variant, dpr: size.dpr });
-      groups.set(size.minWidth, group);
     }
 
-    // <source> per breakpoint, the smallest breakpoint is the <img> fallback
+    // The browser takes the first <source> whose media and type match, so within each breakpoint
+    // the formats go smallest file first: every browser gets the smallest format it supports.
     const entries = [...groups.entries()];
     const srcset = (candidates: { file: string; dpr: number }[]) => candidates.map((c) => `${c.file} ${c.dpr}x`).join(", ");
-    const [, fallback] = entries[entries.length - 1];
-    const sources = entries.slice(0, -1).map(([minWidth, candidates]) =>
-      `<source media="(min-width: ${minWidth}px)" srcset="${srcset(candidates)}" width="${candidates[0].width}" height="${candidates[0].height}">`);
-    return `<picture>${sources.join("")}<img src="${fallback[0].file}" srcset="${srcset(fallback)}" alt="${escapeAttr(info.alt ?? "")}" width="${fallback[0].width}" height="${fallback[0].height}" class="${imgClass}"></picture>`;
+    const bySize = (byFormat: Map<ImageFormat, (Variant & { dpr: number })[]>) =>
+      [...byFormat.entries()].sort(([, a], [, b]) => a[0].bytes - b[0].bytes);
+    const sources = entries.flatMap(([minWidth, byFormat], i) => {
+      const media = i < entries.length - 1 ? ` media="(min-width: ${minWidth}px)"` : "";
+      return bySize(byFormat).map(([format, candidates]) =>
+        `<source${media} type="${MIME_TYPES[format]}" srcset="${srcset(candidates)}" width="${candidates[0].width}" height="${candidates[0].height}">`);
+    });
+    // <img> fallback: smallest breakpoint in the last listed (most widely supported) format
+    const fallback = entries[entries.length - 1][1].get(formats[formats.length - 1])!;
+    const html = `<picture>${sources.join("")}<img src="${fallback[0].file}" srcset="${srcset(fallback)}" alt="${alt}" width="${fallback[0].width}" height="${fallback[0].height}" class="${imgClass}"></picture>`;
+
+    const smallest1x = (byFormat: Map<ImageFormat, (Variant & { dpr: number })[]>) => bySize(byFormat)[0][1][0].bytes;
+    const report: ImageReport = {
+      path: info.path,
+      preset: presetName,
+      variants: used.size,
+      formats: bySize(entries[0][1]).map(([format]) => format).join(" → "),
+      storedBytes: [...used].reduce((sum, v) => sum + v.bytes, 0),
+      renderMs: [...used].reduce((sum, v) => sum + v.ms, 0),
+      originalBytes: original.length,
+      desktopBytes: smallest1x(entries[0][1]),
+      mobileBytes: smallest1x(entries[entries.length - 1][1])
+    };
+    return { html, report };
   }
 
   const locales = client.getLocales();
@@ -273,14 +348,20 @@ async function run() {
         ].map(async (crop) => ({
           ...crop,
           aspect: imageContract.presets![crop.preset].aspect,
-          html: await picture(coast, crop.preset, "w-full h-auto rounded-2xl border border-slate-800", {
+          ...(await picture(coast, crop.preset, "w-full h-auto rounded-2xl border border-slate-800", {
             focalPoint: coast.focalPoints![crop.focus],
             zoom: crop.zoom
-          })
+          }))
         })))
       : [];
-    const heroPicture = hero ? await picture(hero, "hero", "w-full h-auto rounded-2xl border border-slate-800") : "";
-    const flowPicture = flow ? await picture(flow, "content", "w-full h-auto rounded-2xl border border-slate-800 bg-white") : "";
+    const heroImage = hero ? await picture(hero, "hero", "w-full h-auto rounded-2xl border border-slate-800") : null;
+    const flowImage = flow ? await picture(flow, "content", "w-full h-auto rounded-2xl border border-slate-800 bg-white") : null;
+    const heroPicture = heroImage?.html ?? "";
+    const flowPicture = flowImage?.html ?? "";
+    const imageReports = [heroImage?.report, flowImage?.report, ...crops.map((c) => c.report)]
+      .filter((r): r is ImageReport => !!r);
+    const kb = (bytes: number) => `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;
+    const en = locale === "en";
 
     // Generate responsive Tailwind layout
     const html = `<!DOCTYPE html>
@@ -411,6 +492,63 @@ async function run() {
             </div>
         </div>
     </section>` : ""}
+
+    <!-- Image variants and their costs -->
+    <section class="py-20 bg-slate-950/50 border-b border-slate-900">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl font-bold text-white mb-4">${en ? "Image variants and costs" : "Bildvarianten und Kosten"}</h2>
+                <p class="text-slate-400 max-w-3xl mx-auto leading-relaxed">${en
+                  ? `Each raster image is rendered per breakpoint (${Object.keys(imageContract.breakpoints!).join(", ")}), pixel ratio (${(imageContract.dpr ?? [1]).join("x, ")}x) and format. 2x sizes the source can't fill are skipped, and SVGs are served as they are. Within each breakpoint the formats are ordered by file size, so the browser loads the smallest format it supports.`
+                  : `Jedes Rasterbild wird pro Breakpoint (${Object.keys(imageContract.breakpoints!).join(", ")}), Pixeldichte (${(imageContract.dpr ?? [1]).join("x, ")}x) und Format gerendert. 2x-Größen, für die das Original zu klein ist, entfallen, und SVGs werden unverändert ausgeliefert. Pro Breakpoint sind die Formate nach Dateigröße sortiert, damit der Browser das kleinste unterstützte Format lädt.`}</p>
+            </div>
+            <div class="overflow-x-auto rounded-2xl border border-slate-800">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide">
+                        <tr>
+                            <th class="px-4 py-3">${en ? "Image" : "Bild"}</th>
+                            <th class="px-4 py-3">Preset</th>
+                            <th class="px-4 py-3 text-right whitespace-nowrap">${en ? "Variants" : "Varianten"}</th>
+                            <th class="px-4 py-3">${en ? "Formats (delivery order)" : "Formate (Reihenfolge)"}</th>
+                            <th class="px-4 py-3 text-right whitespace-nowrap">${en ? "Stored" : "Gespeichert"}</th>
+                            <th class="px-4 py-3 text-right whitespace-nowrap">${en ? "Render time" : "Renderzeit"}</th>
+                            <th class="px-4 py-3 text-right whitespace-nowrap">Original</th>
+                            <th class="px-4 py-3 text-right whitespace-nowrap">Desktop 1x</th>
+                            <th class="px-4 py-3 text-right whitespace-nowrap">Mobile 1x</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800 text-slate-300">
+                        ${imageReports.map((r) => `<tr>
+                            <td class="px-4 py-3 code-font text-xs">${r.path}</td>
+                            <td class="px-4 py-3">${r.preset}</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">${r.variants}</td>
+                            <td class="px-4 py-3 code-font text-xs">${r.formats}</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">${kb(r.storedBytes)}</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">${r.renderMs} ms</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">${kb(r.originalBytes)}</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap text-teal-400">${kb(r.desktopBytes)}</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap text-teal-400">${kb(r.mobileBytes)}</td>
+                        </tr>`).join("")}
+                    </tbody>
+                    <tfoot class="bg-slate-900 text-white font-semibold">
+                        <tr>
+                            <td class="px-4 py-3" colspan="2">${en ? "Total for this page" : "Summe dieser Seite"}</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">${imageReports.reduce((n, r) => n + r.variants, 0)}</td>
+                            <td class="px-4 py-3"></td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">${kb(imageReports.reduce((n, r) => n + r.storedBytes, 0))}</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">${imageReports.reduce((n, r) => n + r.renderMs, 0)} ms</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">${kb(imageReports.reduce((n, r) => n + r.originalBytes, 0))}</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap text-teal-400">${kb(imageReports.reduce((n, r) => n + r.desktopBytes, 0))}</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap text-teal-400">${kb(imageReports.reduce((n, r) => n + r.mobileBytes, 0))}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <p class="text-xs text-slate-500 mt-3">${en
+              ? "Original counts the coast photo once per crop, since each crop is cut from it. Stored and render time cover every variant of the image, rendered once per build and shared by both language pages."
+              : "Original zählt das Küstenfoto pro Ausschnitt, da jeder Ausschnitt daraus geschnitten wird. Gespeichert und Renderzeit umfassen alle Varianten des Bildes, einmal pro Build gerendert und von beiden Sprachseiten geteilt."}</p>
+        </div>
+    </section>
 
     <!-- Features Section -->
     <section class="py-20 bg-slate-950/50 border-b border-slate-900">
