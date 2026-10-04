@@ -1,0 +1,40 @@
+[
+  {
+    "id": "ld_website",
+    "key": "website",
+    "type": "WebSite",
+    "appliesTo": "site_settings",
+    "values": {
+      "publisher": { "@type": "Organization", "name": "CDS Project" }
+    },
+    "map": {
+      "name": "siteTitle",
+      "description": "heroSubtitle",
+      "image": "media[0]"
+    },
+    "translations": {
+      "en": { "inLanguage": "en" },
+      "de": { "inLanguage": "de" }
+    }
+  },
+  {
+    "id": "ld_review",
+    "key": "review",
+    "type": "Review",
+    "appliesTo": "testimonials",
+    "values": {
+      "author": { "@type": "Person" },
+      "itemReviewed": {
+        "@type": "SoftwareApplication",
+        "name": "Content Distribution System (CDS)",
+        "applicationCategory": "DeveloperApplication"
+      }
+    },
+    "map": {
+      "reviewBody": "quote",
+      "author.name": "author",
+      "author.jobTitle": "role"
+    },
+    "translations": { "en": {} }
+  }
+]

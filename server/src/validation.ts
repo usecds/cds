@@ -34,6 +34,7 @@ const releaseManifestSchema = loadSchema("release-manifest.json");
 const collectionSchema = loadSchema("collection.json");
 const targetSchema = loadSchema("target.json");
 const mediaMetadataSchema = loadSchema("media-metadata.json");
+const jsonLdSchema = loadSchema("jsonld.json");
 
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
@@ -43,6 +44,7 @@ const validateReleaseManifestFn = ajv.compile(releaseManifestSchema);
 const validateCollectionFn = ajv.compile(collectionSchema);
 const validateTargetFn = ajv.compile(targetSchema);
 const validateMediaMetadataFn = ajv.compile(mediaMetadataSchema);
+const validateJsonLdFn = ajv.compile(jsonLdSchema);
 
 // Target-provided schemas are often partial (e.g. only "required"), so strict-mode type hints are off
 const contentAjv = new Ajv({ allErrors: true, strict: false });
@@ -89,6 +91,15 @@ export function validateMediaMetadataItem(data: any): void {
   if (!valid) {
     throw new Error(
       `Invalid _media item (${data?.id || "unknown"}): ${ajv.errorsText(validateMediaMetadataFn.errors)}`
+    );
+  }
+}
+
+export function validateJsonLdDefinition(data: any): void {
+  const valid = validateJsonLdFn(data);
+  if (!valid) {
+    throw new Error(
+      `Invalid _jsonld item (${data?.id || "unknown"}): ${ajv.errorsText(validateJsonLdFn.errors)}`
     );
   }
 }

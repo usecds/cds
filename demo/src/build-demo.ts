@@ -97,6 +97,9 @@ class DemoLocalDownloader implements RemoteDownloader {
   }
 }
 
+// Absolute base URL of the published demo site (placeholder), needed for JSON-LD urls
+const SITE_URL = "https://cds.example.com/";
+
 const escapeAttr = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -172,6 +175,7 @@ async function run() {
   const goalsData = JSON.parse(await fs.readFile(path.join(dataDir, "goals.json"), "utf-8"));
   const testimonialsData = JSON.parse(await fs.readFile(path.join(dataDir, "testimonials.json"), "utf-8"));
   const mediaMetadata = JSON.parse(await fs.readFile(path.join(dataDir, "_media.json"), "utf-8"));
+  const jsonLdDefinitions = JSON.parse(await fs.readFile(path.join(dataDir, "_jsonld.json"), "utf-8"));
 
   // Media files from data/media; their alt texts, descriptions and focal points live in _media.json
   const mimeTypes: Record<string, string> = { ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg" };
@@ -189,7 +193,8 @@ async function run() {
     features: featuresData,
     goals: goalsData,
     testimonials: testimonialsData,
-    _media: mediaMetadata
+    _media: mediaMetadata,
+    _jsonld: jsonLdDefinitions
   };
 
   console.log("📦 [Server] Setting up Source & Storage target...");
@@ -268,6 +273,8 @@ async function run() {
   const variants = new Map<string, Variant>();
   // <img src> -> media shown, for the page being rendered (descriptions are per locale)
   let pageImages = new Map<string, MediaInfo>();
+  // virtual path -> output file for JSON-LD contentUrl (largest variant in the fallback format)
+  const mediaUrls = new Map<string, string>();
   const stats = { rendered: 0, reused: 0, skipped: 0, vector: 0 };
   const copied = new Set<string>();
 
@@ -294,6 +301,7 @@ async function run() {
         stats.vector++;
       }
       pageImages.set(file, info);
+      mediaUrls.set(info.path, file);
       return {
         html: `<img src="${file}" alt="${alt}" width="${info.width ?? ""}" height="${info.height ?? ""}" class="${imgClass}">`,
         report: {
@@ -388,6 +396,7 @@ async function run() {
     // <img> fallback: smallest breakpoint in the last listed (most widely supported) format
     const fallback = entries[entries.length - 1][1].get(formats[formats.length - 1])!;
     pageImages.set(fallback[0].file, info);
+    if (!mediaUrls.has(info.path)) mediaUrls.set(info.path, entries[0][1].get(formats[formats.length - 1])![0].file);
     const html = `<picture>${sources.join("")}<img src="${fallback[0].file}" srcset="${srcset(fallback)}" alt="${alt}" width="${fallback[0].width}" height="${fallback[0].height}" class="${imgClass}"></picture>`;
 
     const smallest1x = (byFormat: Map<ImageFormat, (Variant & { dpr: number })[]>) => bySize(byFormat)[0][1][0].bytes;
@@ -451,6 +460,25 @@ async function run() {
     const kb = (bytes: number) => `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;
     const en = locale === "en";
 
+    // JSON-LD: data from CDS (_jsonld), URLs from the generator
+    const pageUrl = SITE_URL + (locale === "en" ? "index.html" : `index-${locale}.html`);
+    const withUrls = (node: any): any => {
+      if (Array.isArray(node)) return node.map(withUrls);
+      if (typeof node !== "object" || node === null) return node;
+      const { _media, ...rest } = node;
+      const out: Record<string, any> = Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, withUrls(v)]));
+      if (_media && mediaUrls.has(_media)) out.contentUrl = SITE_URL + mediaUrls.get(_media);
+      return out;
+    };
+    const website = await client.getJsonLd("site_settings", settingsItem, locale);
+    const reviews = await Promise.all(testimonials.map((t) => client.getJsonLd("testimonials", t, locale)));
+    const jsonLd = [
+      website && { ...withUrls(website), "@id": pageUrl, url: pageUrl },
+      ...reviews.filter(Boolean).map(withUrls)
+    ].filter(Boolean);
+    // "<" escaped so content can't close the script element
+    const jsonLdScript = `<script type="application/ld+json">${JSON.stringify(jsonLd, null, 2).replace(/</g, "\\u003c")}</script>`;
+
     // Generate responsive Tailwind layout
     const html = `<!DOCTYPE html>
 <html lang="${locale}">
@@ -459,6 +487,7 @@ async function run() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${content.siteTitle}</title>
     <link rel="alternate" type="text/markdown" href="llms.txt" title="llms.txt">
+    ${jsonLdScript}
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>

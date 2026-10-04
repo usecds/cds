@@ -4,6 +4,7 @@ import { deterministicStringify } from "../utils.js";
 import { CollectionRules, DEFAULT_TARGET_ID, ResolvedTargets, TargetDefinition } from "./targets.js";
 import { ItemLocales, TranslationReport } from "./translations.js";
 import { meaninglessNameReason, suggestMediaName } from "./media-names.js";
+import { isJsonLdPathEmpty, jsonLdDefinitionFor, JSONLD_COLLECTION } from "./jsonld.js";
 
 export type IssueSeverity = "requirement" | "recommendation";
 
@@ -81,6 +82,7 @@ export function buildContentReport(
   }
 
   report.issues.push(...checkMediaNames(ctx, options.mediaPaths ?? []));
+  report.issues.push(...checkJsonLd(ctx));
 
   const defaultIssues = evaluateTarget(ctx, resolved.defaultTarget);
   report.issues.push(...defaultIssues);
@@ -129,6 +131,35 @@ function checkMediaNames(ctx: Context, mediaPaths: string[]): ContentIssue[] {
       ...(suggestion ? { recommended: suggestion } : {}),
       source: sourceLink(ctx, "_media", path)
     });
+  }
+  return issues;
+}
+
+// JSON-LD properties whose mapped field is empty for an item and locale
+function checkJsonLd(ctx: Context): ContentIssue[] {
+  const issues: ContentIssue[] = [];
+  if (!ctx.collections[JSONLD_COLLECTION]) return issues;
+  for (const [collection, items] of Object.entries(ctx.collections)) {
+    if (collection === JSONLD_COLLECTION) continue;
+    for (const item of items) {
+      const def = jsonLdDefinitionFor(ctx.collections, collection, item);
+      if (!def) continue;
+      for (const locale of Object.keys(item.translations).sort()) {
+        for (const [property, path] of Object.entries(def.map ?? {})) {
+          if (!isJsonLdPathEmpty(ctx.collections, item, locale, path)) continue;
+          issues.push({
+            severity: "recommendation",
+            issue: "jsonld-empty",
+            message: `JSON-LD ${def.type}.${property} maps to ${path}, which is empty`,
+            collection,
+            id: item.id,
+            locale,
+            field: path,
+            source: sourceLink(ctx, collection, item.id)
+          });
+        }
+      }
+    }
   }
   return issues;
 }

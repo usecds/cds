@@ -9,6 +9,7 @@ import {
   TranslationSummary
 } from "../types.js";
 import { sha256 } from "../utils.js";
+import { JSONLD_COLLECTION, JsonLdDefinition, mergeJsonLd, readFieldPath, setJsonLdProperty } from "./jsonld.js";
 import { 
   validateChannelManifest, 
   validateReleaseManifest, 
@@ -341,6 +342,64 @@ export class CDSClient {
     if (typeof texts?.alt === "string" && texts.alt) info.alt = texts.alt;
     if (typeof texts?.description === "string" && texts.description) info.description = texts.description;
     return info;
+  }
+
+  /**
+   * schema.org JSON-LD data for an item, from its own _jsonld reference or its collection's default
+   * (appliesTo). Contains no URLs: the site generator adds url/@id and replaces each image's
+   * "_media" (virtual path) with its URL. Referenced items (ref:) are resolved one level deep.
+   * Returns null if no definition applies.
+   */
+  async getJsonLd(collection: string, item: CollectionItem, locale: string): Promise<Record<string, any> | null> {
+    const data = await this.buildJsonLd(collection, item, locale, 1);
+    return data ? { "@context": "https://schema.org", ...data } : null;
+  }
+
+  private async buildJsonLd(
+    collection: string,
+    item: CollectionItem,
+    locale: string,
+    depth: number
+  ): Promise<Record<string, any> | null> {
+    const definitions = (this.collectionsCache.get(JSONLD_COLLECTION) ?? []) as JsonLdDefinition[];
+    const own = item.references?.find((r) => r.collection === JSONLD_COLLECTION);
+    const def = own ? definitions.find((d) => d.id === own.id) : definitions.find((d) => d.appliesTo === collection);
+    if (!def) return null;
+
+    // Fixed values, then localized fixed values, then mapped values
+    const data: Record<string, any> = { "@type": def.type };
+    mergeJsonLd(data, def.values ?? {});
+    mergeJsonLd(data, def.translations?.[locale] ?? {});
+
+    for (const [property, path] of Object.entries(def.map ?? {})) {
+      let value: unknown;
+      const media = path.match(/^media\[(\d+)\]$/);
+      const ref = path.match(/^ref:(.+)$/);
+      if (media) {
+        const virtualPath = item.media?.[Number(media[1])];
+        const info = virtualPath ? this.getMediaInfo(virtualPath, locale) : null;
+        if (info) {
+          value = Object.fromEntries(Object.entries({
+            "@type": "ImageObject",
+            _media: info.path,
+            caption: info.alt,
+            description: info.description,
+            width: info.width,
+            height: info.height
+          }).filter(([, v]) => v !== undefined));
+        }
+      } else if (ref) {
+        if (depth > 0) {
+          const target = (await this.resolveReferences(item)).find((r) =>
+            item.references?.some((x) => x.collection === ref[1] && x.id === r.id));
+          if (target) value = (await this.buildJsonLd(ref[1], target, locale, depth - 1)) ?? undefined;
+        }
+      } else {
+        value = readFieldPath(item, locale, path);
+      }
+      if (value !== undefined && value !== null && value !== "") setJsonLdProperty(data, property, value);
+    }
+    return data;
   }
 
   /**

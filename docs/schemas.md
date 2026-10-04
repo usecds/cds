@@ -194,6 +194,37 @@ When an image differs per language (e.g. a diagram with translated labels), each
 
 Each file gets its own `_media` entry with texts in **its** language only. CDS derives from the references where an image is used: its alt text and description are expected (translation completeness, recommendations, target rules) only in those locales. An image not used in the source locale isn't a translation at all, so it's left out of completeness.
 
+## JSON-LD definitions (`_jsonld` collection, `jsonld.json`)
+
+The reserved collection `_jsonld` describes how content items become [schema.org](https://schema.org) JSON-LD. CDS stores and checks the data; the site generator adds URLs and renders the `<script type="application/ld+json">`.
+
+```json
+{ "id": "ld_room", "key": "room", "type": "HotelRoom", "appliesTo": "rooms",
+  "values": { "bed": { "@type": "BedDetails" } },
+  "map": { "name": "name", "bed.typeOfBed": "bed", "image": "media[0]", "containedInPlace": "ref:hotels" },
+  "translations": { "en": {} } }
+```
+
+| Field | Notes |
+| --- | --- |
+| `type` | schema.org type (required) |
+| `appliesTo` | Collection this definition is the default for. At most one per collection. |
+| `values` | Fixed values, deep-merged. Localized fixed values go in the item's `translations[locale]` (e.g. `inLanguage`, a localized `description`). |
+| `map` | schema.org property → field path. Dots in the property build nested objects (`author.name`). |
+
+**Field paths** (plain paths, no templates):
+
+| Path | Resolves to |
+| --- | --- |
+| `name` | `translations[locale].name`, else the item's own `name` |
+| `address.city`, `amenities[0]` | Nested field, array element |
+| `media[0]` | `ImageObject` with `caption`, `description`, `width`, `height` from `_media`, and `"_media": "<virtual path>"` for the generator to replace with `contentUrl` |
+| `ref:hotels` | The item this one references in `hotels`, with that collection's JSON-LD; one level deep, so cycles can't occur |
+
+**Which definition applies:** an item's own reference (`references: [{ "collection": "_jsonld", "id": "…" }]`), otherwise its collection's `appliesTo` default, otherwise none.
+
+**Checks at publish** (build fails): invalid definitions or path syntax, `ref:` or `appliesTo` to unknown collections, two defaults for one collection, references to unknown definitions. Mapped fields that are empty for an item and locale are reported as `jsonld-empty` recommendations.
+
 ## `target.json`
 
 Validates target definitions (see [server.md](server.md#targets)). Only `id` (`[a-zA-Z0-9_-]+`) is required. `collections.*.localized`, `collections.*.fields` and `recommendations.*` hold JSON Schemas, which are compiled when the target is checked. Target definitions are pipeline configuration and are never published.

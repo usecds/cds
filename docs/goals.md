@@ -127,6 +127,8 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_provenance`)
 
 ### P5: Schema.org / JSON-LD as a collection
 
+**Status: implemented in G6**, as the reserved collection `_jsonld` (named like `_media`), with publish checks, `jsonld-empty` recommendations and `client.getJsonLd()`. The demo renders it with page and image URLs.
+
 **Problem:** Consumers that want SEO or JSON-LD have to hand-map content to schema.org.
 **Decided: CDS carries and checks the JSON-LD data; the site generator renders it.** JSON-LD needs page URLs (`url`, `@id`) and page context, which only the site generator knows. The same applies to llms.txt: it describes a rendered site, so the generator builds it from the pages it rendered, using image descriptions (P8). The demo shows both.
 
