@@ -1,0 +1,249 @@
+[
+  {
+    "id": "b_hero",
+    "key": "hero",
+    "type": "hero",
+    "items": [
+      {
+        "collection": "site_settings",
+        "id": "settings_main"
+      }
+    ],
+    "media": [
+      "hero.svg"
+    ],
+    "links": [
+      "l_explore",
+      "l_source"
+    ],
+    "settings": {
+      "preset": "hero"
+    },
+    "translations": {
+      "en": {
+        "badge": "Active release"
+      },
+      "de": {
+        "badge": "Aktives Release"
+      }
+    }
+  },
+  {
+    "id": "b_how",
+    "key": "how",
+    "type": "steps",
+    "source": {
+      "collection": "steps"
+    },
+    "translations": {
+      "en": {
+        "title": "How CDS Works",
+        "intro": "CDS acts as a decoupled static compiler between authoring tools and consumer applications."
+      },
+      "de": {
+        "title": "Wie CDS funktioniert",
+        "intro": "CDS fungiert als entkoppelter statischer Compiler zwischen Autorenwerkzeugen und Client-Anwendungen."
+      }
+    }
+  },
+  {
+    "id": "b_flow",
+    "key": "release-flow",
+    "type": "image",
+    "settings": {
+      "preset": "content",
+      "caption": "description"
+    },
+    "translations": {
+      "en": {
+        "title": "How a release travels",
+        "intro": "The same diagram exists per language. Each locale references its own image, so its texts are only expected in that language.",
+        "media": [
+          "cds-flow.png"
+        ]
+      },
+      "de": {
+        "title": "So läuft ein Release ab",
+        "intro": "Das Diagramm gibt es pro Sprache. Jede Sprache referenziert ihr eigenes Bild, daher werden dessen Texte nur in dieser Sprache erwartet.",
+        "media": [
+          "cds-flow-de.png"
+        ]
+      }
+    }
+  },
+  {
+    "id": "b_features",
+    "key": "features",
+    "type": "card-grid",
+    "source": {
+      "collection": "features"
+    },
+    "translations": {
+      "en": {
+        "title": "Core Capabilities",
+        "intro": "Engineered for reliability, ultra-low latency, and absolute independent client delivery."
+      },
+      "de": {
+        "title": "Kernfunktionen",
+        "intro": "Entwickelt für Ausfallsicherheit, extrem niedrige Latenzzeiten und völlig unabhängige Bereitstellung."
+      }
+    }
+  },
+  {
+    "id": "b_goals",
+    "key": "goals",
+    "type": "icon-list",
+    "source": {
+      "collection": "goals"
+    },
+    "translations": {
+      "en": {
+        "title": "Design Principles",
+        "intro": "CDS aims to revolutionize static asset pipelines for edge applications."
+      },
+      "de": {
+        "title": "Designprinzipien",
+        "intro": "CDS revolutioniert statische Asset-Pipelines für Edge-Anwendungen."
+      }
+    }
+  },
+  {
+    "id": "b_testimonials",
+    "key": "testimonials",
+    "type": "quotes",
+    "source": {
+      "collection": "testimonials"
+    },
+    "translations": {
+      "en": {
+        "title": "What Integrators Say"
+      },
+      "de": {
+        "title": "Was Entwickler sagen"
+      }
+    }
+  },
+  {
+    "id": "b_release_log",
+    "key": "release-log",
+    "type": "release-log",
+    "translations": {
+      "en": {
+        "title": "Local Staged Release Log",
+        "intro": "The client loaded the static release schema dynamically. Here is the active localized map cached locally in FilesystemStorage:"
+      },
+      "de": {
+        "title": "Lokaler Release-Cache-Status",
+        "intro": "Der Client hat das statische Release-Schema dynamisch geladen. Hier ist die lokal im Filesystem-Cache gespeicherte Struktur:"
+      }
+    }
+  },
+  {
+    "id": "b_imaging_header",
+    "key": "intro",
+    "type": "page-header",
+    "translations": {
+      "en": {
+        "title": "Image processing",
+        "intro": "How the optional image processor turns one stored image into crops and sizes for every screen."
+      },
+      "de": {
+        "title": "Bildverarbeitung",
+        "intro": "Wie der optionale Bildprozessor aus einem gespeicherten Bild Ausschnitte und Größen für jeden Bildschirm erzeugt."
+      }
+    }
+  },
+  {
+    "id": "b_imaging_note",
+    "key": "note",
+    "type": "note",
+    "translations": {
+      "en": {
+        "badge": "Optional · early stage",
+        "text": "Image processing is an optional complement to CDS (@cds/imaging), not part of its core. Its main idea is fully prerendered sites without runtime dependencies: every variant is rendered at build time and served as a static file. A live image service such as imgproxy can still be added for sizes nobody declared, but it has to be hosted separately."
+      },
+      "de": {
+        "badge": "Optional · frühes Stadium",
+        "text": "Die Bildverarbeitung ist eine optionale Ergänzung zu CDS (@cds/imaging), nicht Teil des Kerns. Die Grundidee sind vollständig vorgerenderte Websites ohne Laufzeitabhängigkeiten: Jede Variante wird beim Build gerendert und als statische Datei ausgeliefert. Ein Live-Bilddienst wie imgproxy kann für nicht deklarierte Größen ergänzt werden, muss aber separat betrieben werden."
+      }
+    }
+  },
+  {
+    "id": "b_crops",
+    "key": "crops",
+    "type": "image-crops",
+    "media": [
+      "coast-with-lighthouse-balloon-sailboat.png"
+    ],
+    "settings": {
+      "crops": [
+        {
+          "preset": "banner",
+          "focus": "lighthouse",
+          "zoom": 1
+        },
+        {
+          "preset": "square",
+          "focus": "balloon",
+          "zoom": 1.5
+        },
+        {
+          "preset": "portrait",
+          "focus": "sailboat",
+          "zoom": 1.3
+        }
+      ]
+    },
+    "translations": {
+      "en": {
+        "title": "One image, three crops",
+        "intro": "The image is stored once. Each crop uses a size from the landing-page target and centers a different focal point from the _media metadata."
+      },
+      "de": {
+        "title": "Ein Bild, drei Ausschnitte",
+        "intro": "Das Bild wird nur einmal gespeichert. Jeder Ausschnitt nutzt eine Größe aus dem Target „landing-page“ und zentriert einen anderen Fokuspunkt aus den _media-Metadaten."
+      }
+    }
+  },
+  {
+    "id": "b_costs",
+    "key": "costs",
+    "type": "image-report",
+    "translations": {
+      "en": {
+        "title": "Image variants and costs",
+        "intro": "Each raster image is rendered per breakpoint, pixel ratio and format. 2x sizes the source can't fill are skipped, and SVGs are served as they are. Within each breakpoint the formats are ordered by file size, so the browser loads the smallest format it supports.",
+        "note": "Original counts the coast photo once per crop, since each crop is cut from it. Stored and render time cover every variant of the image, rendered once per build and shared by both language pages.",
+        "total": "Total for this page",
+        "labels": {
+          "image": "Image",
+          "preset": "Preset",
+          "variants": "Variants",
+          "formats": "Formats (delivery order)",
+          "stored": "Stored",
+          "renderTime": "Render time",
+          "original": "Original",
+          "desktop": "Desktop 1x",
+          "mobile": "Mobile 1x"
+        }
+      },
+      "de": {
+        "title": "Bildvarianten und Kosten",
+        "intro": "Jedes Rasterbild wird pro Breakpoint, Pixeldichte und Format gerendert. 2x-Größen, für die das Original zu klein ist, entfallen, und SVGs werden unverändert ausgeliefert. Pro Breakpoint sind die Formate nach Dateigröße sortiert, damit der Browser das kleinste unterstützte Format lädt.",
+        "note": "Original zählt das Küstenfoto pro Ausschnitt, da jeder Ausschnitt daraus geschnitten wird. Gespeichert und Renderzeit umfassen alle Varianten des Bildes, einmal pro Build gerendert und von beiden Sprachseiten geteilt.",
+        "total": "Summe dieser Seite",
+        "labels": {
+          "image": "Bild",
+          "preset": "Preset",
+          "variants": "Varianten",
+          "formats": "Formate (Reihenfolge)",
+          "stored": "Gespeichert",
+          "renderTime": "Renderzeit",
+          "original": "Original",
+          "desktop": "Desktop 1x",
+          "mobile": "Mobil 1x"
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "p_home",
+    "key": "home",
+    "blocks": [
+      "b_hero",
+      "b_how",
+      "b_flow",
+      "b_features",
+      "b_goals",
+      "b_testimonials",
+      "b_release_log"
+    ],
+    "translations": {
+      "en": {
+        "title": "CDS – Content Distribution System",
+        "description": "Bridge your CMS and client apps with static, content-addressed releases that clients sync, verify and use offline."
+      },
+      "de": {
+        "title": "CDS – Content Distribution System",
+        "description": "Verbinden Sie CMS und Client-Apps mit statischen, inhaltsadressierten Releases, die Clients synchronisieren, prüfen und offline nutzen."
+      }
+    }
+  },
+  {
+    "id": "p_imaging",
+    "key": "image-processing",
+    "blocks": [
+      "b_imaging_header",
+      "b_imaging_note",
+      "b_crops",
+      "b_costs"
+    ],
+    "translations": {
+      "en": {
+        "title": "Image processing – CDS",
+        "description": "Optional image processing for prerendered sites: crops around focal points, sizes per breakpoint and formats ordered by size."
+      },
+      "de": {
+        "title": "Bildverarbeitung – CDS",
+        "description": "Optionale Bildverarbeitung für vorgerenderte Websites: Ausschnitte um Fokuspunkte, Größen pro Breakpoint und Formate nach Dateigröße."
+      }
+    }
+  }
+]

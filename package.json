@@ -9,7 +9,8 @@
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
-    "demo": "pnpm build && pnpm --filter=@cds/demo generate"
+    "demo": "pnpm build && pnpm --filter=@cds/demo generate",
+    "demo:serve": "pnpm build && pnpm --filter=@cds/demo serve"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

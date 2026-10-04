@@ -5,7 +5,10 @@
     "type": "WebSite",
     "appliesTo": "site_settings",
     "values": {
-      "publisher": { "@type": "Organization", "name": "CDS Project" }
+      "publisher": {
+        "@type": "Organization",
+        "name": "CDS Project"
+      }
     },
     "map": {
       "name": "siteTitle",
@@ -13,8 +16,12 @@
       "image": "media[0]"
     },
     "translations": {
-      "en": { "inLanguage": "en" },
-      "de": { "inLanguage": "de" }
+      "en": {
+        "inLanguage": "en"
+      },
+      "de": {
+        "inLanguage": "de"
+      }
     }
   },
   {
@@ -23,7 +30,9 @@
     "type": "Review",
     "appliesTo": "testimonials",
     "values": {
-      "author": { "@type": "Person" },
+      "author": {
+        "@type": "Person"
+      },
       "itemReviewed": {
         "@type": "SoftwareApplication",
         "name": "Content Distribution System (CDS)",
@@ -35,6 +44,26 @@
       "author.name": "author",
       "author.jobTitle": "role"
     },
-    "translations": { "en": {} }
+    "translations": {
+      "en": {}
+    }
+  },
+  {
+    "id": "ld_webpage",
+    "key": "webpage",
+    "type": "WebPage",
+    "appliesTo": "_pages",
+    "map": {
+      "name": "title",
+      "description": "description"
+    },
+    "translations": {
+      "en": {
+        "inLanguage": "en"
+      },
+      "de": {
+        "inLanguage": "de"
+      }
+    }
   }
 ]

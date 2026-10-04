@@ -1,0 +1,49 @@
+[
+  {
+    "id": "step_cms",
+    "key": "cms",
+    "icon": "✍️",
+    "translations": {
+      "en": {
+        "title": "1. CMS",
+        "text": "Directus / Headless CMS"
+      },
+      "de": {
+        "title": "1. CMS",
+        "text": "Directus / Headless CMS"
+      }
+    }
+  },
+  {
+    "id": "step_normalize",
+    "key": "normalize",
+    "icon": "⚙️",
+    "translations": {
+      "en": {
+        "title": "2. Normalize",
+        "text": "Determinism, hashing, GC",
+        "badge": "CDS Server"
+      },
+      "de": {
+        "title": "2. Normalisieren",
+        "text": "Determinismus, Hashing, GC",
+        "badge": "CDS-Server"
+      }
+    }
+  },
+  {
+    "id": "step_client",
+    "key": "client",
+    "icon": "📱",
+    "translations": {
+      "en": {
+        "title": "3. CDS Client",
+        "text": "Offline cache & sync SDK"
+      },
+      "de": {
+        "title": "3. CDS-Client",
+        "text": "Offline-Cache & Sync-SDK"
+      }
+    }
+  }
+]

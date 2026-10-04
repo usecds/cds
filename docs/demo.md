@@ -1,66 +1,84 @@
 # Demo (`@cds/demo`)
 
-The demo is a static site generator that runs the full CDS pipeline in one process: it publishes a release, syncs it into a client cache, and renders a bilingual (EN/DE) landing page from the client's query API. Everything lives in [`demo/src/build-demo.ts`](../demo/src/build-demo.ts).
+The demo runs the full CDS pipeline in one process: it publishes a release, syncs it into a client cache, and builds a bilingual (EN/DE) site from the site structure in the content (`_routes`, `_pages`, `_blocks`, `_menu`). It has two generator modes:
+
+| Mode | Command | Output |
+| --- | --- | --- |
+| **static** (default) | `pnpm demo` | One HTML file per route and language in `demo/dist/`, with relative links; for prerendered hosting |
+| **hono** | `pnpm demo:serve` (or `--mode=hono --port=3000`) | A [Hono](https://hono.dev) server that resolves every request path through the client's routes at request time (SSR) |
 
 ## Run it
 
 ```bash
 pnpm install
-pnpm demo
+pnpm demo          # static: open demo/dist/index.html
+pnpm demo:serve    # server: http://localhost:3000/
 ```
 
-Open `demo/dist/index.html` (English) or `demo/dist/index-de.html` (German) in a browser. The page loads Tailwind from its CDN, so styling needs network access.
+The pages load Tailwind from its CDN, so styling needs network access. The demo compiles to `demo/build/`; `demo/dist/` only holds the generated site.
 
 ## What happens
 
 ```
-demo/data/*.json ──▶ FixtureSource ──▶ Publisher ──▶ demo/published/   ("the CDN")
+demo/data/*.json ──▶ FixtureSource ──▶ Publisher ──▶ demo/published/   ("the CDN")   + demo/reports/
                                                           │
-                                         DemoLocalDownloader
+                                                 DemoLocalDownloader
                                                           ▼
-                                    CDSClient + FilesystemStorage ──▶ demo/cache/
+                                     CDSClient + FilesystemStorage ──▶ demo/cache/
                                                           │
-                                        getLocales / getItemByKey / getCollection
-                                                          ▼
-                                         demo/dist/index.html, index-de.html
+                   getRoutes / getPage / getMenu / getAlternates / getJsonLd / getMediaInfo
+                                ▼                                             ▼
+                 static: demo/dist/ (files per route)          hono: server, rendered per request
 ```
 
-1. **Clean.** Deletes `demo/published`, `demo/cache` and `demo/dist`, so every run starts from scratch (all three are git-ignored).
-2. **Server side.** Reads the JSON files in `demo/data/` and the media files in `demo/data/media/`, wraps them in a `FixtureSource`, and publishes them with a `Publisher` + `FilesystemStore` to channel `demo-channel` as release `release_demo_<Date.now()>`. The source locale is `en`. Targets are loaded from `demo/targets/` (`landing-page.json`; no `default.json`, so the built-in default applies). Afterwards it writes the publish report to `demo/reports/` (`report.json` + `index.html`; git-ignored, also written when the publish fails), and the console only prints its location. The demo data contains one deliberate gap so the report has an issue to show: the German description of the coast image is shorter than the recommended 50 characters.
-3. **Client side.** Creates a `CDSClient` with `FilesystemStorage("demo/cache")` and a `DemoLocalDownloader` that reads files from `demo/published` (a local stand-in for HTTP). The client is configured with `target: "landing-page"`. Calls `initialize()` and then `sync("demo-channel")`, and aborts if the sync fails.
-4. **Generator.** For each locale returned by `client.getLocales()`, it:
-   - gets the `homepage` item from `site_settings` by key, for hero, CTA and footer texts
-   - gets the `features`, `goals` and `testimonials` collections
-   - renders every image through the image processor ([imaging.md](imaging.md)): for each preset of the `landing-page` target, one variant per breakpoint (`mobile` 0, `tablet` 768, `desktop` 1280) and pixel ratio (1x, 2x), written with readable names such as `demo/dist/media/coast-lighthouse-banner-1152.7350c4c1.avif` (the coast photo's `_media` name is `coast-lighthouse`; the others keep their original names). Each image becomes a `<picture>` with a `<source media="(min-width: …)">` per breakpoint, so the browser loads the file for the screen size. Variants are reused across both language pages; 2x sizes the source can't fill are skipped. Vector images (the hero SVG) are passed through as the original file instead; other originals aren't copied to `dist`.
-   - shows the hero image (`hero` preset, 2:1) with its localized alt text.
-   - shows the **language-specific pipeline diagram** (`content` preset, `fit`): the homepage item references `cds-flow.png` in `translations.en.media` and `cds-flow-de.png` in `translations.de.media`, and the generator takes `content.media[0]` for the current locale.
-   - below the design principles, an **optional image processing** part, marked as early stage (fully prerendered sites; a live imgproxy service would need separate hosting). It contains the next two items.
-   - shows an **image variants and costs** table per page: for each image the preset, number of variants, formats in delivery order, stored size, render time, original size, and what a desktop and a mobile browser download at 1x. Presets: photos as AVIF + WebP, the diagram as lossless WebP + PNG.
-   - shows **one image in three crops**: `coast-with-lighthouse-balloon-sailboat.png` at the `banner` (3:1), `square` (1:1) and `portrait` (2:3) presets, each centered on a different named focal point (`lighthouse`, `balloon`, `sailboat`) from `_media`, with zoom 1, 1.5 and 1.3 so the crops isolate their subject.
-   - renders an HTML page with `item.translations[locale]` and writes `index.html` (for `en`) or `index-<locale>.html`
-   - adds a "release log" panel showing the active release ID, loaded collections and synced locales, read from the client
-   - adds **JSON-LD** to each page's head: `_jsonld.json` defines a `WebSite` for `site_settings` (localized `inLanguage`, the hero image) and a `Review` for each testimonial (nested `author`). The generator gets the data with `client.getJsonLd()`, adds `@id`/`url` from `SITE_URL` (a placeholder, `https://cds.example.com/`) and replaces each image's `_media` path with its output file URL.
-5. **llms.txt.** After all pages, writes `demo/dist/llms.txt` (linked from every page: `<link rel="alternate" type="text/markdown">` in the head and a footer link, which is itself left out of llms.txt) ([llmstxt.org](https://llmstxt.org/) format): the site name as H1, the summary as a blockquote, then one section per language (default page first) with that page converted from the rendered HTML to Markdown (`node-html-markdown`), without the language switcher. HTML only carries alt texts, so the generator records which media each `<img>` shows and adds the localized `_media` description after the image: once per source image and language, and not when the page already shows it as a caption.
+1. **Clean.** Deletes `demo/published`, `demo/cache`, `demo/dist`, `demo/reports` and `demo/cache-site` (all git-ignored).
+2. **Server side.** Every JSON file in `demo/data/` is a collection named after the file; the media files come from `demo/data/media/`. They're published to channel `demo-channel` as `release_demo_<Date.now()>`, with source locale `en` and the targets in `demo/targets/` (`landing-page.json`; no `default.json`, so the built-in default applies). The publish report goes to `demo/reports/` (`report.json` + `index.html`, also on failure); the console only prints its location.
+3. **Client side.** A `CDSClient` with `FilesystemStorage("demo/cache")`, `target: "landing-page"` and a `DemoLocalDownloader` reading `demo/published` (a local stand-in for HTTP) syncs the release.
+4. **Generator.** Shared by both modes ([`site.ts`](../demo/src/site.ts), [`blocks.ts`](../demo/src/blocks.ts)): for a route and language, `getPage()` gives the page and its blocks, and each block is rendered by its `type`. The layout adds:
+   - `<title>`, meta description, canonical URL and `hreflang` alternates (from `getAlternates()`), with absolute URLs from `SITE_URL` (a placeholder, `https://cds.example.com`)
+   - the `main` menu (`getMenu()`, with the nested "More" group) and a language switcher from the route's alternates
+   - JSON-LD: a `WebPage` for the page, plus whatever the blocks' items define (`WebSite` for `site_settings`, a `Review` per testimonial), with page and image URLs added
+   - the footer from `site_settings`, with a link to `llms.txt`
+5. **Static mode** writes `<route path>/index.html` per route and language (`/` → `index.html`, `/de/bildverarbeitung/` → `de/bildverarbeitung/index.html`), with links relative to each file so the site also works when opened from disk. Redirect routes become forwarding pages (static hosts can't send a 301). It also writes `llms.txt` and `sitemap.xml` (with `hreflang` alternates).
+6. **Hono mode** ([`server.ts`](../demo/src/server.ts)) resolves each request with `client.resolveRoute(path)`: pages are rendered per request, redirect routes answer with their status (`301`), unknown paths with `404`. Links are root-absolute. Images are rendered on first use into `demo/cache-site/media/` and served from `/media/` with `immutable` caching. `/llms.txt` and `/sitemap.xml` are generated on request. The server re-syncs every 30 seconds, so a newly published release is live without a rebuild: the use case for dynamic routing (P11).
+
+## Site structure
+
+| Route | Paths | Page | Blocks |
+| --- | --- | --- | --- |
+| `r_home` | `/`, `/de/` | `p_home` | `hero`, `steps` (how it works), `image` (language-specific diagram), `card-grid` (features), `icon-list` (design principles), `quotes` (testimonials), `release-log` |
+| `r_imaging` | `/image-processing/`, `/de/bildverarbeitung/` | `p_imaging` | `page-header`, `note` (optional, early stage), `image-crops` (three crops), `image-report` (variants and costs) |
+| `r_legacy_de` | `/index-de.html` | redirect → `r_home` (301) | the old German file name |
+
+Menu `main`: How it works, Features, Principles (anchors to blocks on the home page), More → Image processing, GitHub. The hero's buttons are `_menu` link items too (`l_explore`, `l_source`).
+
+**Block types** (rendered by the demo, not interpreted by CDS): `hero` (texts from its `site_settings` item, image, links), `page-header`, `steps`, `image` (`settings.preset`, `settings.caption`), `card-grid`, `icon-list`, `quotes`, `note`, `image-crops` (`settings.crops`: preset, named focal point, zoom), and the generator blocks `image-report` (costs of the images rendered on the page, rendered after the other blocks) and `release-log`. An unknown type is skipped with a warning.
+
+## Images
+
+Every raster image goes through the image processor ([imaging.md](imaging.md)), using the breakpoints (`mobile` 0, `tablet` 768, `desktop` 1280), pixel ratios (1x, 2x) and presets of the `landing-page` target: AVIF + WebP for photos, lossless WebP + PNG for the diagram. Each image becomes a `<picture>` with sources per breakpoint and format (smallest file first). Files get readable names such as `media/coast-lighthouse-banner-1152.7350c4c1.avif`. 2x sizes the source can't fill are skipped; the hero SVG is passed through as is. The language-specific diagram comes from the block's `translations[locale].media` (`cds-flow.png` / `cds-flow-de.png`).
 
 ## Content
 
-| File | Collection | Items | Localized fields |
-| --- | --- | --- | --- |
-| `site_settings.json` | `site_settings` | 1 (`key: homepage`) | `siteTitle`, `heroTitle`, `heroSubtitle`, `ctaPrimary`, `ctaSecondary`, `footerText` |
-| `features.json` | `features` | 4 | `title`, `description` |
-| `goals.json` | `goals` | 4 | `title`, `icon` |
-| `testimonials.json` | `testimonials` | 2 | `quote`, `author`, `role` |
-| `_media.json` | `_media` | 4 (`hero.svg`, both diagrams, coast image) | `alt`, `description` (plus `focalPoint`, `focalPoints`, `width`, `height`) |
+| File | Collection | Notes |
+| --- | --- | --- |
+| `site_settings.json` | `site_settings` | Site title, hero title and subtitle, footer; `media: ["hero.svg"]` for the JSON-LD `WebSite` |
+| `steps.json` | `steps` | The three "how it works" steps (`icon`, localized `title`, `text`, `badge`) |
+| `features.json`, `goals.json`, `testimonials.json` | | Shown by the `card-grid`, `icon-list` and `quotes` blocks |
+| `_routes.json`, `_pages.json`, `_blocks.json`, `_menu.json` | | Site structure (see above); all headings, intros, link labels and paths are content, so translation completeness covers them |
+| `_media.json` | `_media` | Alt texts, descriptions, focal points and sizes of the 4 images |
+| `_jsonld.json` | `_jsonld` | `WebSite` (site_settings), `Review` (testimonials), `WebPage` (`_pages`) |
 
-Media files live in `demo/data/media/`, named by their virtual path. `unused-example.svg` isn't referenced by any item, so the publisher leaves it out and prints a warning; it never reaches `demo/dist/`.
+Media files live in `demo/data/media/`. `unused-example.svg` isn't referenced by any item, so the publisher leaves it out with a warning.
 
-Each file is a plain array of CDS items (`id`, `key`, `translations`). To change the page, edit the JSON and run `pnpm demo` again.
+The report shows one deliberate gap: the German description of the coast image is shorter than the recommended 50 characters. The German-only legacy redirect is listed under "items without source", since it has no English path.
 
 ## Things to try
 
-- **Add a locale.** Add a `"fr": { ... }` block to every item, and `getLocales()` will pick it up so `index-fr.html` gets generated. The language switcher in the header is hard-coded to EN/DE, and a few strings in the release log panel are chosen with `locale === 'en'`, so extend those too.
-- **Inspect CAS output.** After a run, look at `demo/published/releases/*.json` and the matching `objects/<hash>.json` files, then compare with `demo/cache/`.
-- **See validation.** Remove the `key` from an item: the publish fails with an `Invalid Collection (...)` error from the schema validator.
+- **Add a page.** Add a route, a page and a block or two to the `_` files, and a menu entry; both modes pick it up without code changes.
+- **Live update (hono mode).** While `pnpm demo:serve` runs, the server re-syncs every 30 seconds; publish a new release into `demo/published/` to see it appear without a restart.
+- **Add a locale.** Add `"fr"` translations (including route paths and menu labels); the language switcher, `hreflang` and sitemap follow the routes.
+- **See validation.** Point a block at an unknown item or give two routes the same path: the publish fails before anything is written.
 
 ## Notes
 

@@ -2,15 +2,18 @@
   "name": "@cds/demo",
   "version": "1.0.0",
   "type": "module",
-  "main": "./dist/build-demo.js",
+  "main": "./build/build-demo.js",
   "scripts": {
     "build": "tsc",
-    "generate": "pnpm build && node ./dist/build-demo.js"
+    "generate": "pnpm build && node ./build/build-demo.js",
+    "serve": "pnpm build && node ./build/build-demo.js --mode=hono"
   },
   "dependencies": {
     "@cds/client": "workspace:*",
     "@cds/imaging": "workspace:*",
     "@cds/server": "workspace:*",
+    "@hono/node-server": "^2.1.3",
+    "hono": "^4.13.13",
     "node-html-markdown": "^2.0.0"
   },
   "devDependencies": {

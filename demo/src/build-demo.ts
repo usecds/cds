@@ -4,9 +4,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 // Server imports
-import { 
-  Publisher, 
-  FixtureSource, 
+import {
+  Publisher,
+  FixtureSource,
   FilesystemStore,
   loadTargets,
   createPublishReport,
@@ -17,38 +17,34 @@ import {
 } from "@cds/server";
 
 // Client imports
-import { 
-  CDSClient, 
-  FilesystemStorage, 
-  RemoteDownloader, 
-  ChannelManifest, 
-  ReleaseManifest,
-  MediaInfo
+import {
+  CDSClient,
+  FilesystemStorage,
+  RemoteDownloader,
+  ChannelManifest,
+  ReleaseManifest
 } from "@cds/client";
 
-// HTML -> Markdown for llms.txt
-import { NodeHtmlMarkdown } from "node-html-markdown";
-
-// Image processor (complementary to CDS): renders crops and sizes from target presets
-import {
-  render,
-  responsiveSizes,
-  variantKey,
-  cropRegion,
-  isVector,
-  presetFormats,
-  mediaBaseName,
-  variantFileName,
-  MIME_TYPES,
-  ImageFormat,
-  Preset,
-  RenderOptions,
-  Point
-} from "@cds/imaging";
+import { createImageRenderer } from "./images.js";
+import { renderAllPages, llmsFromPages, buildSitemap, redirectPage } from "./outputs.js";
+import { localHref, outputFile } from "./paths.js";
+import { SITE_URL } from "./site.js";
+import { startServer } from "./server.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
+
+const CHANNEL = "demo-channel";
+
+// Generator mode: "static" (default) writes files to dist/; "hono" serves the routes with Hono (SSR)
+const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
+const MODE = arg("mode") ?? "static";
+const PORT = Number(arg("port") ?? 3000);
+if (MODE !== "static" && MODE !== "hono") {
+  console.error(`Unknown --mode=${MODE}; use static (default) or hono`);
+  process.exit(1);
+}
 
 // Custom Downloader for client to read from our Published target
 class DemoLocalDownloader implements RemoteDownloader {
@@ -97,85 +93,30 @@ class DemoLocalDownloader implements RemoteDownloader {
   }
 }
 
-// Absolute base URL of the published demo site (placeholder), needed for JSON-LD urls
-const SITE_URL = "https://cds.example.com/";
-
-const escapeAttr = (text: string) =>
-  text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-const LANGUAGE_NAMES: Record<string, string> = { en: "English", de: "Deutsch" };
-const IMAGE_DESCRIPTION: Record<string, string> = { en: "Image description", de: "Bildbeschreibung" };
-
-/**
- * Builds llms.txt (llmstxt.org): site name, summary, then one section per language with the page
- * converted from HTML to Markdown. The language switcher is left out; each image is followed by its
- * description from the _media collection, which the HTML itself doesn't contain.
- */
-function renderLlmsTxt(
-  pages: { locale: string; file: string; title: string; summary: string; html: string; images: Map<string, MediaInfo> }[],
-  releaseId: string
-): string {
-  // The default page (index.html) comes first and provides the title and summary
-  const ordered = [...pages].sort((a, b) => Number(b.file === "index.html") - Number(a.file === "index.html"));
-  const [primary] = ordered;
-  const sections = ordered.map((page) => {
-    const body = page.html
-      .replace(/^[\s\S]*?<body[^>]*>/, "")
-      .replace(/<\/body>[\s\S]*$/, "")
-      .replace(/<header[\s\S]*?<\/header>/, "") // navigation and language switcher
-      .replace(/<p[^>]*data-llms="skip"[^>]*>[\s\S]*?<\/p>/g, ""); // e.g. the link to llms.txt itself
-    const converted = NodeHtmlMarkdown.translate(body)
-      // Nest the page's headings below the language heading
-      .replace(/^(#{1,4}) /gm, "##$1 ");
-    // Add each source image's description once, unless the page already shows it (e.g. as a caption)
-    const described = new Set<string>();
-    const markdown = converted
-      .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, _alt, src) => {
-        const image = page.images.get(src);
-        if (!image?.description || described.has(image.path) || converted.includes(image.description)) return match;
-        described.add(image.path);
-        const label = IMAGE_DESCRIPTION[page.locale] ?? IMAGE_DESCRIPTION.en;
-        return `${match}\n\n*${label}: ${image.description}*\n`;
-      })
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-    return `## ${LANGUAGE_NAMES[page.locale] ?? page.locale} (${page.file})\n\n${markdown}`;
-  });
-
-  return [
-    `# ${primary.title}`,
-    `> ${primary.summary}`,
-    `Text of every page of this site for language models, with descriptions of all images. Languages: ${ordered.map((p) => LANGUAGE_NAMES[p.locale] ?? p.locale).join(", ")}. Generated from release ${releaseId}.`,
-    ...sections
-  ].join("\n\n") + "\n";
-}
-
 async function run() {
-  console.log("🚀 Starting CDS Demo Builder...");
+  console.log(`🚀 Starting CDS Demo Builder (mode: ${MODE})...`);
 
   const publishedDir = path.join(rootDir, "published");
   const cacheDir = path.join(rootDir, "cache");
   const distDir = path.join(rootDir, "dist");
   const reportsDir = path.join(rootDir, "reports");
+  const serverMediaDir = path.join(rootDir, "cache-site", "media");
 
   // Clean intermediate folders to start fresh
-  await fs.rm(publishedDir, { recursive: true, force: true });
-  await fs.rm(reportsDir, { recursive: true, force: true });
-  await fs.rm(cacheDir, { recursive: true, force: true });
-  await fs.rm(distDir, { recursive: true, force: true });
-  await fs.mkdir(distDir, { recursive: true });
+  for (const dir of [publishedDir, reportsDir, cacheDir, distDir, path.dirname(serverMediaDir)]) {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 
   // -------------------------------------------------------------
   // 1. SERVER-SIDE: Normalizing & Publishing Content
   // -------------------------------------------------------------
   console.log("📂 [Server] Loading raw JSON collections from data directory...");
   const dataDir = path.join(rootDir, "data");
-  const site_settings = JSON.parse(await fs.readFile(path.join(dataDir, "site_settings.json"), "utf-8"));
-  const featuresData = JSON.parse(await fs.readFile(path.join(dataDir, "features.json"), "utf-8"));
-  const goalsData = JSON.parse(await fs.readFile(path.join(dataDir, "goals.json"), "utf-8"));
-  const testimonialsData = JSON.parse(await fs.readFile(path.join(dataDir, "testimonials.json"), "utf-8"));
-  const mediaMetadata = JSON.parse(await fs.readFile(path.join(dataDir, "_media.json"), "utf-8"));
-  const jsonLdDefinitions = JSON.parse(await fs.readFile(path.join(dataDir, "_jsonld.json"), "utf-8"));
+  // Every JSON file in data/ is a collection named after the file (site structure and media included)
+  const collections: Record<string, any[]> = {};
+  for (const file of (await fs.readdir(dataDir)).filter((f) => f.endsWith(".json")).sort()) {
+    collections[path.basename(file, ".json")] = JSON.parse(await fs.readFile(path.join(dataDir, file), "utf-8"));
+  }
 
   // Media files from data/media; their alt texts, descriptions and focal points live in _media.json
   const mimeTypes: Record<string, string> = { ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg" };
@@ -187,15 +128,6 @@ async function run() {
       mimeType: mimeTypes[path.extname(file)] ?? "application/octet-stream"
     }))
   );
-
-  const collections = {
-    site_settings,
-    features: featuresData,
-    goals: goalsData,
-    testimonials: testimonialsData,
-    _media: mediaMetadata,
-    _jsonld: jsonLdDefinitions
-  };
 
   console.log("📦 [Server] Setting up Source & Storage target...");
   const source = new FixtureSource(collections, media);
@@ -209,7 +141,7 @@ async function run() {
   // The publish report (translations, missing alt texts, target checks, warnings) is pipeline output:
   // written next to the build as report.json + index.html, never published. Also written on failure.
   const writeReport = async (artifacts: PublishArtifacts, manifest?: PublishedManifest, error?: Error) => {
-    const report = createPublishReport({ channel: "demo-channel", releaseId, artifacts, manifest, error });
+    const report = createPublishReport({ channel: CHANNEL, releaseId, artifacts, manifest, error });
     await fs.mkdir(reportsDir, { recursive: true });
     await fs.writeFile(path.join(reportsDir, "report.json"), JSON.stringify(report, null, 2) + "\n", "utf-8");
     await fs.writeFile(path.join(reportsDir, "index.html"), renderPublishReportHtml(report), "utf-8");
@@ -218,7 +150,7 @@ async function run() {
 
   let artifacts: PublishArtifacts;
   try {
-    const result = await publisher.publish("demo-channel", releaseId, { sourceLocale: "en", targets });
+    const result = await publisher.publish(CHANNEL, releaseId, { sourceLocale: "en", targets });
     artifacts = result.artifacts;
     console.log(`✅ [Server] Published successfully: ${releaseId}`);
     await writeReport(artifacts, result.manifest);
@@ -231,596 +163,66 @@ async function run() {
   // 2. CLIENT-SIDE: Syncing Content from simulated CDN
   // -------------------------------------------------------------
   console.log("⚡ [Client] Initializing client caching storage...");
-  const clientStorage = new FilesystemStorage(cacheDir);
-  const downloader = new DemoLocalDownloader(publishedDir);
   const client = new CDSClient({
-    storage: clientStorage,
-    downloader,
+    storage: new FilesystemStorage(cacheDir),
+    downloader: new DemoLocalDownloader(publishedDir),
     target: "landing-page"
   });
-
   await client.initialize();
 
-  console.log("🔄 [Client] Checking and synchronizing with 'demo-channel' channel...");
-  const syncResult = await client.sync("demo-channel");
+  console.log(`🔄 [Client] Checking and synchronizing with '${CHANNEL}' channel...`);
+  const syncResult = await client.sync(CHANNEL);
   if (!syncResult.success) {
     throw new Error(`Client synchronization failed: ${syncResult.error?.message}`);
   }
   console.log(`✅ [Client] Synced and activated release: ${syncResult.releaseId}`);
 
+  // Image sizes per breakpoint come from the landing-page target (the image processor's contract)
+  const contract = artifacts.targets["landing-page"].media!;
+
   // -------------------------------------------------------------
-  // 3. GENERATOR-SIDE: Querying Local Cache and Rendering HTML Page
+  // 3a. HONO MODE: serve the routes from _routes, rendered per request
   // -------------------------------------------------------------
-  console.log("🎨 [Generator] Querying CDS Client APIs & generating multilingual single page website...");
-  
-  // Images are rendered by the image processor from the landing-page target's breakpoints and presets.
-  // Variants are named by their variant key, so identical renders (e.g. used on both pages) happen once.
+  if (MODE === "hono") {
+    await fs.mkdir(serverMediaDir, { recursive: true });
+    startServer({ client, contract, mediaDir: serverMediaDir, port: PORT, channel: CHANNEL, syncIntervalMs: 30_000 });
+    return;
+  }
+
+  // -------------------------------------------------------------
+  // 3b. STATIC MODE: one file per route and language, relative links
+  // -------------------------------------------------------------
+  console.log("🎨 [Generator] Rendering every route from _routes / _pages / _blocks...");
   await fs.mkdir(path.join(distDir, "media"), { recursive: true });
-  const imageContract = artifacts.targets["landing-page"].media!;
+  const renderer = createImageRenderer(client, distDir, contract);
 
-  interface Variant { file: string; format: ImageFormat; width: number; height: number; bytes: number; ms: number }
-  interface ImageReport {
-    path: string;
-    preset: string;
-    variants: number;
-    formats: string; // in delivery order at the largest breakpoint
-    storedBytes: number;
-    renderMs: number;
-    originalBytes: number;
-    desktopBytes: number; // what a desktop browser downloads at 1x (smallest supported format)
-    mobileBytes: number;
-  }
-  const variants = new Map<string, Variant>();
-  // <img src> -> media shown, for the page being rendered (descriptions are per locale)
-  let pageImages = new Map<string, MediaInfo>();
-  // virtual path -> output file for JSON-LD contentUrl (largest variant in the fallback format)
-  const mediaUrls = new Map<string, string>();
-  const stats = { rendered: 0, reused: 0, skipped: 0, vector: 0 };
-  const copied = new Set<string>();
-
-  async function picture(
-    info: MediaInfo,
-    presetName: string,
-    imgClass: string,
-    crop: { focalPoint?: Point; zoom?: number } = {}
-  ): Promise<{ html: string; report: ImageReport }> {
-    const preset = imageContract.presets![presetName] as Preset;
-    const fill = (preset.fit ?? "fill") === "fill";
-    const original = await client.getMediaContent(info.path);
-    if (!original) throw new Error(`Media ${info.path} missing from the client cache`);
-    const alt = escapeAttr(info.alt ?? "");
-
-    // Vector images scale on their own: serve the original instead of rasterized variants
-    // Output names: the _media name or the original file name, plus a short id for caching
-    const base = mediaBaseName(info.path, info.name);
-    if (isVector(info.mimeType)) {
-      const file = `media/${variantFileName({ base, key: info.hash, format: info.path.split(".").pop()!.toLowerCase() })}`;
-      if (!copied.has(file)) {
-        await fs.writeFile(path.join(distDir, file), original);
-        copied.add(file);
-        stats.vector++;
-      }
-      pageImages.set(file, info);
-      mediaUrls.set(info.path, file);
-      return {
-        html: `<img src="${file}" alt="${alt}" width="${info.width ?? ""}" height="${info.height ?? ""}" class="${imgClass}">`,
-        report: {
-          path: info.path, preset: "original (vector)", variants: 0, formats: "svg",
-          storedBytes: original.length, renderMs: 0, originalBytes: original.length,
-          desktopBytes: original.length, mobileBytes: original.length
-        }
-      };
-    }
-
-    const formats = presetFormats(preset);
-    // breakpoint min width (largest first) -> format -> candidates per pixel ratio
-    const groups = new Map<number, Map<ImageFormat, (Variant & { dpr: number })[]>>();
-    const used = new Set<Variant>();
-
-    const focalPoint = crop.focalPoint ?? info.focalPoint;
-    const planned: { size: ReturnType<typeof responsiveSizes>[number]; format: ImageFormat; options: RenderOptions; key: string }[] = [];
-    for (const size of responsiveSizes(preset, imageContract.breakpoints!, imageContract.dpr)) {
-      // Higher pixel ratios only help if the source has the pixels
-      const available = fill && info.width && info.height
-        ? cropRegion(info.width, info.height, size.width / size.height!, focalPoint, crop.zoom).width
-        : info.width;
-      if (size.dpr > 1 && available && size.width > available) {
-        stats.skipped += formats.length;
-        continue;
-      }
-      for (const format of formats) {
-        const options: RenderOptions = {
-          width: size.width,
-          height: size.height,
-          fit: preset.fit,
-          focalPoint,
-          zoom: crop.zoom,
-          format,
-          quality: preset.quality,
-          lossless: preset.lossless,
-          background: preset.background
-        };
-        planned.push({ size, format, options, key: variantKey(info.hash, options) });
-      }
-    }
-    // The width is only part of the name when one format has several sizes
-    const sizesPerFormat = new Map<ImageFormat, number>();
-    for (const p of planned) sizesPerFormat.set(p.format, (sizesPerFormat.get(p.format) ?? 0) + 1);
-
-    for (const { size, format, options, key } of planned) {
-      {
-        let variant = variants.get(key);
-        if (variant) {
-          stats.reused++;
-        } else {
-          const started = Date.now();
-          const result = await render(original, options);
-          if (result.upscaled) {
-            console.log(`⚠️  [Imaging] ${info.path} ${presetName}@${size.breakpoint} is upscaled to ${result.width}px`);
-          }
-          if (result.flattened) {
-            console.log(`⚠️  [Imaging] ${info.path} ${presetName} as ${format}: transparency flattened onto ${preset.background ?? "#ffffff"}`);
-          }
-          // Name and MIME type follow the requested format (sharp reports AVIF as "heif")
-          const width = (sizesPerFormat.get(format) ?? 0) > 1 ? size.width : undefined;
-          variant = {
-            file: `media/${variantFileName({ base, preset: presetName, width, key, format })}`,
-            format,
-            width: result.width,
-            height: result.height,
-            bytes: result.data.length,
-            ms: Date.now() - started
-          };
-          await fs.writeFile(path.join(distDir, variant.file), result.data);
-          variants.set(key, variant);
-          stats.rendered++;
-        }
-        used.add(variant);
-        const byFormat = groups.get(size.minWidth) ?? new Map();
-        byFormat.set(format, [...(byFormat.get(format) ?? []), { ...variant, dpr: size.dpr }]);
-        groups.set(size.minWidth, byFormat);
-      }
-    }
-
-    // The browser takes the first <source> whose media and type match, so within each breakpoint
-    // the formats go smallest file first: every browser gets the smallest format it supports.
-    const entries = [...groups.entries()];
-    const srcset = (candidates: { file: string; dpr: number }[]) => candidates.map((c) => `${c.file} ${c.dpr}x`).join(", ");
-    const bySize = (byFormat: Map<ImageFormat, (Variant & { dpr: number })[]>) =>
-      [...byFormat.entries()].sort(([, a], [, b]) => a[0].bytes - b[0].bytes);
-    const sources = entries.flatMap(([minWidth, byFormat], i) => {
-      const media = i < entries.length - 1 ? ` media="(min-width: ${minWidth}px)"` : "";
-      return bySize(byFormat).map(([format, candidates]) =>
-        `<source${media} type="${MIME_TYPES[format]}" srcset="${srcset(candidates)}" width="${candidates[0].width}" height="${candidates[0].height}">`);
-    });
-    // <img> fallback: smallest breakpoint in the last listed (most widely supported) format
-    const fallback = entries[entries.length - 1][1].get(formats[formats.length - 1])!;
-    pageImages.set(fallback[0].file, info);
-    if (!mediaUrls.has(info.path)) mediaUrls.set(info.path, entries[0][1].get(formats[formats.length - 1])![0].file);
-    const html = `<picture>${sources.join("")}<img src="${fallback[0].file}" srcset="${srcset(fallback)}" alt="${alt}" width="${fallback[0].width}" height="${fallback[0].height}" class="${imgClass}"></picture>`;
-
-    const smallest1x = (byFormat: Map<ImageFormat, (Variant & { dpr: number })[]>) => bySize(byFormat)[0][1][0].bytes;
-    const report: ImageReport = {
-      path: info.path,
-      preset: presetName,
-      variants: used.size,
-      formats: bySize(entries[0][1]).map(([format]) => format).join(" → "),
-      storedBytes: [...used].reduce((sum, v) => sum + v.bytes, 0),
-      renderMs: [...used].reduce((sum, v) => sum + v.ms, 0),
-      originalBytes: original.length,
-      desktopBytes: smallest1x(entries[0][1]),
-      mobileBytes: smallest1x(entries[entries.length - 1][1])
-    };
-    return { html, report };
+  const pages = await renderAllPages(client, renderer, contract, "static");
+  for (const page of pages) {
+    const file = path.join(distDir, outputFile(page.path));
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, page.html, "utf-8");
+    console.log(`🌍 [Generator] ${page.locale} ${page.path} -> ${outputFile(page.path)}`);
   }
 
-  const locales = client.getLocales();
-  console.log(`🌍 Available Locales: ${locales.join(", ")}`);
-
-  const pages: { locale: string; file: string; title: string; summary: string; html: string; images: Map<string, MediaInfo> }[] = [];
-
-  for (const locale of locales) {
-    pageImages = new Map();
-    // Query homepage settings
-    const settingsItem = await client.getItemByKey("site_settings", "homepage");
-    if (!settingsItem) throw new Error("Site settings item not found in CDS cache!");
-
-    const content = settingsItem.translations[locale];
-    const features = await client.getCollection("features");
-    const goals = await client.getCollection("goals");
-    const testimonials = await client.getCollection("testimonials");
-    const hero = client.getMediaInfo("hero.svg", locale);
-
-    // Language-specific diagram: each locale references its own image in translations[locale].media
-    const flow = content.media?.[0] ? client.getMediaInfo(content.media[0], locale) : null;
-
-    // One stored image, three crops: preset sizes from the landing-page target, named focal points from _media.
-    // Zoom crops closer around a subject so the crops differ beyond shifting.
-    const coast = client.getMediaInfo("coast-with-lighthouse-balloon-sailboat.png", locale);
-    const crops = coast?.focalPoints
-      ? await Promise.all([
-          { preset: "banner", focus: "lighthouse", zoom: 1 },
-          { preset: "square", focus: "balloon", zoom: 1.5 },
-          { preset: "portrait", focus: "sailboat", zoom: 1.3 }
-        ].map(async (crop) => ({
-          ...crop,
-          aspect: imageContract.presets![crop.preset].aspect,
-          ...(await picture(coast, crop.preset, "w-full h-auto rounded-2xl border border-slate-800", {
-            focalPoint: coast.focalPoints![crop.focus],
-            zoom: crop.zoom
-          }))
-        })))
-      : [];
-    const heroImage = hero ? await picture(hero, "hero", "w-full h-auto rounded-2xl border border-slate-800") : null;
-    const flowImage = flow ? await picture(flow, "content", "w-full h-auto rounded-2xl border border-slate-800 bg-white") : null;
-    const heroPicture = heroImage?.html ?? "";
-    const flowPicture = flowImage?.html ?? "";
-    const imageReports = [heroImage?.report, flowImage?.report, ...crops.map((c) => c.report)]
-      .filter((r): r is ImageReport => !!r);
-    const kb = (bytes: number) => `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;
-    const en = locale === "en";
-
-    // JSON-LD: data from CDS (_jsonld), URLs from the generator
-    const pageUrl = SITE_URL + (locale === "en" ? "index.html" : `index-${locale}.html`);
-    const withUrls = (node: any): any => {
-      if (Array.isArray(node)) return node.map(withUrls);
-      if (typeof node !== "object" || node === null) return node;
-      const { _media, ...rest } = node;
-      const out: Record<string, any> = Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, withUrls(v)]));
-      if (_media && mediaUrls.has(_media)) out.contentUrl = SITE_URL + mediaUrls.get(_media);
-      return out;
-    };
-    const website = await client.getJsonLd("site_settings", settingsItem, locale);
-    const reviews = await Promise.all(testimonials.map((t) => client.getJsonLd("testimonials", t, locale)));
-    const jsonLd = [
-      website && { ...withUrls(website), "@id": pageUrl, url: pageUrl },
-      ...reviews.filter(Boolean).map(withUrls)
-    ].filter(Boolean);
-    // "<" escaped so content can't close the script element
-    const jsonLdScript = `<script type="application/ld+json">${JSON.stringify(jsonLd, null, 2).replace(/</g, "\\u003c")}</script>`;
-
-    // Generate responsive Tailwind layout
-    const html = `<!DOCTYPE html>
-<html lang="${locale}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${content.siteTitle}</title>
-    <link rel="alternate" type="text/markdown" href="llms.txt" title="llms.txt">
-    ${jsonLdScript}
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        }
-        .code-font {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        }
-    </style>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-teal-500 selection:text-slate-900">
-
-    <!-- Language Selector Nav -->
-    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-teal-500 to-blue-600 flex items-center justify-center font-bold text-slate-950">
-                    C
-                </div>
-                <span class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-teal-400 to-blue-500 bg-clip-text text-transparent">CDS</span>
-            </div>
-            
-            <nav class="flex items-center space-x-2">
-                <a href="index.html" class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${locale === 'en' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' : 'text-slate-400 hover:text-slate-200'}">EN (English)</a>
-                <a href="index-de.html" class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${locale === 'de' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' : 'text-slate-400 hover:text-slate-200'}">DE (Deutsch)</a>
-            </nav>
-        </div>
-    </header>
-
-    <!-- Hero Section -->
-    <section class="relative overflow-hidden py-24 lg:py-32 border-b border-slate-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-teal-950/20 via-slate-950 to-slate-950">
-        <div class="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
-        
-        <div class="max-w-4xl mx-auto text-center px-6 relative z-10">
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-teal-500/10 text-teal-400 border border-teal-500/20 mb-6">
-                Active Release: ${syncResult.releaseId} (Atomic & Live)
-            </span>
-            <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight text-white mb-6 leading-tight">
-                ${content.heroTitle}
-            </h1>
-            <p class="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-                ${content.heroSubtitle}
-            </p>
-            ${hero ? `<figure class="mb-10">${heroPicture}</figure>` : ""}
-            <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
-                <a href="#goals" class="w-full sm:w-auto px-8 py-3.5 rounded-xl font-semibold bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-400 hover:to-blue-500 text-slate-950 shadow-lg shadow-teal-500/20 transition-all text-center">
-                    ${content.ctaPrimary}
-                </a>
-                <a href="https://github.com/anomalyco/opencode" target="_blank" class="w-full sm:w-auto px-8 py-3.5 rounded-xl font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-slate-700 transition-all text-center">
-                    ${content.ctaSecondary}
-                </a>
-            </div>
-        </div>
-    </section>
-
-    <!-- Architecture Diagram Section -->
-    <section class="py-20 bg-slate-950 border-b border-slate-900">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl font-bold text-white mb-4">
-                    ${locale === 'en' ? 'How CDS Works' : 'Wie CDS funktioniert'}
-                </h2>
-                <p class="text-slate-400 max-w-xl mx-auto">
-                    ${locale === 'en' 
-                      ? 'CDS acts as a decoupled static compiler between authoring tools and consumer applications.' 
-                      : 'CDS fungiert als entkoppelter statischer Compiler zwischen Autorenwerkzeugen und Client-Anwendungen.'}
-                </p>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-center bg-slate-900/40 p-8 rounded-3xl border border-slate-800">
-                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-center">
-                    <span class="text-3xl">✍️</span>
-                    <h3 class="font-bold text-white mt-3 mb-1">1. CMS</h3>
-                    <p class="text-xs text-slate-400">Directus / Headless CMS</p>
-                </div>
-                <div class="text-center text-teal-500 font-bold rotate-90 md:rotate-0">➔</div>
-                <div class="bg-gradient-to-b from-teal-950/40 to-blue-950/40 p-6 rounded-2xl border border-teal-500/30 text-center relative">
-                    <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-teal-500 text-slate-950 text-[10px] uppercase font-bold px-2 py-0.5 rounded">CDS Server</div>
-                    <span class="text-3xl">⚙️</span>
-                    <h3 class="font-bold text-teal-400 mt-3 mb-1">2. Normalize</h3>
-                    <p class="text-xs text-slate-300">Determinism, Hashing, GC</p>
-                </div>
-                <div class="text-center text-teal-500 font-bold rotate-90 md:rotate-0">➔</div>
-                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-center">
-                    <span class="text-3xl">📱</span>
-                    <h3 class="font-bold text-white mt-3 mb-1">3. CDS Client</h3>
-                    <p class="text-xs text-slate-400">Offline Cache & Sync SDK</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Language-specific diagram -->
-    ${flow ? `<section class="py-20 bg-slate-950/50 border-b border-slate-900">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center mb-10">
-                <h2 class="text-3xl font-bold text-white mb-4">${content.flowTitle}</h2>
-                <p class="text-slate-400 max-w-2xl mx-auto">${content.flowIntro}</p>
-            </div>
-            <figure>
-                ${flowPicture}
-                <figcaption class="text-sm text-slate-500 mt-3 text-center">${flow.description ?? ""}</figcaption>
-            </figure>
-        </div>
-    </section>` : ""}
-
-    <!-- Features Section -->
-    <section class="py-20 bg-slate-950/50 border-b border-slate-900">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl font-bold text-white mb-4">
-                    ${locale === 'en' ? 'Core Capabilities' : 'Kernfunktionen'}
-                </h2>
-                <p class="text-slate-400 max-w-xl mx-auto">
-                    ${locale === 'en'
-                      ? 'Engineered for reliability, ultra-low latency, and absolute independent client delivery.'
-                      : 'Entwickelt für Ausfallsicherheit, extrem niedrige Latenzzeiten und völlig unabhängige Bereitstellung.'}
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                ${features.map(feat => {
-                  const translation = feat.translations[locale];
-                  return `
-                  <div class="p-8 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition-colors">
-                      <h3 class="text-xl font-bold text-teal-400 mb-3">${translation.title}</h3>
-                      <p class="text-slate-400 leading-relaxed text-sm">${translation.description}</p>
-                  </div>
-                  `;
-                }).join("")}
-            </div>
-        </div>
-    </section>
-
-    <!-- Goals Section (Query list) -->
-    <section id="goals" class="py-20 bg-slate-950 border-b border-slate-900">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl font-bold text-white mb-4">
-                    ${locale === 'en' ? 'Design Principles' : 'Projektziele'}
-                </h2>
-                <p class="text-slate-400 max-w-xl mx-auto">
-                    ${locale === 'en' 
-                      ? 'CDS aims to revolutionize static asset pipelines for edge applications.' 
-                      : 'CDS revolutioniert statische Asset-Pipelines für Edge-Anwendungen.'}
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                ${goals.map(goal => {
-                  const translation = goal.translations[locale];
-                  return `
-                  <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800/60 flex flex-col items-center text-center">
-                      <span class="text-4xl mb-4">${translation.icon || '🎯'}</span>
-                      <h4 class="font-semibold text-white text-base leading-snug">${translation.title}</h4>
-                  </div>
-                  `;
-                }).join("")}
-            </div>
-        </div>
-    </section>
-
-    <!-- One image, three crops around different focal points -->
-    ${coast && crops.length ? `<section class="py-20 bg-slate-950 border-b border-slate-900">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="max-w-3xl mx-auto mb-12 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 text-sm leading-relaxed">
-                <span class="inline-block text-[10px] uppercase font-bold tracking-wide text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-0.5 mb-2">${en ? "Optional · early stage" : "Optional · frühes Stadium"}</span>
-                <p class="text-slate-300">${en
-                  ? "Image processing is an optional complement to CDS (<code class=\"code-font text-amber-200\">@cds/imaging</code>), not part of its core. Its main idea is fully prerendered sites without runtime dependencies: every variant is rendered at build time and served as a static file. A live image service such as imgproxy can still be added for sizes nobody declared, but it has to be hosted separately."
-                  : "Die Bildverarbeitung ist eine optionale Ergänzung zu CDS (<code class=\"code-font text-amber-200\">@cds/imaging</code>), nicht Teil des Kerns. Die Grundidee sind vollständig vorgerenderte Websites ohne Laufzeitabhängigkeiten: Jede Variante wird beim Build gerendert und als statische Datei ausgeliefert. Ein Live-Bilddienst wie imgproxy kann für nicht deklarierte Größen ergänzt werden, muss aber separat betrieben werden."}</p>
-            </div>
-            <div class="text-center mb-10">
-                <h2 class="text-3xl font-bold text-white mb-4">${content.galleryTitle}</h2>
-                <p class="text-slate-400 max-w-2xl mx-auto">${content.galleryIntro}</p>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
-                ${crops.map((crop, i) => `<figure class="${i === 0 ? "md:col-span-5" : i === 1 ? "md:col-span-3" : "md:col-span-2"}">
-                    ${crop.html}
-                    <figcaption class="text-xs code-font text-slate-500 mt-2">${crop.preset} ${crop.aspect} · focus: ${crop.focus} · zoom ${crop.zoom}</figcaption>
-                </figure>`).join("")}
-            </div>
-        </div>
-    </section>` : ""}
-
-    <!-- Image variants and their costs -->
-    <section class="py-20 bg-slate-950/50 border-b border-slate-900">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center mb-10">
-                <h2 class="text-3xl font-bold text-white mb-4">${en ? "Image variants and costs" : "Bildvarianten und Kosten"}</h2>
-                <p class="text-slate-400 max-w-3xl mx-auto leading-relaxed">${en
-                  ? `Each raster image is rendered per breakpoint (${Object.keys(imageContract.breakpoints!).join(", ")}), pixel ratio (${(imageContract.dpr ?? [1]).join("x, ")}x) and format. 2x sizes the source can't fill are skipped, and SVGs are served as they are. Within each breakpoint the formats are ordered by file size, so the browser loads the smallest format it supports.`
-                  : `Jedes Rasterbild wird pro Breakpoint (${Object.keys(imageContract.breakpoints!).join(", ")}), Pixeldichte (${(imageContract.dpr ?? [1]).join("x, ")}x) und Format gerendert. 2x-Größen, für die das Original zu klein ist, entfallen, und SVGs werden unverändert ausgeliefert. Pro Breakpoint sind die Formate nach Dateigröße sortiert, damit der Browser das kleinste unterstützte Format lädt.`}</p>
-            </div>
-            <div class="overflow-x-auto rounded-2xl border border-slate-800">
-                <table class="w-full text-sm text-left">
-                    <thead class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide">
-                        <tr>
-                            <th class="px-4 py-3">${en ? "Image" : "Bild"}</th>
-                            <th class="px-4 py-3">Preset</th>
-                            <th class="px-4 py-3 text-right whitespace-nowrap">${en ? "Variants" : "Varianten"}</th>
-                            <th class="px-4 py-3">${en ? "Formats (delivery order)" : "Formate (Reihenfolge)"}</th>
-                            <th class="px-4 py-3 text-right whitespace-nowrap">${en ? "Stored" : "Gespeichert"}</th>
-                            <th class="px-4 py-3 text-right whitespace-nowrap">${en ? "Render time" : "Renderzeit"}</th>
-                            <th class="px-4 py-3 text-right whitespace-nowrap">Original</th>
-                            <th class="px-4 py-3 text-right whitespace-nowrap">Desktop 1x</th>
-                            <th class="px-4 py-3 text-right whitespace-nowrap">Mobile 1x</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800 text-slate-300">
-                        ${imageReports.map((r) => `<tr>
-                            <td class="px-4 py-3 code-font text-xs">${r.path}</td>
-                            <td class="px-4 py-3">${r.preset}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">${r.variants}</td>
-                            <td class="px-4 py-3 code-font text-xs">${r.formats}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">${kb(r.storedBytes)}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">${r.renderMs} ms</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">${kb(r.originalBytes)}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap text-teal-400">${kb(r.desktopBytes)}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap text-teal-400">${kb(r.mobileBytes)}</td>
-                        </tr>`).join("")}
-                    </tbody>
-                    <tfoot class="bg-slate-900 text-white font-semibold">
-                        <tr>
-                            <td class="px-4 py-3" colspan="2">${en ? "Total for this page" : "Summe dieser Seite"}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">${imageReports.reduce((n, r) => n + r.variants, 0)}</td>
-                            <td class="px-4 py-3"></td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">${kb(imageReports.reduce((n, r) => n + r.storedBytes, 0))}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">${imageReports.reduce((n, r) => n + r.renderMs, 0)} ms</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">${kb(imageReports.reduce((n, r) => n + r.originalBytes, 0))}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap text-teal-400">${kb(imageReports.reduce((n, r) => n + r.desktopBytes, 0))}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap text-teal-400">${kb(imageReports.reduce((n, r) => n + r.mobileBytes, 0))}</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-            <p class="text-xs text-slate-500 mt-3">${en
-              ? "Original counts the coast photo once per crop, since each crop is cut from it. Stored and render time cover every variant of the image, rendered once per build and shared by both language pages."
-              : "Original zählt das Küstenfoto pro Ausschnitt, da jeder Ausschnitt daraus geschnitten wird. Gespeichert und Renderzeit umfassen alle Varianten des Bildes, einmal pro Build gerendert und von beiden Sprachseiten geteilt."}</p>
-        </div>
-    </section>
-
-    <!-- Testimonials Section -->
-    <section class="py-20 bg-slate-950/50 border-b border-slate-900">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl font-bold text-white mb-4">
-                    ${locale === 'en' ? 'What Integrators Say' : 'Was Entwickler sagen'}
-                </h2>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                ${testimonials.map(test => {
-                  const translation = test.translations[locale];
-                  return `
-                  <div class="p-8 rounded-2xl bg-slate-900/30 border border-slate-800/80 italic flex flex-col justify-between">
-                      <p class="text-slate-300 text-lg mb-6 leading-relaxed">
-                          "${translation.quote}"
-                      </p>
-                      <div class="flex items-center space-x-3 not-italic">
-                          <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-teal-400">
-                              ${translation.author[0]}
-                          </div>
-                          <div>
-                              <div class="font-bold text-white text-sm">${translation.author}</div>
-                              <div class="text-xs text-slate-500">${translation.role}</div>
-                          </div>
-                      </div>
-                  </div>
-                  `;
-                }).join("")}
-            </div>
-        </div>
-    </section>
-
-    <!-- Interactive Client Live Cache Log section (Great for proving client storage) -->
-    <section class="py-20 bg-slate-950">
-        <div class="max-w-4xl mx-auto px-6">
-            <div class="bg-slate-900 rounded-3xl border border-slate-800 p-8 shadow-2xl relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-32 h-32 bg-teal-500/10 rounded-full blur-2xl"></div>
-                <div class="flex items-center space-x-3 mb-6 border-b border-slate-800 pb-4">
-                    <div class="flex space-x-1.5">
-                        <div class="w-3 h-3 rounded-full bg-red-500/40"></div>
-                        <div class="w-3 h-3 rounded-full bg-yellow-500/40"></div>
-                        <div class="w-3 h-3 rounded-full bg-green-500/40"></div>
-                    </div>
-                    <span class="text-xs code-font text-slate-400">cds-client-logger --active-cache</span>
-                </div>
-                <h3 class="text-lg font-bold text-white mb-3">
-                    ${locale === 'en' ? 'Local Staged Release Log' : 'Lokaler Release-Cache-Status'}
-                </h3>
-                <p class="text-slate-400 text-sm mb-6 leading-relaxed">
-                    ${locale === 'en'
-                      ? 'The client loaded the static release schema dynamically. Here is the active localized map cached locally in FilesystemStorage:'
-                      : 'Der Client hat das statische Release-Schema dynamisch geladen. Hier ist die lokal im Filesystem-Cache gespeicherte Struktur:'}
-                </p>
-                <pre class="bg-slate-950 p-4 rounded-xl text-xs code-font text-teal-400 overflow-x-auto border border-slate-800"><code>${JSON.stringify({
-                  activeReleaseId: syncResult.releaseId,
-                  schemaVersion: 1,
-                  loadedCollections: client.getCollectionsList(),
-                  syncedLocales: client.getLocales(),
-                  cachingStorageAdapter: "FilesystemStorage"
-                }, null, 2)}</code></pre>
-            </div>
-        </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="py-12 border-t border-slate-900 bg-slate-950">
-        <div class="max-w-6xl mx-auto px-6 text-center text-sm text-slate-500">
-            <p>${content.footerText}</p>
-            <p class="mt-3" data-llms="skip">
-                <a href="llms.txt" class="code-font text-xs text-slate-400 hover:text-teal-400 underline underline-offset-4">llms.txt</a>
-                <span class="text-slate-600"> · ${locale === "en" ? "page text and image descriptions for language models" : "Seitentext und Bildbeschreibungen für Sprachmodelle"}</span>
-            </p>
-        </div>
-    </footer>
-
-</body>
-</html>`;
-
-    const outFilename = locale === "en" ? "index.html" : `index-${locale}.html`;
-    const outPath = path.join(distDir, outFilename);
-    await fs.writeFile(outPath, html, "utf-8");
-    console.log(`🌍 [Generator] Rendered and wrote ${outFilename} to: ${outPath}`);
-    pages.push({ locale, file: outFilename, title: content.siteTitle, summary: content.heroSubtitle, html, images: pageImages });
+  // Redirect routes: static hosts can't send a 301, so write a forwarding page
+  for (const route of client.getRoutes().filter((r) => r.redirect)) {
+    for (const [locale, routePath] of Object.entries(route.paths)) {
+      const resolved = await client.resolveRoute(routePath);
+      if (!resolved?.redirect) continue;
+      const file = path.join(distDir, outputFile(routePath));
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await fs.writeFile(file, redirectPage(localHref(routePath, resolved.redirect.path), SITE_URL + resolved.redirect.path), "utf-8");
+      console.log(`↪️  [Generator] ${locale} ${routePath} -> ${resolved.redirect.path}`);
+    }
   }
 
-  // llms.txt: the text of every page, converted from the rendered HTML, plus image descriptions
-  const llms = renderLlmsTxt(pages, syncResult.releaseId!);
+  // llms.txt and sitemap.xml from the same routes
+  const llms = await llmsFromPages(client, pages);
   await fs.writeFile(path.join(distDir, "llms.txt"), llms, "utf-8");
-  console.log(`🤖 [Generator] Wrote llms.txt (${(Buffer.byteLength(llms) / 1024).toFixed(1)} KB)`);
+  await fs.writeFile(path.join(distDir, "sitemap.xml"), buildSitemap(client), "utf-8");
+  console.log(`🤖 [Generator] Wrote llms.txt (${(Buffer.byteLength(llms) / 1024).toFixed(1)} KB) and sitemap.xml`);
 
+  const { stats } = renderer;
   console.log(`🖼️  [Imaging] ${stats.rendered} variants rendered, ${stats.reused} reused, ${stats.skipped} high-DPR sizes skipped (source too small), ${stats.vector} vector images passed through`);
   console.log("🎉 CDS Demo Website generated successfully under demo/dist/");
 }

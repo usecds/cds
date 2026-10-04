@@ -7,13 +7,14 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - `server/` (`@cds/server`): `Publisher`, `ContentSource` / `ObjectStore` interfaces, `FixtureSource`, `FilesystemStore`
 - `client/` (`@cds/client`): `CDSClient`, `ClientStorage` / `RemoteDownloader` interfaces, `MemoryStorage`, `FilesystemStorage`
 - `imaging/` (`@cds/imaging`): complementary image processor (sharp): crops by focal point, sizes per breakpoint. Not CDS core; the demo generator uses it after sync.
-- `demo/`: generates an EN/DE landing page from `demo/data/*.json` through publish → sync → render
+- `demo/`: publishes `demo/data/*.json`, syncs it, and builds an EN/DE site from `_routes`/`_pages`/`_blocks`/`_menu` (static files or a Hono server)
 - `tests/integration.test.ts`: a single end-to-end lifecycle test (publish, sync, CAS reuse, retention, GC)
 
 ## Commands
 - `pnpm test`: Vitest, imports from `src`, no build needed
 - `pnpm build`: `tsc` for server, client and imaging (demo imports their `dist`)
-- `pnpm demo`: builds, then writes `demo/dist/index.html`, `index-de.html`
+- `pnpm demo`: builds, then writes the static site (one file per route and language) to `demo/dist/`
+- `pnpm demo:serve`: the same site served by Hono (SSR), routes resolved per request; the demo compiles to `demo/build/`
 - No lint config exists, even though a `lint` script is defined.
 
 ## Conventions and gotchas

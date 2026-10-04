@@ -1,0 +1,140 @@
+[
+  {
+    "id": "m_main",
+    "key": "main",
+    "children": [
+      "l_how",
+      "l_features",
+      "l_goals",
+      "l_more",
+      "l_github"
+    ],
+    "translations": {
+      "en": {}
+    }
+  },
+  {
+    "id": "l_how",
+    "key": "how",
+    "link": {
+      "route": "r_home",
+      "block": "b_how"
+    },
+    "translations": {
+      "en": {
+        "label": "How it works"
+      },
+      "de": {
+        "label": "So funktioniert's"
+      }
+    }
+  },
+  {
+    "id": "l_features",
+    "key": "features",
+    "link": {
+      "route": "r_home",
+      "block": "b_features"
+    },
+    "translations": {
+      "en": {
+        "label": "Features"
+      },
+      "de": {
+        "label": "Funktionen"
+      }
+    }
+  },
+  {
+    "id": "l_goals",
+    "key": "goals",
+    "link": {
+      "route": "r_home",
+      "block": "b_goals"
+    },
+    "translations": {
+      "en": {
+        "label": "Principles"
+      },
+      "de": {
+        "label": "Prinzipien"
+      }
+    }
+  },
+  {
+    "id": "l_more",
+    "key": "more",
+    "children": [
+      "l_imaging"
+    ],
+    "translations": {
+      "en": {
+        "label": "More"
+      },
+      "de": {
+        "label": "Mehr"
+      }
+    }
+  },
+  {
+    "id": "l_imaging",
+    "key": "image-processing",
+    "link": {
+      "route": "r_imaging"
+    },
+    "translations": {
+      "en": {
+        "label": "Image processing"
+      },
+      "de": {
+        "label": "Bildverarbeitung"
+      }
+    }
+  },
+  {
+    "id": "l_github",
+    "key": "github",
+    "link": {
+      "url": "https://github.com/anomalyco/opencode"
+    },
+    "translations": {
+      "en": {
+        "label": "GitHub"
+      },
+      "de": {
+        "label": "GitHub"
+      }
+    }
+  },
+  {
+    "id": "l_explore",
+    "key": "explore",
+    "link": {
+      "route": "r_home",
+      "block": "b_goals"
+    },
+    "translations": {
+      "en": {
+        "label": "Explore Goals"
+      },
+      "de": {
+        "label": "Ziele erkunden"
+      }
+    }
+  },
+  {
+    "id": "l_source",
+    "key": "source",
+    "link": {
+      "url": "https://github.com/anomalyco/opencode"
+    },
+    "translations": {
+      "en": {
+        "label": "View on GitHub"
+      },
+      "de": {
+        "label": "Auf GitHub ansehen"
+      }
+    }
+  }
+]

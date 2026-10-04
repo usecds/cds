@@ -380,6 +380,8 @@ _routes  ──page──▶  _pages  ──blocks[]──▶  _blocks  ──it
 
 ### P12: Menus (nestable link items)
 
+**Demo:** G9 moved the demo onto routes, pages, blocks and menus, with a static and a Hono (SSR) mode.
+
 **Status: implemented in G8** (`menu.json`, publish checks, `missing-label`, `getMenu`, `resolveLink`).
 
 **Problem:** navigation is hard-coded in generators.
@@ -431,6 +433,7 @@ Routes: `r_home` with `/` (en) and `/de/` (de) replaces the hard-coded `index.ht
 - `source` always takes the full collection; no sort, limit or filter.
 - Menus nest via `children` on the parent (P12).
 - Static routes are the default (prerendered sites). Dynamic routing for SSR stays open until a use case can be demonstrated.
+- *Update:* the demo's Hono mode demonstrates the SSR use case with the same static routes: paths are resolved per request (`resolveRoute`), and a newly synced release is live without a rebuild. Route *patterns* (e.g. `/rooms/{key}`) are still open.
 
 ## Principles
 

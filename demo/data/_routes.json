@@ -1,0 +1,39 @@
+[
+  {
+    "id": "r_home",
+    "key": "home",
+    "page": "p_home",
+    "translations": {
+      "en": {
+        "path": "/"
+      },
+      "de": {
+        "path": "/de/"
+      }
+    }
+  },
+  {
+    "id": "r_imaging",
+    "key": "image-processing",
+    "page": "p_imaging",
+    "translations": {
+      "en": {
+        "path": "/image-processing/"
+      },
+      "de": {
+        "path": "/de/bildverarbeitung/"
+      }
+    }
+  },
+  {
+    "id": "r_legacy_de",
+    "key": "legacy-de",
+    "redirect": "r_home",
+    "status": 301,
+    "translations": {
+      "de": {
+        "path": "/index-de.html"
+      }
+    }
+  }
+]
