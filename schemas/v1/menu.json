@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MenuItem",
+  "description": "An item of the optional _menu collection. Items no other item lists in children are menus (e.g. key main); entries carry a link and translations[locale].label.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "children": { "type": "array", "items": { "type": "string" }, "description": "_menu ids in order" },
+    "link": {
+      "type": "object",
+      "properties": {
+        "route": { "type": "string", "description": "_routes id" },
+        "block": { "type": "string", "description": "_blocks id on the route's page (anchor)" },
+        "url": { "type": "string", "description": "External URL" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["id"],
+  "additionalProperties": true
+}

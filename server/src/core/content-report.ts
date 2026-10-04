@@ -6,6 +6,7 @@ import { ItemLocales, TranslationReport } from "./translations.js";
 import { meaninglessNameReason, suggestMediaName } from "./media-names.js";
 import { isJsonLdPathEmpty, jsonLdDefinitionFor, JSONLD_COLLECTION } from "./jsonld.js";
 import { siteRecommendations } from "./site.js";
+import { menuRecommendations } from "./menu.js";
 
 export type IssueSeverity = "requirement" | "recommendation";
 
@@ -84,7 +85,7 @@ export function buildContentReport(
 
   report.issues.push(...checkMediaNames(ctx, options.mediaPaths ?? []));
   report.issues.push(...checkJsonLd(ctx));
-  for (const issue of siteRecommendations(collections)) {
+  for (const issue of [...siteRecommendations(collections), ...menuRecommendations(collections)]) {
     report.issues.push({ severity: "recommendation", ...issue, source: sourceLink(ctx, issue.collection, issue.id) });
   }
 

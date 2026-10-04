@@ -163,6 +163,8 @@ All queries read from the in-memory cache of the **active** release and need no 
 | `getAlternates(routeId)` | Paths of a route per locale (hreflang, language switcher) |
 | `resolveRoute(path)` | Route, locale and page for an exact path; redirects followed to their final target (`redirect: { path, status }`); `null` if unknown. Async. |
 | `getPage(pageId, locale)` | Page title, description and texts, with its blocks in order: `{ key, type, texts, items: [{ collection, item }], media, links, settings }`. A `source` block gets its full collection. Async. |
+| `getMenu(key, locale)` | A menu as a tree of `{ id, key, label, href?, external, children }` with hrefs resolved for the locale; entries without a label or path in that locale are left out. `null` if there's no such menu. |
+| `resolveLink(id, locale)` | One `_menu` item as `{ label, href?, external }` (e.g. for block links); `null` if hidden in that locale |
 | `getJsonLd(collection, item, locale)` | schema.org JSON-LD data for the item (own `_jsonld` reference or the collection's default), with `@context`; no URLs: images carry `_media` (virtual path) for the generator to replace. `null` if no definition applies. Async. |
 | `getTranslationSummary()` | The release's translation completeness summary, or `null` |
 | `getTranslationStatus(item, locale, field)` | `{ status, stale }` from the item's `_provenance` translation marker (`status: null` without a marker). Staleness is detected via `sourceHash` only. The publisher's previous-release fallback shows up in the build report, not here. |

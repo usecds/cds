@@ -117,6 +117,7 @@ function itemValidator(schemaFile: string, label: string): (data: any) => void {
 export const validateRouteItem = itemValidator("route.json", "_routes");
 export const validatePageItem = itemValidator("page.json", "_pages");
 export const validateBlockItem = itemValidator("block.json", "_blocks");
+export const validateMenuItem = itemValidator("menu.json", "_menu");
 
 export interface ContentSchemaError {
   keyword: string; // e.g. "required", "minLength", "maxLength", "type"

@@ -380,6 +380,8 @@ _routes  ──page──▶  _pages  ──blocks[]──▶  _blocks  ──it
 
 ### P12: Menus (nestable link items)
 
+**Status: implemented in G8** (`menu.json`, publish checks, `missing-label`, `getMenu`, `resolveLink`).
+
 **Problem:** navigation is hard-coded in generators.
 
 **Direction:** a reserved collection `_menu` of link items. A root item is a menu (`key: "main"`, `"footer"`); `children` lists its entries in order, and entries can have children of their own.

@@ -252,6 +252,27 @@ _routes ──page──▶ _pages ──blocks[]──▶ _blocks ──items[]
 
 **Recommendations:** pages no route shows (`unrouted-page`), blocks no page uses (`unused-block`); paths, titles and block texts count for translation completeness; built-in recommendations for page `title` (1–60 characters) and `description` (50–160).
 
+## Menus (`_menu`)
+
+Optional, typed collection of nestable link items (`menu.json`). An item that no other item lists in `children` is a menu (found by `key`, e.g. `main`, `footer`); `children` gives the entries in order, and entries can have children up to 3 levels deep. Blocks reference the same link items in `links`.
+
+```json
+{ "id": "m_main", "key": "main", "children": ["l_home", "l_more"], "translations": { "en": {} } }
+{ "id": "l_more", "key": "more", "children": ["l_goals"], "translations": { "en": { "label": "More" }, "de": { "label": "Mehr" } } }
+{ "id": "l_goals", "key": "goals", "link": { "route": "r_home", "block": "b_goals" },
+  "translations": { "en": { "label": "Goals" }, "de": { "label": "Ziele" } } }
+```
+
+| Field | Notes |
+| --- | --- |
+| `children` | `_menu` ids in order |
+| `link.route` | `_routes` id; resolved to the route's path in each language |
+| `link.block` | Optional anchor: a block on that route's page (`/de/#goals`) |
+| `link.url` | External URL (`https://`, `mailto:`, `tel:`) instead of a route |
+| `translations[locale].label` | Shown text. An entry without a label in a language, or whose route has no path there, is left out (with its children). |
+
+**Checks at publish** (build fails): unknown children, cycles, more than 3 levels, a link with neither or both of route/url, unknown routes or blocks, a block that isn't on the route's page, relative URLs, block `links` to unknown items. **Recommendation:** entries with no label in any language (`missing-label`); labels count for translation completeness.
+
 ## `target.json`
 
 Validates target definitions (see [server.md](server.md#targets)). Only `id` (`[a-zA-Z0-9_-]+`) is required. `collections.*.localized`, `collections.*.fields` and `recommendations.*` hold JSON Schemas, which are compiled when the target is checked. Target definitions are pipeline configuration and are never published.

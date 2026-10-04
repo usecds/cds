@@ -19,6 +19,7 @@ export * from "./core/media-metadata.js";
 export * from "./core/media-names.js";
 export * from "./core/jsonld.js";
 export * from "./core/site.js";
+export * from "./core/menu.js";
 export * from "./core/report.js";
 export { FixtureSource } from "./sources/fixture.js";
 export { FilesystemStore } from "./storage/filesystem.js";

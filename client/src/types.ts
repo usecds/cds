@@ -138,6 +138,19 @@ export interface ResolvedRoute {
   page?: ResolvedPage;
 }
 
+// Menus and links (_menu)
+export interface ResolvedLink {
+  id: string;
+  key: string;
+  label: string; // in the requested locale
+  href?: string; // route path (+ #block anchor) in that locale, or the external url; absent for plain groups
+  external: boolean;
+}
+
+export interface MenuEntry extends ResolvedLink {
+  children: MenuEntry[];
+}
+
 // Client Storage Interface
 export interface ClientStorage {
   saveObject(hash: string, content: string): Promise<void>;

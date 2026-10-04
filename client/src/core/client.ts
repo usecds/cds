@@ -5,7 +5,9 @@ import {
   Collection, 
   CollectionItem,
   MediaInfo,
+  MenuEntry,
   ProvenanceStatus,
+  ResolvedLink,
   ResolvedBlock,
   ResolvedPage,
   ResolvedRoute,
@@ -499,6 +501,49 @@ export class CDSClient {
       texts,
       blocks
     };
+  }
+
+  // --- MENUS AND LINKS (_menu; optional) ---
+
+  /**
+   * A menu (a _menu item no other item lists as a child, found by key) as a tree for one locale.
+   * Entries without a label in that locale, or whose route has no path there, are left out
+   * together with their children.
+   */
+  getMenu(key: string, locale: string): MenuEntry[] | null {
+    const items = this.collectionsCache.get("_menu") ?? [];
+    const children = new Set(items.flatMap((i) => (i.children as string[] | undefined) ?? []));
+    const root = items.find((i) => i.key === key && !children.has(i.id));
+    if (!root) return null;
+
+    const build = (ids: string[]): MenuEntry[] =>
+      ids.flatMap((id) => {
+        const link = this.resolveLink(id, locale);
+        if (!link) return [];
+        const item = items.find((i) => i.id === id)!;
+        return [{ ...link, children: build((item.children as string[] | undefined) ?? []) }];
+      });
+    return build((root.children as string[] | undefined) ?? []);
+  }
+
+  /**
+   * A _menu item's label and href in one locale (also used for block links). Null if it has no
+   * label in that locale, or its route has no path there.
+   */
+  resolveLink(id: string, locale: string): ResolvedLink | null {
+    const item = (this.collectionsCache.get("_menu") ?? []).find((i) => i.id === id);
+    const label = item?.translations[locale]?.label;
+    if (!item || typeof label !== "string" || !label) return null;
+
+    const link = item.link as { route?: string; block?: string; url?: string } | undefined;
+    if (link?.url) return { id, key: item.key, label, href: link.url, external: true };
+    if (link?.route) {
+      const path = this.getAlternates(link.route)[locale];
+      if (!path) return null;
+      const block = link.block ? (this.collectionsCache.get("_blocks") ?? []).find((b) => b.id === link.block) : undefined;
+      return { id, key: item.key, label, href: block ? `${path}#${block.key}` : path, external: false };
+    }
+    return { id, key: item.key, label, external: false };
   }
 
   /**
