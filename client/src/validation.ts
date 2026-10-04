@@ -7,16 +7,25 @@ import { fileURLToPath } from "url";
 const Ajv = (AjvModule as any).default || AjvModule;
 const addFormats = (addFormatsModule as any).default || addFormatsModule;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Bundlers (e.g. Nitro) may rewrite import.meta.url to a URL that isn't a file path;
+// the schemas then aren't next to the code anyway, and the fallbacks below apply
+const moduleDir = (() => {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return undefined;
+  }
+})();
 
 // Helper to load schema files from the monorepo root
 function loadSchema(filename: string): any {
-  const possiblePaths = [
-    path.join(__dirname, "..", "..", "schemas", "v1", filename),
-    path.join(__dirname, "..", "schemas", "v1", filename),
-    path.join(__dirname, "schemas", "v1", filename)
-  ];
+  const possiblePaths = moduleDir
+    ? [
+        path.join(moduleDir, "..", "..", "schemas", "v1", filename),
+        path.join(moduleDir, "..", "schemas", "v1", filename),
+        path.join(moduleDir, "schemas", "v1", filename)
+      ]
+    : [];
 
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) {
