@@ -324,6 +324,110 @@ Sketch:
 - **Recommendations** use the same JSON Schema keywords as requirements (`required`, `minLength`, `maxLength`), so a target turns one into a hard rule by declaring it as a requirement.
 - **Built-in defaults** (used when no default target is provided): `_media` `alt` 1–125 characters, `description` 50–300 characters. More defaults are added as needed.
 
+### P11: Routes, pages and blocks
+
+**Problem:** CDS carries content but not site structure. Which URLs exist, which page each one shows, and what a page is made of all live in generator code today. In the demo, 7 section headings, the language switcher, the output file names and two links are hard-coded in `build-demo.ts`.
+
+**Direction:** Three **optional, typed** reserved collections (named like `_media` and `_jsonld`): a site can use all, some or none of them. CDS validates each against its schema only when it's present. Like everything in CDS, they only describe structure; rendering stays with the generator or client.
+
+```
+_routes  ──page──▶  _pages  ──blocks[]──▶  _blocks  ──items[]──▶  any collection item(s)
+(URL per locale)   (title, SEO)          (type, texts, links)     (features, rooms, _media, …)
+```
+
+**`_routes`**: one item per URL. The path is localized, so each language can have its own slug, and the same route in other languages gives the `hreflang` alternates and the language switcher.
+
+```json
+{ "id": "r_home", "key": "home", "page": "p_home",
+  "translations": { "en": { "path": "/" }, "de": { "path": "/de/" } } }
+```
+
+- Optional `redirect` (another route id) with `status` (301/302) instead of `page`.
+- **Static routes are the default**: every route is listed in `_routes`, which suits fully prerendered sites. *Dynamic routes* for server-side rendering (patterns such as `/rooms/{key}` resolved at request time) stay open until there's a use case to demonstrate.
+
+**`_pages`**: page metadata and the ordered list of blocks.
+
+```json
+{ "id": "p_home", "key": "home", "blocks": ["b_hero", "b_how", "b_flow", "b_features", "b_goals"],
+  "translations": { "en": { "title": "CDS – Content Distribution System", "description": "…" }, "de": { … } } }
+```
+
+**`_blocks`**: one section of a page. `type` tells the generator how to render it (CDS doesn't interpret it). Block texts (heading, intro, link labels) are localized like any content, so they're counted for translation completeness.
+
+```json
+{ "id": "b_features", "key": "features", "type": "card-grid",
+  "source": { "collection": "features" },
+  "translations": { "en": { "title": "Core Capabilities", "intro": "…" }, "de": { "title": "Kernfunktionen", "intro": "…" } } }
+
+{ "id": "b_hero", "key": "hero", "type": "hero",
+  "items": [{ "collection": "site_settings", "id": "settings_main" }],
+  "media": ["hero.svg"],
+  "links": ["l_explore", "l_github"] }
+```
+
+- **Items**: either explicit, ordered `items` (`{ collection, id }`), or `source: { collection }` for **the full collection**, in its order. No sorting, limits or filters in CDS: the content source delivers collections the way they should appear. A block with neither is a *generator block* (e.g. the demo's release log).
+- **Media**: `media` / `translations[locale].media`, the same rules as for items (so the language-specific diagram works unchanged).
+- **Anchor**: the block's `key` is its anchor (`#features`), so links can point to a block on a page.
+- **Links**: shared link items (see P12).
+
+**Checks at publish (build fails):** a route without a page or redirect, a redirect cycle, the same path twice in one locale, references to unknown pages, blocks, items or collections. **Recommendations:** pages without a route, blocks no page uses, missing page title/description, a locale with a page but no path.
+
+**Client:** `resolveRoute(path)` → route, locale, page and blocks with their items resolved; `getRoutes()` for static generation and a sitemap; `getAlternates(routeId)` for `hreflang` and the language switcher.
+
+**Ties in:** JSON-LD per page (a `WebPage` definition via `appliesTo: "_pages"`), llms.txt per route, sitemap.xml from routes, and targets can require routes (e.g. a kiosk needs `/emergency`).
+
+### P12: Menus (nestable link items)
+
+**Problem:** navigation is hard-coded in generators.
+
+**Direction:** a reserved collection `_menu` of link items. A root item is a menu (`key: "main"`, `"footer"`); `children` lists its entries in order, and entries can have children of their own.
+
+```json
+{ "id": "m_main", "key": "main", "children": ["l_how", "l_features", "l_github"], "translations": { "en": {} } }
+{ "id": "l_features", "key": "features", "link": { "route": "r_home", "block": "b_features" },
+  "translations": { "en": { "label": "Features" }, "de": { "label": "Funktionen" } } }
+{ "id": "l_github", "key": "github", "link": { "url": "https://github.com/…" },
+  "translations": { "en": { "label": "GitHub" }, "de": { "label": "GitHub" } } }
+```
+
+- **Link targets:** `route` (resolved to the localized path), optionally with `block` (anchor), or an external `url`. The same link shape is used by blocks (hero buttons), so menus and blocks share one link model.
+- **Per locale:** labels are translated content. An entry without a label in a locale is hidden there and reported.
+- **Checks:** no cycles, link targets exist, a maximum depth (e.g. 3); external URLs must be absolute.
+- **Client:** `getMenu(key, locale)` → a tree of `{ label, href, children }` with resolved hrefs.
+
+### Verification against the demo
+
+The demo page mapped onto P11/P12:
+
+| Demo section | Block | Items / data | Today |
+| --- | --- | --- | --- |
+| Hero | `hero` | `site_settings/homepage`, media `hero.svg`, links "Explore goals", "GitHub" | links hard-coded |
+| How CDS works | `steps` | block texts (3 steps) | **hard-coded** |
+| How a release travels | `image` | localized media `cds-flow.png` / `cds-flow-de.png` | works as is |
+| Core capabilities | `card-grid` | `source: features` | heading **hard-coded** |
+| Design principles | `icon-list` | `source: goals` | heading **hard-coded** |
+| One image, three crops | `image-crops` | `_media/coast…`, crop settings | note **hard-coded** |
+| Image variants and costs | `image-report` | none (generator block) | **hard-coded** |
+| Testimonials | `quotes` | `source: testimonials` | heading **hard-coded** |
+| Release log | `release-log` | none (generator block) | **hard-coded** |
+| Footer, language switcher | layout | `site_settings`, route alternates | switcher **hard-coded** |
+
+Routes: `r_home` with `/` (en) and `/de/` (de) replaces the hard-coded `index.html` / `index-de.html`. Menu: a `main` menu with anchor links to the blocks and the GitHub link.
+
+**Findings:**
+- The model covers every section. Moving headings and intros into block texts removes all `locale === "en" ? … : …` strings from the generator, and translation completeness then covers them.
+- Generator blocks (no items) are needed for output the generator computes (release log, image costs).
+- Block presentation settings (e.g. the crop zoom per image) need a place: a free `settings` object on the block, which CDS doesn't interpret.
+- Links need anchors to blocks (`#goals`), so block keys double as anchor ids.
+- The demo has a single page, so it doesn't exercise several routes, redirects or nested menus. Verifying those needs a second page.
+
+**Decided:**
+- `_routes`, `_pages` and `_blocks` are separate, optional, typed collections; blocks are reusable across pages.
+- Paths are set per language (`/de/zimmer`).
+- `source` always takes the full collection; no sort, limit or filter.
+- Menus nest via `children` on the parent (P12).
+- Static routes are the default (prerendered sites). Dynamic routing for SSR stays open until a use case can be demonstrated.
+
 ## Principles
 
 - **The core is content-agnostic.** Hashing, manifests and sync treat collections as generic records and never interpret fields.
