@@ -9,7 +9,7 @@ A complementary package, separate from `@cds/server` and `@cds/client`. CDS itse
 It's built on [sharp](https://sharp.pixelplumbing.com/). In the demo it runs in the site generator, after sync; rendered variants are written to the generator's output and never enter a release.
 
 ```
-imaging/src/index.ts   render, cropRegion, responsiveSizes, variantKey, canonicalOptions, parseAspect
+imaging/src/index.ts   render, cropRegion, responsiveSizes, variantKey, canonicalOptions, parseAspect, isVector
 ```
 
 ## Target contract: breakpoints and presets
@@ -46,6 +46,7 @@ Widths are declared explicitly per breakpoint, not derived. Rendered pixels = CS
 | `cropRegion(srcW, srcH, aspect, focalPoint?, zoom?)` | The source region a `fill` render keeps: largest region of the output aspect, shrunk by `zoom`, centered on the focal point, clamped to the edges |
 | `render(bytes, options)` | Renders one variant: `{ data, width, height, format, upscaled }` |
 | `variantKey(sourceHash, options)` | Identity of a variant, known before rendering: SHA-256 of the source hash and the canonical options |
+| `isVector(mimeType)` | `true` for SVG. Vector images aren't rendered: they scale on their own, and rasterizing makes them larger and blurrier (the demo's 1.3 KB hero SVG became 3.6–5.3 KB per WebP). Generators serve the original. |
 
 `RenderOptions`: `width`, `height` (required for `fill`), `fit`, `focalPoint`, `zoom` (≥ 1, `fill` only), `format`, `quality`.
 
@@ -55,7 +56,7 @@ Widths are declared explicitly per breakpoint, not derived. Rendered pixels = CS
 
 ## Using it in a site generator
 
-The demo's `picture()` helper (`demo/src/build-demo.ts`) shows the full flow:
+The demo's `picture()` helper (`demo/src/build-demo.ts`) shows the full flow. Vector images (`isVector`) skip all of it: the original is copied once and used in a plain `<img>`. A `fill` preset's aspect ratio is then not applied, so vector images should already have the intended proportions.
 
 1. `client.getMediaInfo(path, locale)` → original hash, size, focal points, alt text.
 2. `responsiveSizes(preset, breakpoints, dpr)` → sizes per breakpoint.

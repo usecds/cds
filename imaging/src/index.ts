@@ -48,6 +48,16 @@ export interface ResponsiveSize {
   height?: number;
 }
 
+const VECTOR_TYPES = new Set(["image/svg+xml"]);
+
+/**
+ * Vector images scale to any size on their own, and rasterizing makes them larger and blurrier.
+ * Generators should pass them through unchanged instead of rendering variants.
+ */
+export function isVector(mimeType: string): boolean {
+  return VECTOR_TYPES.has(mimeType.toLowerCase());
+}
+
 /**
  * The part of a source image a "fill" render keeps: the largest region with the output's
  * aspect ratio, shrunk by zoom, centered on the focal point and clamped to the image edges.

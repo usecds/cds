@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import sharp from "sharp";
-import { cropRegion, responsiveSizes, variantKey, render, parseAspect } from "../imaging/src/index.js";
+import { cropRegion, responsiveSizes, variantKey, render, parseAspect, isVector } from "../imaging/src/index.js";
 
 // 300x200 test image: left half red, right half blue
 async function testImage(): Promise<Buffer> {
@@ -41,6 +41,13 @@ describe("Image processor (@cds/imaging)", () => {
     expect(() => responsiveSizes({ aspect: "1:1", widths: { xl: 100 } }, { md: 768 })).toThrow(/unknown breakpoint "xl"/);
     expect(() => responsiveSizes({ widths: { md: 100 } }, { md: 768 })).toThrow(/needs an aspect ratio/);
     expect(parseAspect("21:9")).toBeCloseTo(21 / 9);
+  });
+
+  it("identifies vector images, which are passed through instead of rendered", () => {
+    expect(isVector("image/svg+xml")).toBe(true);
+    expect(isVector("IMAGE/SVG+XML")).toBe(true);
+    expect(isVector("image/png")).toBe(false);
+    expect(isVector("image/webp")).toBe(false);
   });
 
   it("derives variant keys from the options that affect the output", () => {

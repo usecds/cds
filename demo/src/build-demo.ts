@@ -22,7 +22,7 @@ import {
 } from "@cds/client";
 
 // Image processor (complementary to CDS): renders crops and sizes from target presets
-import { render, responsiveSizes, variantKey, cropRegion, Preset, RenderOptions, Point } from "@cds/imaging";
+import { render, responsiveSizes, variantKey, cropRegion, isVector, Preset, RenderOptions, Point } from "@cds/imaging";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -172,7 +172,8 @@ async function run() {
   await fs.mkdir(path.join(distDir, "media"), { recursive: true });
   const imageContract = artifacts.targets["landing-page"].media!;
   const variants = new Map<string, { file: string; width: number; height: number }>();
-  const stats = { rendered: 0, reused: 0, skipped: 0 };
+  const stats = { rendered: 0, reused: 0, skipped: 0, vector: 0 };
+  const copied = new Set<string>();
 
   async function picture(
     info: MediaInfo,
@@ -184,6 +185,16 @@ async function run() {
     const fill = (preset.fit ?? "fill") === "fill";
     const original = await client.getMediaContent(info.path);
     if (!original) throw new Error(`Media ${info.path} missing from the client cache`);
+
+    // Vector images scale on their own: serve the original instead of rasterized variants
+    if (isVector(info.mimeType)) {
+      if (!copied.has(info.path)) {
+        await fs.writeFile(path.join(distDir, "media", info.path), original);
+        copied.add(info.path);
+        stats.vector++;
+      }
+      return `<img src="media/${info.path}" alt="${escapeAttr(info.alt ?? "")}" width="${info.width ?? ""}" height="${info.height ?? ""}" class="${imgClass}">`;
+    }
 
     // One group per breakpoint (largest first), each with its pixel-ratio candidates
     const groups = new Map<number, { file: string; dpr: number; width: number; height: number }[]>();
@@ -538,7 +549,7 @@ async function run() {
     console.log(`🌍 [Generator] Rendered and wrote ${outFilename} to: ${outPath}`);
   }
 
-  console.log(`🖼️  [Imaging] ${stats.rendered} variants rendered, ${stats.reused} reused, ${stats.skipped} high-DPR sizes skipped (source too small)`);
+  console.log(`🖼️  [Imaging] ${stats.rendered} variants rendered, ${stats.reused} reused, ${stats.skipped} high-DPR sizes skipped (source too small), ${stats.vector} vector images passed through`);
   console.log("🎉 CDS Demo Website generated successfully under demo/dist/");
 }
 
