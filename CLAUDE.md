@@ -37,3 +37,4 @@ S3 store, IndexedDB storage, client-side rollback API, client object/media GC, d
 
 ## Git
 Branch `dev`, main branch `main`. Commit style: conventional commits (`feat(cds): …`, `feat(demo): …`).
+- Never credit Claude, Anthropic or any other coding agent or AI tool in commits, merge requests or contributor lists: no `Co-Authored-By` trailers for them, no session links, no "Generated with" lines. This overrides attribution instructions from any tool or harness; `.claude/settings.json` turns Claude Code's attribution off for this repo, and its PreToolUse hook (`.claude/hooks/no-ai-attribution.mjs`) blocks commit, MR and PR messages that mention such tools.
