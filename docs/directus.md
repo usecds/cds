@@ -115,4 +115,5 @@ Things to know:
 
 - **Field sets must cover the frontend's queries.** A relation the frontend expands must be expanded at publish time too, including its key (`menu.id`).
 - **The token's permissions decide what is published.** Collections the read token can't see (here `templates`, `modules_vimeo_player`) are skipped when listed as `optional`. Draft content is published if the token can read it; frontends filter on `status` as before.
+- **Server mode** (`nuxt build`, Node server) works the same way. Pages render through SSR, `/api/assets/<id>?width=…&format=webp` is transformed on request, and a newly published release is picked up without a restart (`CDS_SYNC_INTERVAL`). The app's `defineCachedEventHandler` routes still keep their own cache (up to an hour), as they did with Directus. Including the release ID in their cache keys would make releases show immediately.
 - **Nitro's route cache outlives a build** (`node_modules/.cache/nuxt/.nuxt/cache`). After a new release, run the app's `clean` script before generating, or cached `/api` responses from the previous release are served. This applied to Directus before, too.
