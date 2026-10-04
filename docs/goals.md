@@ -415,7 +415,7 @@ The Directus compat layer in `@cds/directus` (Directus REST semantics answered f
 
 **Decided:**
 - **Edits never go into CDS.** Releases stay immutable, CDS stores no edits, and the backend stays the only source of truth. Writing into a release or keeping edits in CDS is the anti-pattern.
-- **Editing belongs to the content source adapter.** Every adapter must do the read side (backend → CDS). It may also support the write side (an edit addressed in CDS terms → the backend's own update). An adapter without the write side simply means "no editing for this backend".
+- **Editing belongs to the content source adapter.** Every adapter must do the read side (backend → CDS). Preview support and editing in the preview are **always optional**: an adapter may offer the write side (an edit addressed in CDS terms → the backend's own update), and one without it simply means "no editable preview for this backend".
 
 ```
 read:  backend ──adapter.read──▶ release ──▶ frontend
