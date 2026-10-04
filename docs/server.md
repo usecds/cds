@@ -241,6 +241,22 @@ Empty values (`""`, `null`) count as missing, as in translation completeness.
 
 `issue` is one of `missing`, `too-short`, `too-long`, `invalid`, `missing-collection`, `too-few-items`, `missing-item`, `missing-locale`, `incomplete-locale`, `too-many-stale`, plus the translation issues `untranslated` and `stale` (always recommendations). `source` is a deep link built from the source map, if one is available.
 
+### Publish report
+
+`createPublishReport({ channel, releaseId, artifacts, manifest?, error? })` turns a publish result into one structured report, for both a successful and a failed publish (pass `err.artifacts` and `err` from `PublishRequirementsError`). `renderPublishReportHtml(report)` renders it as a self-contained HTML page (no external resources, light and dark).
+
+| Field | Contents |
+| --- | --- |
+| `status`, `error` | `published` or `failed`, with the error message |
+| `summary` | Failed requirements, recommendations, warnings, targets satisfied, overall translation counts |
+| `release` | Collections, items and media in the release (successful publishes only) |
+| `targets` | Result per target |
+| `translations` | Source locale (and how it was chosen), counts per locale and per collection × locale, items without source |
+| `issues` | All content issues (requirements first), each with location, message, recommended range and CMS link |
+| `warnings` | E.g. unreferenced media |
+
+The report is pipeline output: store it as a job artifact next to the build, never publish it.
+
 ### Source map
 
 A source map links published content back to the source system, e.g. for "edit in CMS" deep links. It's returned as `artifacts.sourceMap` (with the `releaseId` added) and is **never written to the store**, so internal IDs and admin paths stay private.

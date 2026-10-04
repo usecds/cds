@@ -8,7 +8,12 @@ import {
   Publisher, 
   FixtureSource, 
   FilesystemStore,
-  loadTargets
+  loadTargets,
+  createPublishReport,
+  renderPublishReportHtml,
+  PublishRequirementsError,
+  PublishArtifacts,
+  ReleaseManifest as PublishedManifest
 } from "@cds/server";
 
 // Client imports
@@ -96,9 +101,11 @@ async function run() {
   const publishedDir = path.join(rootDir, "published");
   const cacheDir = path.join(rootDir, "cache");
   const distDir = path.join(rootDir, "dist");
+  const reportsDir = path.join(rootDir, "reports");
 
   // Clean intermediate folders to start fresh
   await fs.rm(publishedDir, { recursive: true, force: true });
+  await fs.rm(reportsDir, { recursive: true, force: true });
   await fs.rm(cacheDir, { recursive: true, force: true });
   await fs.rm(distDir, { recursive: true, force: true });
   await fs.mkdir(distDir, { recursive: true });
@@ -141,16 +148,26 @@ async function run() {
   console.log("📝 [Server] Publishing content release to simulated CDN storage...");
   const releaseId = `release_demo_${Date.now()}`;
   const targets = await loadTargets(path.join(rootDir, "targets"));
-  const { artifacts } = await publisher.publish("demo-channel", releaseId, { sourceLocale: "en", targets });
-  console.log(`✅ [Server] Published successfully: ${releaseId}`);
-  for (const [locale, counts] of Object.entries(artifacts.translations.locales)) {
-    console.log(`🌐 [Server] Translations ${locale}: ${counts.translated}/${counts.expected} (missing ${counts.missing}, stale ${counts.stale})`);
-  }
-  for (const warning of artifacts.content.warnings) {
-    console.log(`⚠️  [Server] ${warning}`);
-  }
-  for (const [target, result] of Object.entries(artifacts.content.targets)) {
-    console.log(`🎯 [Server] Target ${target}: ${result.satisfied ? "satisfied" : "failed"} (${result.recommendations} recommendations)`);
+
+  // The publish report (translations, missing alt texts, target checks, warnings) is pipeline output:
+  // written next to the build as report.json + index.html, never published. Also written on failure.
+  const writeReport = async (artifacts: PublishArtifacts, manifest?: PublishedManifest, error?: Error) => {
+    const report = createPublishReport({ channel: "demo-channel", releaseId, artifacts, manifest, error });
+    await fs.mkdir(reportsDir, { recursive: true });
+    await fs.writeFile(path.join(reportsDir, "report.json"), JSON.stringify(report, null, 2) + "\n", "utf-8");
+    await fs.writeFile(path.join(reportsDir, "index.html"), renderPublishReportHtml(report), "utf-8");
+    console.log(`📋 [Server] Publish report: ${path.join(reportsDir, "index.html")}`);
+  };
+
+  let artifacts: PublishArtifacts;
+  try {
+    const result = await publisher.publish("demo-channel", releaseId, { sourceLocale: "en", targets });
+    artifacts = result.artifacts;
+    console.log(`✅ [Server] Published successfully: ${releaseId}`);
+    await writeReport(artifacts, result.manifest);
+  } catch (err) {
+    if (err instanceof PublishRequirementsError) await writeReport(err.artifacts, undefined, err);
+    throw err;
   }
 
   // -------------------------------------------------------------

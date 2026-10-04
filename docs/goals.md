@@ -307,7 +307,7 @@ Sketch:
 
 ### P10: Content report with recommendations
 
-**Status: implemented in G4** (`artifacts.content`, built-in `_media` recommendations).
+**Status: implemented in G4** (`artifacts.content`, built-in `_media` recommendations). `createPublishReport` / `renderPublishReportHtml` turn it into `report.json` + `index.html` for editors and CI.
 
 **Problem:** Editors don't know what's missing or below standard (missing alt text, descriptions that are too short or too long).
 **Direction:** A **content report** in the build artifacts, extending the G3 issue list. Each issue carries its severity, the recommendation and a source map link (P6) back to the CMS record:
