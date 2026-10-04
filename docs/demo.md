@@ -5,7 +5,8 @@ The demo runs the full CDS pipeline in one process: it publishes a release, sync
 | Mode | Command | Output |
 | --- | --- | --- |
 | **static** (default) | `pnpm demo` | One HTML file per route and language in `demo/dist/`, with relative links; for prerendered hosting |
-| **hono** | `pnpm demo:serve` (port 3000; another one with `pnpm demo:serve --port=3001`) | A [Hono](https://hono.dev) server that resolves every request path through the client's routes at request time (SSR) |
+| **hono** | `pnpm demo:serve` (port 3000; another one with `pnpm demo:serve --port=3001` or `--port 3001`) | A [Hono](https://hono.dev) server that resolves every request path through the client's routes at request time (SSR) |
+| **images** | `pnpm demo:images` | Renders every image variant into the server's cache (`demo/cache-site/media`) and exits, so the server never renders on a request |
 
 ## Run it
 
@@ -31,16 +32,18 @@ demo/data/*.json ──▶ FixtureSource ──▶ Publisher ──▶ demo/publ
                  static: demo/dist/ (files per route)          hono: server, rendered per request
 ```
 
-1. **Clean.** Deletes `demo/published`, `demo/cache`, `demo/dist`, `demo/reports` and `demo/cache-site` (all git-ignored).
+1. **Clean.** Each mode works in its own folder, `demo/.work/<mode>/` (published store and client cache), so a static build never pulls files from under a running server. Static mode also clears `demo/dist`. The server's image cache `demo/cache-site/` is kept between runs: its variants are keyed by content. All of these are git-ignored.
 2. **Server side.** Every JSON file in `demo/data/` is a collection named after the file; the media files come from `demo/data/media/`. They're published to channel `demo-channel` as `release_demo_<Date.now()>`, with source locale `en` and the targets in `demo/targets/` (`landing-page.json`; no `default.json`, so the built-in default applies). The publish report goes to `demo/reports/` (`report.json` + `index.html`, also on failure); the console only prints its location.
-3. **Client side.** A `CDSClient` with `FilesystemStorage("demo/cache")`, `target: "landing-page"` and a `DemoLocalDownloader` reading `demo/published` (a local stand-in for HTTP) syncs the release.
+3. **Client side.** A `CDSClient` with `FilesystemStorage` (the mode's `cache` folder), `target: "landing-page"` and a `DemoLocalDownloader` reading the mode's `published` folder (a local stand-in for HTTP) syncs the release.
 4. **Generator.** Shared by both modes ([`site.ts`](../demo/src/site.ts), [`blocks.ts`](../demo/src/blocks.ts)): for a route and language, `getPage()` gives the page and its blocks, and each block is rendered by its `type`. The layout adds:
    - `<title>`, meta description, canonical URL and `hreflang` alternates (from `getAlternates()`), with absolute URLs from `SITE_URL` (a placeholder, `https://cds.example.com`)
    - the `main` menu (`getMenu()`, with the nested "More" group) and a language switcher from the route's alternates
    - JSON-LD: a `WebPage` for the page, plus whatever the blocks' items define (`WebSite` for `site_settings`, a `Review` per testimonial), with page and image URLs added
    - the footer from `site_settings`, with a link to `llms.txt`
 5. **Static mode** writes `<route path>/index.html` per route and language (`/` → `index.html`, `/de/bildverarbeitung/` → `de/bildverarbeitung/index.html`), with links relative to each file so the site also works when opened from disk. Redirect routes become forwarding pages (static hosts can't send a 301). It also writes `llms.txt` and `sitemap.xml` (with `hreflang` alternates).
-6. **Hono mode** ([`server.ts`](../demo/src/server.ts)) resolves each request with `client.resolveRoute(path)`: pages are rendered per request, redirect routes answer with their status (`301`), unknown paths with `404`. Links are root-absolute. Images are rendered on first use into `demo/cache-site/media/` and served from `/media/` with `immutable` caching. `/llms.txt` and `/sitemap.xml` are generated on request. The server re-syncs every 30 seconds, so a newly published release is live without a rebuild: the use case for dynamic routing (P11).
+6. **Hono mode** ([`server.ts`](../demo/src/server.ts)) resolves each request with `client.resolveRoute(path)`: pages are rendered per request, redirect routes answer with their status (`301`), unknown paths with `404`. Links are root-absolute. `/llms.txt` and `/sitemap.xml` are generated on request. The server re-syncs every 30 seconds, so a newly published release is live without a rebuild: the use case for dynamic routing (P11).
+   **Images are rendered lazily:** a page only *plans* its variants (names, sizes and URLs, registered in a persistent `VariantCache` in `demo/cache-site/media/`), so it responds immediately. `GET /media/<file>` renders a variant on its first request (parallel requests share one render) and serves it with `immutable` caching; later requests, restarts and new releases reuse it. Variants not rendered yet keep the declared format order in `<picture>` (sizes unknown) and show as "not rendered yet" in the cost table. There's no warm-up at startup: run `pnpm demo:images` once to pre-generate everything into the cache instead.
+7. **Images mode** renders every page's images eagerly into `demo/cache-site/media/` (the same cache the server uses) and exits.
 
 ## Site structure
 
@@ -56,7 +59,7 @@ Menu `main`: How it works, Features, Principles (anchors to blocks on the home p
 
 ## Images
 
-Every raster image goes through the image processor ([imaging.md](imaging.md)), using the breakpoints (`mobile` 0, `tablet` 768, `desktop` 1280), pixel ratios (1x, 2x) and presets of the `landing-page` target: AVIF + WebP for photos, lossless WebP + PNG for the diagram. Each image becomes a `<picture>` with sources per breakpoint and format (smallest file first). Files get readable names such as `media/coast-lighthouse-banner-1152.7350c4c1.avif`. 2x sizes the source can't fill are skipped; the hero SVG is passed through as is. The language-specific diagram comes from the block's `translations[locale].media` (`cds-flow.png` / `cds-flow-de.png`).
+Every raster image goes through the image processor ([imaging.md](imaging.md)): rendered eagerly in static and images mode, lazily on request in hono mode, using the breakpoints (`mobile` 0, `tablet` 768, `desktop` 1280), pixel ratios (1x, 2x) and presets of the `landing-page` target: AVIF + WebP for photos, lossless WebP + PNG for the diagram. Each image becomes a `<picture>` with sources per breakpoint and format (smallest file first). Files get readable names such as `media/coast-lighthouse-banner-1152.7350c4c1.avif`. 2x sizes the source can't fill are skipped; the hero SVG is passed through as is. The language-specific diagram comes from the block's `translations[locale].media` (`cds-flow.png` / `cds-flow-de.png`). The hero image loads first (`loading="eager" fetchpriority="high"`); all others load lazily (`loading="lazy" decoding="async"`).
 
 ## Content
 

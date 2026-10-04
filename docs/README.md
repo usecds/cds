@@ -64,7 +64,8 @@ All commands run from the repo root (pnpm workspace).
 | `pnpm build` | Compile `server`, `client` and `imaging` with `tsc` into their `dist/` folders |
 | `pnpm test` | Run the Vitest integration suite (imports from `src`, so no build needed) |
 | `pnpm demo` | Build the packages and generate the static demo site into `demo/dist/` |
-| `pnpm demo:serve` | Build and serve the demo with Hono (routes resolved per request) |
+| `pnpm demo:serve` | Build and serve the demo with Hono (routes resolved per request, images rendered on first request) |
+| `pnpm demo:images` | Pre-generate all demo images into the server's image cache |
 
 ## Terms
 

@@ -25,6 +25,7 @@ import {
   ReleaseManifest
 } from "@cds/client";
 
+import { VariantCache } from "@cds/imaging";
 import { createImageRenderer } from "./images.js";
 import { renderAllPages, llmsFromPages, buildSitemap, redirectPage } from "./outputs.js";
 import { localHref, outputFile } from "./paths.js";
@@ -37,12 +38,19 @@ const rootDir = path.resolve(__dirname, "..");
 
 const CHANNEL = "demo-channel";
 
-// Generator mode: "static" (default) writes files to dist/; "hono" serves the routes with Hono (SSR)
-const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
+// Generator mode: "static" (default) writes files to dist/; "hono" serves the routes with Hono (SSR);
+// "images" pre-generates every image variant into the server's cache (demo/cache-site/media) and exits
+// Accepts both --name=value and --name value
+const arg = (name: string): string | undefined => {
+  const args = process.argv.slice(2);
+  const i = args.findIndex((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+  if (i < 0) return undefined;
+  return args[i].includes("=") ? args[i].slice(args[i].indexOf("=") + 1) : args[i + 1];
+};
 const MODE = arg("mode") ?? "static";
 const PORT = Number(arg("port") ?? 3000);
-if (MODE !== "static" && MODE !== "hono") {
-  console.error(`Unknown --mode=${MODE}; use static (default) or hono`);
+if (MODE !== "static" && MODE !== "hono" && MODE !== "images") {
+  console.error(`Unknown --mode=${MODE}; use static (default), hono or images`);
   process.exit(1);
 }
 
@@ -96,14 +104,18 @@ class DemoLocalDownloader implements RemoteDownloader {
 async function run() {
   console.log(`🚀 Starting CDS Demo Builder (mode: ${MODE})...`);
 
-  const publishedDir = path.join(rootDir, "published");
-  const cacheDir = path.join(rootDir, "cache");
+  // Each mode has its own published store and client cache, so a static build doesn't pull files
+  // from under a running server. The server's image cache (cache-site) is shared on purpose.
+  const workDir = path.join(rootDir, ".work", MODE);
+  const publishedDir = path.join(workDir, "published");
+  const cacheDir = path.join(workDir, "cache");
   const distDir = path.join(rootDir, "dist");
   const reportsDir = path.join(rootDir, "reports");
   const serverMediaDir = path.join(rootDir, "cache-site", "media");
 
-  // Clean intermediate folders to start fresh
-  for (const dir of [publishedDir, reportsDir, cacheDir, distDir, path.dirname(serverMediaDir)]) {
+  // Clean intermediate folders to start fresh. The server's image cache (demo/cache-site) is kept:
+  // its variants are keyed by content, so they stay valid across runs.
+  for (const dir of [publishedDir, reportsDir, cacheDir, ...(MODE === "static" ? [distDir] : [])]) {
     await fs.rm(dir, { recursive: true, force: true });
   }
 
@@ -184,17 +196,33 @@ async function run() {
   // 3a. HONO MODE: serve the routes from _routes, rendered per request
   // -------------------------------------------------------------
   if (MODE === "hono") {
-    await fs.mkdir(serverMediaDir, { recursive: true });
-    startServer({ client, contract, mediaDir: serverMediaDir, port: PORT, channel: CHANNEL, syncIntervalMs: 30_000 });
+    // Lazy: pages only plan variants; each one is rendered on its first request
+    const cache = await VariantCache.open(serverMediaDir, { persist: true });
+    const renderer = createImageRenderer(client, cache, contract, { eager: false });
+    startServer({ client, renderer, contract, port: PORT, channel: CHANNEL, syncIntervalMs: 30_000 });
     return;
   }
 
   // -------------------------------------------------------------
-  // 3b. STATIC MODE: one file per route and language, relative links
+  // 3b. IMAGES MODE: pre-generate every variant into the server's cache, then exit
+  // -------------------------------------------------------------
+  if (MODE === "images") {
+    console.log(`🖼️  [Imaging] Pre-generating every image variant into ${serverMediaDir}...`);
+    const cache = await VariantCache.open(serverMediaDir, { persist: true });
+    const renderer = createImageRenderer(client, cache, contract, { eager: true });
+    await renderAllPages(client, renderer, contract, "server");
+    const { stats } = renderer;
+    console.log(`🖼️  [Imaging] ${stats.rendered} variants rendered, ${stats.reused} already cached, ${stats.skipped} high-DPR sizes skipped (source too small), ${stats.vector} vector images stored`);
+    return;
+  }
+
+  // -------------------------------------------------------------
+  // 3c. STATIC MODE: one file per route and language, relative links
   // -------------------------------------------------------------
   console.log("🎨 [Generator] Rendering every route from _routes / _pages / _blocks...");
-  await fs.mkdir(path.join(distDir, "media"), { recursive: true });
-  const renderer = createImageRenderer(client, distDir, contract);
+  // Eager: every variant is rendered into dist/media while its page is rendered (no index: public output)
+  const cache = await VariantCache.open(path.join(distDir, "media"), { persist: false });
+  const renderer = createImageRenderer(client, cache, contract, { eager: true });
 
   const pages = await renderAllPages(client, renderer, contract, "static");
   for (const page of pages) {

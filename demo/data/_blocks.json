@@ -224,7 +224,8 @@
           "renderTime": "Render time",
           "original": "Original",
           "desktop": "Desktop 1x",
-          "mobile": "Mobile 1x"
+          "mobile": "Mobile 1x",
+          "pending": "not rendered yet"
         }
       },
       "de": {
@@ -241,7 +242,8 @@
           "renderTime": "Renderzeit",
           "original": "Original",
           "desktop": "Desktop 1x",
-          "mobile": "Mobil 1x"
+          "mobile": "Mobil 1x",
+          "pending": "noch nicht gerendert"
         }
       }
     }

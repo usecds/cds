@@ -240,3 +240,13 @@ export async function render(input: Buffer, options: RenderOptions): Promise<Ren
   const { data, info } = await pipeline.toFormat(format, encoder).toBuffer({ resolveWithObject: true });
   return { data, width: info.width, height: info.height, format: info.format, upscaled, flattened };
 }
+
+/**
+ * Output size of a "fit" render (scaled inside width x height, never enlarged), known before rendering.
+ */
+export function fitSize(sourceWidth: number, sourceHeight: number, width: number, height?: number): { width: number; height: number } {
+  const scale = Math.min(1, width / sourceWidth, height ? height / sourceHeight : Infinity);
+  return { width: Math.round(sourceWidth * scale), height: Math.round(sourceHeight * scale) };
+}
+
+export * from "./cache.js";

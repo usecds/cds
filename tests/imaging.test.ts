@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import sharp from "sharp";
-import { cropRegion, responsiveSizes, variantKey, render, parseAspect, isVector, presetFormats } from "../imaging/src/index.js";
+import { cropRegion, responsiveSizes, variantKey, render, parseAspect, isVector, presetFormats, fitSize, VariantCache } from "../imaging/src/index.js";
+import fs from "fs/promises";
+import os from "os";
+import path from "path";
 
 // 300x200 test image: left half red, right half blue
 async function testImage(): Promise<Buffer> {
@@ -118,5 +121,64 @@ describe("Image processor (@cds/imaging)", () => {
     expect(variantKey("s", { ...base, format: "jpeg", background: "#000" })).not.toBe(variantKey("s", { ...base, format: "jpeg" }));
     expect(presetFormats({ widths: { m: 1 } })).toEqual(["webp"]);
     expect(presetFormats({ widths: { m: 1 }, formats: ["avif", "webp"] })).toEqual(["avif", "webp"]);
+  });
+});
+
+describe("VariantCache", () => {
+  const options = { width: 60, height: 40, format: "png" as const };
+
+  it("registers without rendering, renders on request once, and survives a reopen", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cds-variant-cache-"));
+    try {
+      const source = await testImage();
+      let loads = 0;
+      const loadSource = async () => { loads++; return source; };
+
+      const cache = await VariantCache.open(dir, { persist: true });
+      cache.register({ name: "test-60.abc.png", key: "k1", path: "test.png", options, format: "png", width: 60, height: 40 });
+      expect(cache.isRendered("test-60.abc.png")).toBe(false);
+      expect(await fs.readdir(dir)).toEqual([]);
+
+      // Parallel requests share one render
+      const [a, b] = await Promise.all([cache.ensure("test-60.abc.png", loadSource), cache.ensure("test-60.abc.png", loadSource)]);
+      expect(a).toBe(b);
+      expect(loads).toBe(1);
+      expect(a.bytes).toBeGreaterThan(0);
+      expect((await cache.read("test-60.abc.png"))?.length).toBe(a.bytes);
+
+      // A new process knows the variant and doesn't render it again
+      const reopened = await VariantCache.open(dir, { persist: true });
+      expect(reopened.isRendered("test-60.abc.png")).toBe(true);
+      await reopened.ensure("test-60.abc.png", loadSource);
+      expect(loads).toBe(1);
+
+      // Without the file, the variant counts as not rendered and is rendered again
+      await fs.rm(path.join(dir, "test-60.abc.png"));
+      const third = await VariantCache.open(dir, { persist: true });
+      expect(third.isRendered("test-60.abc.png")).toBe(false);
+      await third.ensure("test-60.abc.png", loadSource);
+      expect(loads).toBe(2);
+      await expect(third.ensure("unknown.png", loadSource)).rejects.toThrow(/Unknown variant/);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("writes no index unless asked to", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cds-variant-cache-"));
+    try {
+      const cache = await VariantCache.open(dir);
+      cache.register({ name: "x.png", key: "k", path: "x.png", options, format: "png", width: 60, height: 40 });
+      await cache.ensure("x.png", async () => testImage());
+      expect(await fs.readdir(dir)).toEqual(["x.png"]);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("computes fit sizes before rendering", () => {
+    expect(fitSize(1900, 900, 640)).toEqual({ width: 640, height: 303 });
+    expect(fitSize(1900, 900, 2304)).toEqual({ width: 1900, height: 900 }); // never enlarged
+    expect(fitSize(1000, 1000, 800, 400)).toEqual({ width: 400, height: 400 });
   });
 });

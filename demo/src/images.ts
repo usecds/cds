@@ -1,11 +1,9 @@
-import fs from "fs/promises";
-import path from "path";
 import { CDSClient, MediaInfo } from "@cds/client";
 import {
-  render,
   responsiveSizes,
   variantKey,
   cropRegion,
+  fitSize,
   isVector,
   presetFormats,
   mediaBaseName,
@@ -14,7 +12,9 @@ import {
   ImageFormat,
   Preset,
   RenderOptions,
-  Point
+  Point,
+  VariantCache,
+  CachedVariant
 } from "@cds/imaging";
 import { escapeHtml } from "./paths.js";
 
@@ -28,12 +28,13 @@ export interface ImageReport {
   path: string;
   preset: string;
   variants: number;
+  pending: number; // planned but not rendered yet (lazy mode)
   formats: string; // in delivery order at the largest breakpoint
-  storedBytes: number;
+  storedBytes: number; // rendered variants only
   renderMs: number;
   originalBytes: number;
-  desktopBytes: number; // what a desktop browser downloads at 1x (smallest supported format)
-  mobileBytes: number;
+  desktopBytes?: number; // what a desktop browser downloads at 1x (smallest rendered format)
+  mobileBytes?: number;
 }
 
 // What a page collects while its images are rendered
@@ -43,53 +44,61 @@ export interface PageImages {
   reports: ImageReport[]; // for the image-report block
 }
 
-interface Variant { file: string; format: ImageFormat; width: number; height: number; bytes: number; ms: number }
+// "high": above the fold (hero), loaded first; "lazy": loaded when scrolled near
+export type ImagePriority = "high" | "lazy";
 
 /**
  * Renders images through the image processor (@cds/imaging) from the target's breakpoints and
- * presets. Variants are named by their variant key, so identical renders happen once per build.
+ * presets, into a VariantCache. Eager: every variant is rendered while the page is rendered
+ * (static build, image pre-generation). Lazy: variants are only planned; the server renders each
+ * one when it's first requested.
  */
-export function createImageRenderer(client: CDSClient, distDir: string, contract: ImageContract) {
-  const variants = new Map<string, Variant>();
-  const copied = new Set<string>();
+export function createImageRenderer(
+  client: CDSClient,
+  cache: VariantCache,
+  contract: ImageContract,
+  options: { eager: boolean }
+) {
   // virtual path -> output file (from the root), for JSON-LD contentUrl
   const mediaUrls = new Map<string, string>();
-  const stats = { rendered: 0, reused: 0, skipped: 0, vector: 0 };
+  const stats = { rendered: 0, reused: 0, pending: 0, skipped: 0, vector: 0 };
+  const loadSource = (virtualPath: string) => client.getMediaContent(virtualPath);
 
   async function picture(
     info: MediaInfo,
     presetName: string,
     imgClass: string,
     page: PageImages,
-    crop: { focalPoint?: Point; zoom?: number } = {}
+    crop: { focalPoint?: Point; zoom?: number } = {},
+    priority: ImagePriority = "lazy"
   ): Promise<string> {
     const preset = contract.presets![presetName];
     if (!preset) throw new Error(`Unknown image preset "${presetName}"`);
     const fill = (preset.fit ?? "fill") === "fill";
-    const original = await client.getMediaContent(info.path);
-    if (!original) throw new Error(`Media ${info.path} missing from the client cache`);
     const alt = escapeHtml(info.alt ?? "");
+    const loading = priority === "high" ? ' loading="eager" fetchpriority="high"' : ' loading="lazy" decoding="async"';
     // Output names: the _media name or the original file name, plus a short id for caching
     const base = mediaBaseName(info.path, info.name);
 
     // Vector images scale on their own: serve the original instead of rasterized variants
     if (isVector(info.mimeType)) {
-      const file = `media/${variantFileName({ base, key: info.hash, format: info.path.split(".").pop()!.toLowerCase() })}`;
-      if (!copied.has(file)) {
-        await fs.writeFile(path.join(distDir, file), original);
-        copied.add(file);
-        stats.vector++;
-      }
+      const original = await loadSource(info.path);
+      if (!original) throw new Error(`Media ${info.path} missing from the client cache`);
+      const name = variantFileName({ base, key: info.hash, format: info.path.split(".").pop()!.toLowerCase() });
+      await cache.storeOriginal(name, original);
+      stats.vector++;
+      const file = `media/${name}`;
       page.images.set(file, info);
       mediaUrls.set(info.path, file);
       page.reports.push({
-        path: info.path, preset: "original (vector)", variants: 0, formats: "svg",
+        path: info.path, preset: "original (vector)", variants: 0, pending: 0, formats: "svg",
         storedBytes: original.length, renderMs: 0, originalBytes: original.length,
         desktopBytes: original.length, mobileBytes: original.length
       });
-      return `<img src="${page.prefix}${file}" alt="${alt}" width="${info.width ?? ""}" height="${info.height ?? ""}" class="${imgClass}">`;
+      return `<img src="${page.prefix}${file}" alt="${alt}" width="${info.width ?? ""}" height="${info.height ?? ""}"${loading} class="${imgClass}">`;
     }
 
+    // Plan: every size per breakpoint, pixel ratio and format
     const formats = presetFormats(preset);
     const focalPoint = crop.focalPoint ?? info.focalPoint;
     const planned: { size: ReturnType<typeof responsiveSizes>[number]; format: ImageFormat; options: RenderOptions; key: string }[] = [];
@@ -121,35 +130,25 @@ export function createImageRenderer(client: CDSClient, distDir: string, contract
     const sizesPerFormat = new Map<ImageFormat, number>();
     for (const p of planned) sizesPerFormat.set(p.format, (sizesPerFormat.get(p.format) ?? 0) + 1);
 
-    // breakpoint min width (largest first) -> format -> candidates per pixel ratio
-    const groups = new Map<number, Map<ImageFormat, (Variant & { dpr: number })[]>>();
-    const used = new Set<Variant>();
-    for (const { size, format, options, key } of planned) {
-      let variant = variants.get(key);
-      if (variant) {
+    // Register (and in eager mode render) each variant
+    const groups = new Map<number, Map<ImageFormat, (CachedVariant & { dpr: number })[]>>();
+    const used = new Set<CachedVariant>();
+    for (const { size, format, options: renderOptions, key } of planned) {
+      const name = variantFileName({ base, preset: presetName, width: (sizesPerFormat.get(format) ?? 0) > 1 ? size.width : undefined, key, format });
+      const planSize = fill || !info.width || !info.height
+        ? { width: size.width, height: size.height }
+        : fitSize(info.width, info.height, size.width, size.height);
+      let variant = cache.register({ name, key, path: info.path, options: renderOptions, format, ...planSize });
+
+      if (cache.isRendered(name)) {
         stats.reused++;
-      } else {
-        const started = Date.now();
-        const result = await render(original, options);
-        if (result.upscaled) {
-          console.log(`⚠️  [Imaging] ${info.path} ${presetName}@${size.breakpoint} is upscaled to ${result.width}px`);
-        }
-        if (result.flattened) {
-          console.log(`⚠️  [Imaging] ${info.path} ${presetName} as ${format}: transparency flattened onto ${preset.background ?? "#ffffff"}`);
-        }
-        // Name and MIME type follow the requested format (sharp reports AVIF as "heif")
-        const width = (sizesPerFormat.get(format) ?? 0) > 1 ? size.width : undefined;
-        variant = {
-          file: `media/${variantFileName({ base, preset: presetName, width, key, format })}`,
-          format,
-          width: result.width,
-          height: result.height,
-          bytes: result.data.length,
-          ms: Date.now() - started
-        };
-        await fs.writeFile(path.join(distDir, variant.file), result.data);
-        variants.set(key, variant);
+      } else if (options.eager) {
+        variant = await cache.ensure(name, loadSource);
         stats.rendered++;
+        if (variant.upscaled) console.log(`⚠️  [Imaging] ${info.path} ${presetName}@${size.breakpoint} is upscaled to ${variant.width}px`);
+        if (variant.flattened) console.log(`⚠️  [Imaging] ${info.path} ${presetName} as ${format}: transparency flattened onto ${preset.background ?? "#ffffff"}`);
+      } else {
+        stats.pending++;
       }
       used.add(variant);
       const byFormat = groups.get(size.minWidth) ?? new Map();
@@ -158,36 +157,44 @@ export function createImageRenderer(client: CDSClient, distDir: string, contract
     }
 
     // The browser takes the first <source> whose media and type match, so within each breakpoint
-    // the formats go smallest file first: every browser gets the smallest format it supports.
+    // the formats go smallest file first. Sizes of variants not rendered yet are unknown: those
+    // keep the declared order until they exist.
     const entries = [...groups.entries()];
-    const srcset = (candidates: { file: string; dpr: number }[]) =>
-      candidates.map((c) => `${page.prefix}${c.file} ${c.dpr}x`).join(", ");
-    const bySize = (byFormat: Map<ImageFormat, (Variant & { dpr: number })[]>) =>
-      [...byFormat.entries()].sort(([, a], [, b]) => a[0].bytes - b[0].bytes);
+    const file = (v: CachedVariant) => `media/${v.name}`;
+    const srcset = (candidates: (CachedVariant & { dpr: number })[]) =>
+      candidates.map((c) => `${page.prefix}${file(c)} ${c.dpr}x`).join(", ");
+    const bySize = (byFormat: Map<ImageFormat, (CachedVariant & { dpr: number })[]>) =>
+      [...byFormat.entries()].sort(([, a], [, b]) =>
+        a[0].bytes === undefined || b[0].bytes === undefined ? 0 : a[0].bytes - b[0].bytes);
     const sources = entries.flatMap(([minWidth, byFormat], i) => {
       const media = i < entries.length - 1 ? ` media="(min-width: ${minWidth}px)"` : "";
       return bySize(byFormat).map(([format, candidates]) =>
-        `<source${media} type="${MIME_TYPES[format]}" srcset="${srcset(candidates)}" width="${candidates[0].width}" height="${candidates[0].height}">`);
+        `<source${media} type="${MIME_TYPES[format]}" srcset="${srcset(candidates)}" width="${candidates[0].width}" height="${candidates[0].height ?? ""}">`);
     });
     // <img> fallback: smallest breakpoint in the last listed (most widely supported) format
     const fallback = entries[entries.length - 1][1].get(formats[formats.length - 1])!;
-    page.images.set(fallback[0].file, info);
-    if (!mediaUrls.has(info.path)) mediaUrls.set(info.path, entries[0][1].get(formats[formats.length - 1])![0].file);
+    page.images.set(file(fallback[0]), info);
+    if (!mediaUrls.has(info.path)) mediaUrls.set(info.path, file(entries[0][1].get(formats[formats.length - 1])![0]));
 
-    const smallest1x = (byFormat: Map<ImageFormat, (Variant & { dpr: number })[]>) => bySize(byFormat)[0][1][0].bytes;
+    const smallest1x = (byFormat: Map<ImageFormat, (CachedVariant & { dpr: number })[]>) => {
+      const known = [...byFormat.values()].map((c) => c[0].bytes).filter((b): b is number => b !== undefined);
+      return known.length ? Math.min(...known) : undefined;
+    };
+    const rendered = [...used].filter((v) => v.bytes !== undefined);
     page.reports.push({
       path: info.path,
       preset: presetName,
       variants: used.size,
+      pending: used.size - rendered.length,
       formats: bySize(entries[0][1]).map(([format]) => format).join(" → "),
-      storedBytes: [...used].reduce((sum, v) => sum + v.bytes, 0),
-      renderMs: [...used].reduce((sum, v) => sum + v.ms, 0),
-      originalBytes: original.length,
+      storedBytes: rendered.reduce((sum, v) => sum + v.bytes!, 0),
+      renderMs: rendered.reduce((sum, v) => sum + (v.ms ?? 0), 0),
+      originalBytes: (await loadSource(info.path))?.length ?? 0,
       desktopBytes: smallest1x(entries[0][1]),
       mobileBytes: smallest1x(entries[entries.length - 1][1])
     });
-    return `<picture>${sources.join("")}<img src="${page.prefix}${fallback[0].file}" srcset="${srcset(fallback)}" alt="${alt}" width="${fallback[0].width}" height="${fallback[0].height}" class="${imgClass}"></picture>`;
+    return `<picture>${sources.join("")}<img src="${page.prefix}${file(fallback[0])}" srcset="${srcset(fallback)}" alt="${alt}" width="${fallback[0].width}" height="${fallback[0].height ?? ""}"${loading} class="${imgClass}"></picture>`;
   }
 
-  return { picture, mediaUrls, stats };
+  return { picture, mediaUrls, stats, cache, loadSource };
 }

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "generate": "pnpm build && node ./build/build-demo.js",
-    "serve": "pnpm build && node ./build/build-demo.js --mode=hono"
+    "serve": "pnpm build && node ./build/build-demo.js --mode=hono",
+    "images": "pnpm build && node ./build/build-demo.js --mode=images"
   },
   "dependencies": {
     "@cds/client": "workspace:*",

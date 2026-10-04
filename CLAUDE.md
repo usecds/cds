@@ -14,7 +14,7 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - `pnpm test`: Vitest, imports from `src`, no build needed
 - `pnpm build`: `tsc` for server, client and imaging (demo imports their `dist`)
 - `pnpm demo`: builds, then writes the static site (one file per route and language) to `demo/dist/`
-- `pnpm demo:serve`: the same site served by Hono (SSR), routes resolved per request; the demo compiles to `demo/build/`
+- `pnpm demo:serve`: the same site served by Hono (SSR), routes resolved per request, images rendered on first request; `pnpm demo:images` pre-generates them into `demo/cache-site/`. The demo compiles to `demo/build/`; each mode works in `demo/.work/<mode>/`
 - No lint config exists, even though a `lint` script is defined.
 
 ## Conventions and gotchas

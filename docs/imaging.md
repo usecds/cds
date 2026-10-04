@@ -55,6 +55,24 @@ Output files get readable names with a short id: `<name>[-<preset>][-<width>].<s
 
 CDS storage itself stays content-addressed (`media/<sha256>.<ext>`); readable names only apply to the generator's output. The content report flags meaningless original names (see [server.md](server.md#targets)).
 
+## Variant cache
+
+`VariantCache` keeps variants in a folder and decides *when* they're rendered:
+
+```ts
+const cache = await VariantCache.open("demo/cache-site/media", { persist: true });
+cache.register({ name, key, path, options, format, width, height }); // plan only, no rendering
+await cache.ensure(name, (virtualPath) => loadOriginal(virtualPath)); // render once, if not rendered yet
+const bytes = await cache.read(name);
+```
+
+- **Register, then ensure:** a page can plan its variants (names, sizes, URLs) without rendering anything; `ensure()` renders one variant when it's needed. Parallel `ensure()` calls for the same variant share one render.
+- **`persist: true`** keeps an index (`variants.json`) in the folder, so another process (or a restart) knows the variants and their sizes without rendering again. A variant whose file is missing counts as not rendered. Processes sharing a folder merge the index instead of overwriting each other. Leave it off for public output (it lists internal paths).
+- **`storeOriginal(name, bytes)`** stores a file as is (passed-through SVGs).
+- **`fitSize(srcW, srcH, w, h?)`** gives the output size of a `fit` render before rendering, so lazily planned variants have their dimensions.
+
+Rendering **eagerly** (render while planning) gives a complete set of files, e.g. for a static build. Rendering **lazily** (plan now, `ensure()` on request) suits a server: only variants browsers actually request are rendered.
+
 ## Formats
 
 Measured on the demo images (1152 px wide):
@@ -119,6 +137,10 @@ The demo's `picture()` helper (`demo/src/build-demo.ts`) shows the full flow. Ve
 ```
 
 The browser picks the file by screen width and pixel ratio; no CSS cropping is involved.
+
+## Browser loading
+
+Generators should load the image above the fold first and the rest lazily: `loading="eager" fetchpriority="high"` for the hero, `loading="lazy" decoding="async"` for everything else. In a server that renders on request, lazy loading also means fewer renders, since images further down are only requested when a visitor gets there.
 
 ## Open
 

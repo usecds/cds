@@ -1,5 +1,3 @@
-import fs from "fs/promises";
-import path from "path";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { CDSClient } from "@cds/client";
@@ -11,33 +9,41 @@ const MIME: Record<string, string> = { avif: "image/avif", webp: "image/webp", p
 
 /**
  * Server mode (SSR with Hono): every request path is resolved through the client's routes at
- * request time, so a newly synced release is live without a rebuild. Images are rendered on first
- * use into mediaDir and served from /media/.
+ * request time, so a newly synced release is live without a rebuild. Pages only plan their image
+ * variants; /media/ renders each variant on its first request into the persistent cache
+ * (pre-generate with --mode=images to skip that wait).
  */
 export function startServer(options: {
   client: CDSClient;
+  renderer: ReturnType<typeof createImageRenderer>;
   contract: ImageContract;
-  mediaDir: string;
   port: number;
   channel: string;
   syncIntervalMs: number;
 }) {
-  const { client, contract, mediaDir, port, channel } = options;
-  let renderer = createImageRenderer(client, path.dirname(mediaDir), contract);
+  const { client, renderer, contract, port, channel } = options;
+  const { cache, loadSource } = renderer;
   const app = new Hono();
 
   app.get("/media/:file", async (c) => {
-    const file = path.basename(c.req.param("file"));
-    try {
-      const data = await fs.readFile(path.join(mediaDir, file));
-      return c.body(data, 200, {
-        "Content-Type": MIME[file.split(".").pop()!] ?? "application/octet-stream",
-        // Names carry a content id, so they never change
-        "Cache-Control": "public, max-age=31536000, immutable"
-      });
-    } catch {
-      return c.notFound();
+    const name = c.req.param("file");
+    // Planned variants are rendered on first request; parallel requests share one render
+    if (cache.get(name)) {
+      try {
+        const variant = await cache.ensure(name, loadSource);
+        if (variant.upscaled) console.log(`⚠️  [Imaging] ${name} is upscaled`);
+      } catch (err) {
+        console.error(`❌ [Imaging] ${name}:`, err);
+        return c.notFound();
+      }
     }
+    const data = await cache.read(name);
+    if (!data) return c.notFound();
+    return c.body(new Uint8Array(data), 200, {
+      "Content-Type": MIME[name.split(".").pop()!] ?? "application/octet-stream",
+      // Names carry a content id, so they never change
+      "Cache-Control": "public, max-age=31536000, immutable"
+    });
   });
 
   app.get("/llms.txt", async (c) => c.text(await buildLlmsTxt(client, renderer, contract, "server")));
@@ -52,13 +58,11 @@ export function startServer(options: {
     return page ? c.html(page.html) : c.notFound();
   });
 
-  // Keep the release current: a new release is served as soon as it's synced
+  // Keep the release current: a new release is served as soon as it's synced. The image cache is
+  // keyed by content, so unchanged images aren't rendered again.
   setInterval(async () => {
     const result = await client.sync(channel);
-    if (result.updated) {
-      renderer = createImageRenderer(client, path.dirname(mediaDir), contract);
-      console.log(`🔄 [Server] Now serving release ${result.releaseId}`);
-    }
+    if (result.updated) console.log(`🔄 [Server] Now serving release ${result.releaseId}`);
   }, options.syncIntervalMs).unref();
 
   const server = serve({ fetch: app.fetch, port }, (info) => {

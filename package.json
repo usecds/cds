@@ -10,7 +10,8 @@
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "demo": "pnpm build && pnpm --filter=@cds/demo generate",
-    "demo:serve": "pnpm build && pnpm --filter=@cds/demo serve"
+    "demo:serve": "pnpm build && pnpm --filter=@cds/demo serve",
+    "demo:images": "pnpm build && pnpm --filter=@cds/demo images"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

@@ -1,6 +1,6 @@
 import { CDSClient, CollectionItem, MediaInfo, ResolvedBlock, ResolvedPage, ResolvedLink } from "@cds/client";
 import { Point } from "@cds/imaging";
-import { ImageContract, PageImages } from "./images.js";
+import { ImageContract, ImagePriority, PageImages } from "./images.js";
 import { escapeHtml } from "./paths.js";
 
 // Everything a block renderer needs; the generator mode decides how links and assets are written
@@ -12,7 +12,7 @@ export interface RenderContext {
   contract: ImageContract;
   images: PageImages;
   href: (sitePath: string) => string; // site path (+#anchor) or external URL -> link for this page
-  picture: (info: MediaInfo, preset: string, imgClass: string, page: PageImages, crop?: { focalPoint?: Point; zoom?: number }) => Promise<string>;
+  picture: (info: MediaInfo, preset: string, imgClass: string, page: PageImages, crop?: { focalPoint?: Point; zoom?: number }, priority?: ImagePriority) => Promise<string>;
 }
 
 type BlockRenderer = (block: ResolvedBlock, ctx: RenderContext) => Promise<string>;
@@ -41,7 +41,8 @@ const renderers: Record<string, BlockRenderer> = {
   async hero(block, ctx) {
     const settings = block.items[0] ? t(block.items[0].item, ctx.locale) : {};
     const image = block.media[0] ? ctx.client.getMediaInfo(block.media[0], ctx.locale) : null;
-    const picture = image ? await ctx.picture(image, (block.settings.preset as string) ?? "hero", "w-full h-auto rounded-2xl border border-slate-800", ctx.images) : "";
+    // Above the fold: loaded first instead of lazily
+    const picture = image ? await ctx.picture(image, (block.settings.preset as string) ?? "hero", "w-full h-auto rounded-2xl border border-slate-800", ctx.images, {}, "high") : "";
     const [primary, ...others] = links(block, ctx);
     const button = (l: { href: string; label: string; external: boolean }, style: string) =>
       `<a href="${l.href}"${l.external ? ' target="_blank" rel="noopener"' : ""} class="w-full sm:w-auto px-8 py-3.5 rounded-xl font-semibold transition-all text-center ${style}">${l.label}</a>`;
@@ -167,9 +168,11 @@ const renderers: Record<string, BlockRenderer> = {
   async "image-report"(block, ctx) {
     const reports = ctx.images.reports;
     const labels = (block.texts.labels ?? {}) as Record<string, string>;
-    const kb = (bytes: number) => `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;
-    const sum = (key: "variants" | "storedBytes" | "renderMs" | "originalBytes" | "desktopBytes" | "mobileBytes") =>
-      reports.reduce((n, r) => n + r[key], 0);
+    // Sizes are unknown for variants the server hasn't rendered yet
+    const kb = (bytes: number | undefined) => (bytes === undefined ? "–" : `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`);
+    const sum = (key: "variants" | "pending" | "storedBytes" | "renderMs" | "originalBytes" | "desktopBytes" | "mobileBytes") =>
+      reports.reduce((n, r) => n + (r[key] ?? 0), 0);
+    const pending = (count: number) => (count ? ` <span class="text-amber-400 text-xs">(${count} ${labels.pending ?? "pending"})</span>` : "");
     const num = "px-4 py-3 text-right whitespace-nowrap";
     const breakpoints = Object.keys(ctx.contract.breakpoints ?? {}).join(", ");
     const dpr = (ctx.contract.dpr ?? [1]).map((d) => `${d}x`).join(", ");
@@ -185,12 +188,12 @@ const renderers: Record<string, BlockRenderer> = {
                     </tr></thead>
                     <tbody class="divide-y divide-slate-800 text-slate-300">${reports.map((r) => `<tr>
                         <td class="px-4 py-3 code-font text-xs">${escapeHtml(r.path)}</td><td class="px-4 py-3">${r.preset}</td>
-                        <td class="${num}">${r.variants}</td><td class="px-4 py-3 code-font text-xs">${r.formats}</td>
+                        <td class="${num}">${r.variants}${pending(r.pending)}</td><td class="px-4 py-3 code-font text-xs">${r.formats}</td>
                         <td class="${num}">${kb(r.storedBytes)}</td><td class="${num}">${r.renderMs} ms</td><td class="${num}">${kb(r.originalBytes)}</td>
                         <td class="${num} text-teal-400">${kb(r.desktopBytes)}</td><td class="${num} text-teal-400">${kb(r.mobileBytes)}</td>
                     </tr>`).join("")}</tbody>
                     <tfoot class="bg-slate-900 text-white font-semibold"><tr>
-                        <td class="px-4 py-3" colspan="2">${block.texts.total ?? ""}</td><td class="${num}">${sum("variants")}</td><td class="px-4 py-3"></td>
+                        <td class="px-4 py-3" colspan="2">${block.texts.total ?? ""}</td><td class="${num}">${sum("variants")}${pending(sum("pending"))}</td><td class="px-4 py-3"></td>
                         <td class="${num}">${kb(sum("storedBytes"))}</td><td class="${num}">${sum("renderMs")} ms</td><td class="${num}">${kb(sum("originalBytes"))}</td>
                         <td class="${num} text-teal-400">${kb(sum("desktopBytes"))}</td><td class="${num} text-teal-400">${kb(sum("mobileBytes"))}</td>
                     </tr></tfoot>
