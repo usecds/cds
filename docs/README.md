@@ -8,6 +8,7 @@ The Content Distribution System (CDS) moves content out of a CMS and into immuta
 | [schemas.md](schemas.md) | The three v1 JSON schemas and the on-disk storage layout they describe |
 | [server.md](server.md) | `@cds/server`: `Publisher`, content sources, object stores, retention and garbage collection |
 | [client.md](client.md) | `@cds/client`: `CDSClient`, the sync algorithm, storage adapters, the query API |
+| [imaging.md](imaging.md) | `@cds/imaging`: the complementary image processor (crops, focal points, sizes per breakpoint) |
 | [demo.md](demo.md) | `@cds/demo`: the multilingual landing page generator that runs the full pipeline end to end |
 
 For what the project is trying to achieve and how far along it is, see [goals.md](goals.md).
@@ -44,6 +45,7 @@ cds/
 │   ├── sources/fixture.ts In-memory ContentSource
 │   ├── storage/filesystem.ts  ObjectStore on the local disk
 │   ├── types.ts, utils.ts, validation.ts
+├── imaging/src/           @cds/imaging: image processor (not part of CDS core)
 ├── client/src/
 │   ├── core/client.ts     CDSClient: sync and query API
 │   ├── storage/           MemoryStorage, FilesystemStorage
@@ -59,7 +61,7 @@ All commands run from the repo root (pnpm workspace).
 | Command | Effect |
 | --- | --- |
 | `pnpm install` | Install dependencies for all workspace packages |
-| `pnpm build` | Compile `server` and `client` with `tsc` into their `dist/` folders |
+| `pnpm build` | Compile `server`, `client` and `imaging` with `tsc` into their `dist/` folders |
 | `pnpm test` | Run the Vitest integration suite (imports from `src`, so no build needed) |
 | `pnpm demo` | Build the packages and generate the demo site into `demo/dist/` |
 

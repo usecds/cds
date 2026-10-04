@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@cds/client": "workspace:*",
-    "@cds/server": "workspace:*"
+    "@cds/server": "workspace:*",
+    "@cds/imaging": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.5.4"

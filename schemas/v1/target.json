@@ -56,9 +56,31 @@
     "media": {
       "type": "object",
       "properties": {
-        "breakpoints": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "breakpoints": {
+          "type": "object",
+          "description": "Breakpoint name -> minimum screen width in CSS pixels",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
         "dpr": { "type": "array", "items": { "type": "number", "exclusiveMinimum": 0 } },
-        "presets": { "type": "object", "additionalProperties": { "type": "object" } }
+        "presets": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "aspect": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?:[0-9]+(\\.[0-9]+)?$" },
+              "fit": { "enum": ["fill", "fit"] },
+              "widths": {
+                "type": "object",
+                "description": "Breakpoint name -> rendered width in CSS pixels",
+                "additionalProperties": { "type": "integer", "minimum": 1 }
+              },
+              "format": { "enum": ["webp", "jpeg", "png", "avif"] },
+              "quality": { "type": "integer", "minimum": 1, "maximum": 100 }
+            },
+            "required": ["widths"],
+            "additionalProperties": true
+          }
+        }
       },
       "additionalProperties": true
     }

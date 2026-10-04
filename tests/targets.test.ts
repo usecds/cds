@@ -165,13 +165,16 @@ describe("Targets and content report (G4)", () => {
       id: "default",
       locales: { required: ["en"], minCompleteness: 0.9, maxStale: 5 },
       collections: { rooms: { minItems: 1, localized: { required: ["name"] } } },
-      media: { breakpoints: [768], presets: { card: { aspect: "4:3", fit: "fill" } } }
+      media: { breakpoints: { md: 768 }, presets: { card: { aspect: "4:3", fit: "fill", widths: { md: 400 } } } }
     };
     const kiosk: TargetDefinition = {
       id: "kiosk",
       locales: { required: ["de"], minCompleteness: 0.5, maxStale: 0 },
       collections: { rooms: { minItems: 3, localized: { required: ["description"] } } },
-      media: { breakpoints: [1920, 768], presets: { card: { fit: "fill", aspect: "4:3" }, hero: { aspect: "21:9" } } }
+      media: {
+        breakpoints: { xl: 1920, md: 768 },
+        presets: { card: { widths: { md: 400 }, fit: "fill", aspect: "4:3" }, hero: { aspect: "21:9", widths: { xl: 1920 } } }
+      }
     };
 
     const { effective } = resolveTargets([defaultTarget, kiosk]);
@@ -182,15 +185,22 @@ describe("Targets and content report (G4)", () => {
       localized: { allOf: [{ required: ["name"] }, { required: ["description"] }] }
     });
     expect(effective.kiosk.media).toEqual({
-      breakpoints: [768, 1920],
-      presets: { card: { aspect: "4:3", fit: "fill" }, hero: { aspect: "21:9" } }
+      breakpoints: { md: 768, xl: 1920 },
+      presets: { card: { aspect: "4:3", fit: "fill", widths: { md: 400 } }, hero: { aspect: "21:9", widths: { xl: 1920 } } }
     });
     expect(effective.default).toBe(defaultTarget);
   });
 
   it("rejects invalid target combinations", () => {
-    const preset = (id: string, fit: string): TargetDefinition => ({ id, media: { presets: { card: { fit } } } });
+    const preset = (id: string, fit: "fill" | "fit"): TargetDefinition =>
+      ({ id, media: { breakpoints: { md: 768 }, presets: { card: { fit, aspect: "1:1", widths: { md: 300 } } } } });
     expect(() => resolveTargets([preset("a", "fill"), preset("b", "fit")])).toThrow(/Preset "card" is defined differently/);
+    expect(() => resolveTargets([
+      { id: "a", media: { breakpoints: { md: 768 } } },
+      { id: "b", media: { breakpoints: { md: 800 } } }
+    ])).toThrow(/Breakpoint "md" is defined differently/);
+    expect(() => resolveTargets([{ id: "a", media: { presets: { card: { aspect: "1:1", widths: { xl: 300 } } } } }]))
+      .toThrow(/uses unknown breakpoint "xl"/);
     expect(() => resolveTargets([{ id: "a" }, { id: "a" }])).toThrow(/Duplicate target id/);
     expect(() => resolveTargets([{ id: "a", scope: ["rooms"], items: [{ collection: "news", key: "x" }] }]))
       .toThrow(/outside its scope: news/);

@@ -62,18 +62,59 @@
     }
   ],
   "media": {
+    "breakpoints": {
+      "mobile": 0,
+      "tablet": 768,
+      "desktop": 1280
+    },
+    "dpr": [
+      1,
+      2
+    ],
     "presets": {
+      "hero": {
+        "aspect": "2:1",
+        "fit": "fill",
+        "widths": {
+          "mobile": 640,
+          "tablet": 720,
+          "desktop": 896
+        }
+      },
+      "content": {
+        "fit": "fit",
+        "widths": {
+          "mobile": 640,
+          "tablet": 960,
+          "desktop": 1152
+        }
+      },
       "banner": {
         "aspect": "3:1",
-        "fit": "fill"
+        "fit": "fill",
+        "widths": {
+          "mobile": 640,
+          "tablet": 960,
+          "desktop": 1152
+        }
       },
       "square": {
         "aspect": "1:1",
-        "fit": "fill"
+        "fit": "fill",
+        "widths": {
+          "mobile": 640,
+          "tablet": 560,
+          "desktop": 680
+        }
       },
       "portrait": {
         "aspect": "2:3",
-        "fit": "fill"
+        "fit": "fill",
+        "widths": {
+          "mobile": 400,
+          "tablet": 360,
+          "desktop": 440
+        }
       }
     }
   }

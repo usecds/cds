@@ -17,8 +17,12 @@ import {
   FilesystemStorage, 
   RemoteDownloader, 
   ChannelManifest, 
-  ReleaseManifest 
+  ReleaseManifest,
+  MediaInfo
 } from "@cds/client";
+
+// Image processor (complementary to CDS): renders crops and sizes from target presets
+import { render, responsiveSizes, variantKey, cropRegion, Preset, RenderOptions, Point } from "@cds/imaging";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,26 +77,6 @@ class DemoLocalDownloader implements RemoteDownloader {
 
 const escapeAttr = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-// "3:1" -> 3
-const parseAspect = (aspect: string) => {
-  const [w, h] = aspect.split(":").map(Number);
-  return w / h;
-};
-
-/**
- * CSS object-position that centers a focal point in a box cropped with object-fit: cover,
- * as far as the image edges allow. Stands in for the image project's real crop.
- */
-function focalPosition(point: { x: number; y: number }, width: number, height: number, boxAspect: number): string {
-  const imageAspect = width / height;
-  // overflow = scaled image size / box size along the cropped axis
-  const axis = (focal: number, overflow: number) =>
-    overflow <= 1 ? 50 : Math.min(1, Math.max(0, (focal * overflow - 0.5) / (overflow - 1))) * 100;
-  const x = imageAspect > boxAspect ? axis(point.x, imageAspect / boxAspect) : 50;
-  const y = imageAspect < boxAspect ? axis(point.y, boxAspect / imageAspect) : 50;
-  return `${x.toFixed(1)}% ${y.toFixed(1)}%`;
-}
 
 async function run() {
   console.log("🚀 Starting CDS Demo Builder...");
@@ -183,10 +167,71 @@ async function run() {
   // -------------------------------------------------------------
   console.log("🎨 [Generator] Querying CDS Client APIs & generating multilingual single page website...");
   
+  // Images are rendered by the image processor from the landing-page target's breakpoints and presets.
+  // Variants are named by their variant key, so identical renders (e.g. used on both pages) happen once.
   await fs.mkdir(path.join(distDir, "media"), { recursive: true });
-  for (const virtualPath of Object.keys(client.getActiveRelease()!.media)) {
-    const bytes = await client.getMediaContent(virtualPath);
-    if (bytes) await fs.writeFile(path.join(distDir, "media", virtualPath), bytes);
+  const imageContract = artifacts.targets["landing-page"].media!;
+  const variants = new Map<string, { file: string; width: number; height: number }>();
+  const stats = { rendered: 0, reused: 0, skipped: 0 };
+
+  async function picture(
+    info: MediaInfo,
+    presetName: string,
+    imgClass: string,
+    crop: { focalPoint?: Point; zoom?: number } = {}
+  ): Promise<string> {
+    const preset = imageContract.presets![presetName] as Preset;
+    const fill = (preset.fit ?? "fill") === "fill";
+    const original = await client.getMediaContent(info.path);
+    if (!original) throw new Error(`Media ${info.path} missing from the client cache`);
+
+    // One group per breakpoint (largest first), each with its pixel-ratio candidates
+    const groups = new Map<number, { file: string; dpr: number; width: number; height: number }[]>();
+    for (const size of responsiveSizes(preset, imageContract.breakpoints!, imageContract.dpr)) {
+      const options: RenderOptions = {
+        width: size.width,
+        height: size.height,
+        fit: preset.fit,
+        focalPoint: crop.focalPoint ?? info.focalPoint,
+        zoom: crop.zoom,
+        format: preset.format,
+        quality: preset.quality
+      };
+      // Higher pixel ratios only help if the source has the pixels
+      const available = fill && info.width && info.height
+        ? cropRegion(info.width, info.height, size.width / size.height!, options.focalPoint, options.zoom).width
+        : info.width;
+      if (size.dpr > 1 && available && size.width > available) {
+        stats.skipped++;
+        continue;
+      }
+
+      const key = variantKey(info.hash, options);
+      let variant = variants.get(key);
+      if (variant) {
+        stats.reused++;
+      } else {
+        const result = await render(original, options);
+        if (result.upscaled) {
+          console.log(`⚠️  [Imaging] ${info.path} ${presetName}@${size.breakpoint} is upscaled to ${result.width}px`);
+        }
+        variant = { file: `media/${key.slice(0, 16)}.${result.format}`, width: result.width, height: result.height };
+        await fs.writeFile(path.join(distDir, variant.file), result.data);
+        variants.set(key, variant);
+        stats.rendered++;
+      }
+      const group = groups.get(size.minWidth) ?? [];
+      group.push({ ...variant, dpr: size.dpr });
+      groups.set(size.minWidth, group);
+    }
+
+    // <source> per breakpoint, the smallest breakpoint is the <img> fallback
+    const entries = [...groups.entries()];
+    const srcset = (candidates: { file: string; dpr: number }[]) => candidates.map((c) => `${c.file} ${c.dpr}x`).join(", ");
+    const [, fallback] = entries[entries.length - 1];
+    const sources = entries.slice(0, -1).map(([minWidth, candidates]) =>
+      `<source media="(min-width: ${minWidth}px)" srcset="${srcset(candidates)}" width="${candidates[0].width}" height="${candidates[0].height}">`);
+    return `<picture>${sources.join("")}<img src="${fallback[0].file}" srcset="${srcset(fallback)}" alt="${escapeAttr(info.alt ?? "")}" width="${fallback[0].width}" height="${fallback[0].height}" class="${imgClass}"></picture>`;
   }
 
   const locales = client.getLocales();
@@ -206,22 +251,25 @@ async function run() {
     // Language-specific diagram: each locale references its own image in translations[locale].media
     const flow = content.media?.[0] ? client.getMediaInfo(content.media[0], locale) : null;
 
-    // One stored image, three crops: preset sizes from the landing-page target, focal points from _media
+    // One stored image, three crops: preset sizes from the landing-page target, named focal points from _media.
+    // Zoom crops closer around a subject so the crops differ beyond shifting.
     const coast = client.getMediaInfo("coast-with-lighthouse-balloon-sailboat.png", locale);
-    const presets = (artifacts.targets["landing-page"].media?.presets ?? {}) as Record<string, { aspect: string }>;
-    const crops = coast?.width && coast.height && coast.focalPoints
-      ? [
-          { preset: "banner", focus: "lighthouse" },
-          { preset: "square", focus: "balloon" },
-          { preset: "portrait", focus: "sailboat" }
-        ].map(({ preset, focus }) => {
-          const aspect = presets[preset].aspect;
-          const position = focalPosition(coast.focalPoints![focus], coast.width!, coast.height!, parseAspect(aspect));
-          return { preset, focus, aspect, position };
-        })
+    const crops = coast?.focalPoints
+      ? await Promise.all([
+          { preset: "banner", focus: "lighthouse", zoom: 1 },
+          { preset: "square", focus: "balloon", zoom: 1.5 },
+          { preset: "portrait", focus: "sailboat", zoom: 1.3 }
+        ].map(async (crop) => ({
+          ...crop,
+          aspect: imageContract.presets![crop.preset].aspect,
+          html: await picture(coast, crop.preset, "w-full h-auto rounded-2xl border border-slate-800", {
+            focalPoint: coast.focalPoints![crop.focus],
+            zoom: crop.zoom
+          })
+        })))
       : [];
-    // The focal point keeps the important part of the image visible when CSS crops it
-    const heroPosition = hero?.focalPoint ? `${hero.focalPoint.x * 100}% ${hero.focalPoint.y * 100}%` : "center";
+    const heroPicture = hero ? await picture(hero, "hero", "w-full h-auto rounded-2xl border border-slate-800") : "";
+    const flowPicture = flow ? await picture(flow, "content", "w-full h-auto rounded-2xl border border-slate-800 bg-white") : "";
 
     // Generate responsive Tailwind layout
     const html = `<!DOCTYPE html>
@@ -274,10 +322,7 @@ async function run() {
             <p class="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
                 ${content.heroSubtitle}
             </p>
-            ${hero ? `<figure class="mb-10">
-                <img src="media/${hero.path}" alt="${escapeAttr(hero.alt ?? "")}" width="${hero.width ?? ""}" height="${hero.height ?? ""}"
-                     class="w-full h-56 sm:h-72 object-cover rounded-2xl border border-slate-800" style="object-position: ${heroPosition}">
-            </figure>` : ""}
+            ${hero ? `<figure class="mb-10">${heroPicture}</figure>` : ""}
             <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
                 <a href="#goals" class="w-full sm:w-auto px-8 py-3.5 rounded-xl font-semibold bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-400 hover:to-blue-500 text-slate-950 shadow-lg shadow-teal-500/20 transition-all text-center">
                     ${content.ctaPrimary}
@@ -334,8 +379,7 @@ async function run() {
                 <p class="text-slate-400 max-w-2xl mx-auto">${content.flowIntro}</p>
             </div>
             <figure>
-                <img src="media/${flow.path}" alt="${escapeAttr(flow.alt ?? "")}" width="${flow.width ?? ""}" height="${flow.height ?? ""}"
-                     class="w-full h-auto rounded-2xl border border-slate-800 bg-white">
+                ${flowPicture}
                 <figcaption class="text-sm text-slate-500 mt-3 text-center">${flow.description ?? ""}</figcaption>
             </figure>
         </div>
@@ -350,10 +394,8 @@ async function run() {
             </div>
             <div class="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
                 ${crops.map((crop, i) => `<figure class="${i === 0 ? "md:col-span-5" : i === 1 ? "md:col-span-3" : "md:col-span-2"}">
-                    <img src="media/${coast.path}" alt="${escapeAttr(coast.alt ?? "")}"
-                         class="w-full object-cover rounded-2xl border border-slate-800"
-                         style="aspect-ratio: ${crop.aspect.replace(":", " / ")}; object-position: ${crop.position}">
-                    <figcaption class="text-xs code-font text-slate-500 mt-2">${crop.preset} ${crop.aspect} · focus: ${crop.focus} · object-position ${crop.position}</figcaption>
+                    ${crop.html}
+                    <figcaption class="text-xs code-font text-slate-500 mt-2">${crop.preset} ${crop.aspect} · focus: ${crop.focus} · zoom ${crop.zoom}</figcaption>
                 </figure>`).join("")}
             </div>
         </div>
@@ -496,6 +538,7 @@ async function run() {
     console.log(`🌍 [Generator] Rendered and wrote ${outFilename} to: ${outPath}`);
   }
 
+  console.log(`🖼️  [Imaging] ${stats.rendered} variants rendered, ${stats.reused} reused, ${stats.skipped} high-DPR sizes skipped (source too small)`);
   console.log("🎉 CDS Demo Website generated successfully under demo/dist/");
 }
 

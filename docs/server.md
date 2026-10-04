@@ -195,7 +195,11 @@ A target definition is a contract between one consumer (website, kiosk, TV app) 
   "recommendations": {
     "rooms": { "localized": { "properties": { "description": { "minLength": 50, "maxLength": 300 } } } }
   },
-  "media": { "breakpoints": [768, 1920], "presets": { "card": { "aspect": "4:3", "fit": "fill" } } }
+  "media": {
+    "breakpoints": { "mobile": 0, "desktop": 1280 },
+    "dpr": [1, 2],
+    "presets": { "card": { "aspect": "4:3", "fit": "fill", "widths": { "mobile": 640, "desktop": 400 } } }
+  }
 }
 ```
 
@@ -206,7 +210,7 @@ A target definition is a contract between one consumer (website, kiosk, TV app) 
 | `collections` | Listed collections must exist; `minItems`; `localized` is a JSON Schema for `translations[locale]` per required locale (or the source locale); `fields` is a JSON Schema for the item | requirement |
 | `items` | Named items (`collection` + `key`) must exist | requirement |
 | `recommendations` | Same as `localized` / `fields`, checked for **every** locale in the content | recommendation |
-| `media` | Not checked; the contract for the separate image project | — |
+| `media` | Breakpoints, DPR and presets: the contract for the image processor ([imaging.md](imaging.md)). Validated and merged, not rendered by CDS. | definition error |
 
 Empty values (`""`, `null`) count as missing, as in translation completeness.
 
@@ -215,7 +219,7 @@ Empty values (`""`, `null`) count as missing, as in translation completeness.
 - **Built-in default:** if no default target is given, `BUILTIN_DEFAULT_TARGET` applies. It recommends `_media` `alt` (1–125 characters) and `description` (50–300 characters).
 - **Scope:** the default target applies to everything and can't declare a scope. A named target's `scope` limits its own rules. Rules outside the scope are a definition error.
 - **Merging (additive):** a named target's effective definition is the default plus its own rules. Lists are combined, `minCompleteness`/`minItems` take the higher value, `maxStale` the lower, and schemas are combined with `allOf` (both must pass). Nothing is overwritten.
-- **Presets:** all targets share one release, so a preset name defined differently in two targets fails the build.
+- **Presets and breakpoints:** all targets share one release, so a preset or breakpoint name defined differently in two targets fails the build, and so does a preset width for an undeclared breakpoint.
 - **Satisfied:** a named target is satisfied only if the default target is satisfied too. Every published release satisfies all its targets (otherwise the publish fails), and the release manifest lists them in `targets`.
 - More than 8 named targets produces a warning.
 

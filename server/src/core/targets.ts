@@ -17,6 +17,15 @@ export interface CollectionRequirements extends CollectionRules {
   presets?: string[]; // image presets for media referenced by this collection (image project contract)
 }
 
+// Image preset: the contract for the image processor (rendered outside CDS)
+export interface MediaPreset {
+  aspect?: string; // "3:1"
+  fit?: "fill" | "fit";
+  widths: Record<string, number>; // breakpoint name -> width in CSS px
+  format?: "webp" | "jpeg" | "png" | "avif";
+  quality?: number;
+}
+
 export interface TargetDefinition {
   id: string;
   scope?: string[]; // collections this target applies to; omitted = all
@@ -29,9 +38,9 @@ export interface TargetDefinition {
   items?: { collection: string; key: string }[]; // required named items
   recommendations?: Record<string, CollectionRules>; // reported, never failing
   media?: {
-    breakpoints?: number[];
-    dpr?: number[];
-    presets?: Record<string, object>;
+    breakpoints?: Record<string, number>; // name -> minimum screen width (CSS px)
+    dpr?: number[]; // device pixel ratios to render, e.g. [1, 2]
+    presets?: Record<string, MediaPreset>;
   };
 }
 
@@ -103,6 +112,7 @@ export function resolveTargets(definitions: TargetDefinition[]): ResolvedTargets
   }
 
   checkPresetConflicts([defaultTarget, ...named]);
+  checkBreakpoints([defaultTarget, ...named]);
 
   const effective: Record<string, TargetDefinition> = { [DEFAULT_TARGET_ID]: defaultTarget };
   for (const target of named) {
@@ -148,7 +158,9 @@ export function mergeTargets(base: TargetDefinition, own: TargetDefinition): Tar
 
   if (base.media || own.media) {
     merged.media = dropUndefined({
-      breakpoints: union(base.media?.breakpoints, own.media?.breakpoints)?.sort((x, y) => x - y),
+      breakpoints: base.media?.breakpoints || own.media?.breakpoints
+        ? { ...base.media?.breakpoints, ...own.media?.breakpoints }
+        : undefined,
       dpr: union(base.media?.dpr, own.media?.dpr)?.sort((x, y) => x - y),
       presets: base.media?.presets || own.media?.presets ? { ...base.media?.presets, ...own.media?.presets } : undefined
     });
@@ -181,6 +193,29 @@ function checkPresetConflicts(targets: TargetDefinition[]): void {
         throw new Error(`Preset "${name}" is defined differently in targets ${existing.target} and ${target.id}`);
       }
       presets.set(name, { target: target.id, definition });
+    }
+  }
+}
+
+// Breakpoints are shared like presets: one name, one width. Presets may only use declared breakpoints.
+function checkBreakpoints(targets: TargetDefinition[]): void {
+  const widths = new Map<string, { target: string; minWidth: number }>();
+  for (const target of targets) {
+    for (const [name, minWidth] of Object.entries(target.media?.breakpoints ?? {})) {
+      const existing = widths.get(name);
+      if (existing && existing.minWidth !== minWidth) {
+        throw new Error(`Breakpoint "${name}" is defined differently in targets ${existing.target} and ${target.id}`);
+      }
+      widths.set(name, { target: target.id, minWidth });
+    }
+  }
+  for (const target of targets) {
+    for (const [presetName, preset] of Object.entries(target.media?.presets ?? {})) {
+      for (const breakpoint of Object.keys(preset.widths)) {
+        if (!widths.has(breakpoint)) {
+          throw new Error(`Preset "${presetName}" in target ${target.id} uses unknown breakpoint "${breakpoint}"`);
+        }
+      }
     }
   }
 }

@@ -1,0 +1,78 @@
+# Image processor (`@cds/imaging`)
+
+A complementary package, separate from `@cds/server` and `@cds/client`. CDS itself doesn't transform content (see [goals.md](goals.md)), so CDS carries the inputs and this package renders the images:
+
+- the **original** media file (from the release)
+- its **focal points** and intrinsic size (from the `_media` collection)
+- the **sizes per screen size** (from the target's `media` section)
+
+It's built on [sharp](https://sharp.pixelplumbing.com/). In the demo it runs in the site generator, after sync; rendered variants are written to the generator's output and never enter a release.
+
+```
+imaging/src/index.ts   render, cropRegion, responsiveSizes, variantKey, canonicalOptions, parseAspect
+```
+
+## Target contract: breakpoints and presets
+
+A target declares the screen sizes it supports and, per preset, the width to render at each of them:
+
+```json
+"media": {
+  "breakpoints": { "mobile": 0, "tablet": 768, "desktop": 1280 },
+  "dpr": [1, 2],
+  "presets": {
+    "banner":  { "aspect": "3:1", "fit": "fill", "widths": { "mobile": 640, "tablet": 960, "desktop": 1152 } },
+    "content": { "fit": "fit", "widths": { "mobile": 640, "tablet": 960, "desktop": 1152 } }
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `breakpoints` | Name → minimum screen width in CSS pixels. Shared across targets: one name, one width (a different value fails the build). |
+| `dpr` | Device pixel ratios to render (default `[1]`). |
+| `presets.*.aspect` | Output aspect ratio, required for `fill`. |
+| `presets.*.fit` | `fill` crops to exactly the aspect ratio (default); `fit` scales inside without cropping. |
+| `presets.*.widths` | Breakpoint name → width in CSS pixels. Only declared breakpoints may be used. |
+| `presets.*.format` / `quality` | Output format (`webp` default, `jpeg`, `png`, `avif`) and quality (default 80). |
+
+Widths are declared explicitly per breakpoint, not derived. Rendered pixels = CSS width × DPR.
+
+## API
+
+| Function | Purpose |
+| --- | --- |
+| `responsiveSizes(preset, breakpoints, dpr)` | Every size a preset needs: per breakpoint and DPR, largest breakpoint first (the order `<picture>` sources need) |
+| `cropRegion(srcW, srcH, aspect, focalPoint?, zoom?)` | The source region a `fill` render keeps: largest region of the output aspect, shrunk by `zoom`, centered on the focal point, clamped to the edges |
+| `render(bytes, options)` | Renders one variant: `{ data, width, height, format, upscaled }` |
+| `variantKey(sourceHash, options)` | Identity of a variant, known before rendering: SHA-256 of the source hash and the canonical options |
+
+`RenderOptions`: `width`, `height` (required for `fill`), `fit`, `focalPoint`, `zoom` (≥ 1, `fill` only), `format`, `quality`.
+
+**Focal point and zoom.** Without zoom, a crop can only shift along one axis, so a focal point near an edge ends up at that edge. `zoom` crops a smaller region, so the subject can actually be centered. `upscaled: true` means the output has more pixels than the source region; the demo uses `cropRegion` beforehand to skip high-DPR sizes the source can't fill.
+
+**Variant keys.** The canonical options contain only what changes the output: focal point and zoom count for `fill`, not for `fit`. Same source + same effective options = same key, so a generator renders each variant once (the demo reuses variants across language pages).
+
+## Using it in a site generator
+
+The demo's `picture()` helper (`demo/src/build-demo.ts`) shows the full flow:
+
+1. `client.getMediaInfo(path, locale)` → original hash, size, focal points, alt text.
+2. `responsiveSizes(preset, breakpoints, dpr)` → sizes per breakpoint.
+3. For each size: `variantKey` → render once → write `media/<key>.webp`.
+4. Emit one `<source media="(min-width: …)" srcset="… 1x, … 2x">` per breakpoint, with the smallest breakpoint as the `<img>` fallback:
+
+```html
+<picture>
+  <source media="(min-width: 1280px)" srcset="media/b4e7….webp 1x" width="1152" height="384">
+  <source media="(min-width: 768px)" srcset="media/a4dd….webp 1x" width="960" height="320">
+  <img src="media/f2c2….webp" srcset="media/f2c2….webp 1x, media/8a61….webp 2x"
+       alt="Rocky coast with a red and white lighthouse…" width="640" height="213">
+</picture>
+```
+
+The browser picks the file by screen width and pixel ratio; no CSS cropping is involved.
+
+## Open
+
+How rendered variants could come back into a release (verified and available offline on clients) is still open; see P3 in [goals.md](goals.md).

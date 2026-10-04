@@ -6,12 +6,13 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - `schemas/v1/*.json`: the wire format (JSON Schema draft-07). This is the source of truth.
 - `server/` (`@cds/server`): `Publisher`, `ContentSource` / `ObjectStore` interfaces, `FixtureSource`, `FilesystemStore`
 - `client/` (`@cds/client`): `CDSClient`, `ClientStorage` / `RemoteDownloader` interfaces, `MemoryStorage`, `FilesystemStorage`
+- `imaging/` (`@cds/imaging`): complementary image processor (sharp): crops by focal point, sizes per breakpoint. Not CDS core; the demo generator uses it after sync.
 - `demo/`: generates an EN/DE landing page from `demo/data/*.json` through publish → sync → render
 - `tests/integration.test.ts`: a single end-to-end lifecycle test (publish, sync, CAS reuse, retention, GC)
 
 ## Commands
 - `pnpm test`: Vitest, imports from `src`, no build needed
-- `pnpm build`: `tsc` for server + client (demo imports their `dist`)
+- `pnpm build`: `tsc` for server, client and imaging (demo imports their `dist`)
 - `pnpm demo`: builds, then writes `demo/dist/index.html`, `index-de.html`
 - No lint config exists, even though a `lint` script is defined.
 
@@ -29,7 +30,7 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - The server throws if schema files are missing. The client falls back to loose inline schemas (`client/src/validation.ts`).
 
 ## Not implemented yet (don't assume these exist)
-S3 store, Directus source, IndexedDB storage, HTTP downloader, client-side rollback API, client object/media GC, delta sync (Milestone 2). Image rendering is a separate project, not part of CDS.
+S3 store, Directus source, IndexedDB storage, HTTP downloader, client-side rollback API, client object/media GC, delta sync (Milestone 2). Image rendering lives in `imaging/`, not in CDS core.
 
 ## Git
 Branch `dev`, main branch `main`. Commit style: conventional commits (`feat(cds): …`, `feat(demo): …`).

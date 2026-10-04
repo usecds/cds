@@ -78,7 +78,7 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_provenance`)
 
 ### P3: Optimized media (pre-rendered, imgproxy-compatible)
 
-**Status: moved out of CDS.** Following "CDS reports, it doesn't transform", image rendering becomes a **separate, complementary project**. CDS provides its inputs: original media, focal point and intrinsic size (P8), and the presets/breakpoints declared in targets (P7). The design below is kept as the starting point for that project.
+**Status: moved out of CDS** into the complementary package `@cds/imaging` ([imaging.md](imaging.md)), which runs in the site generator after sync. Following "CDS reports, it doesn't transform", image rendering is not part of CDS core. CDS provides its inputs: original media, focal point and intrinsic size (P8), and the presets/breakpoints declared in targets (P7). The design below is kept as the starting point for that project.
 **Open:** how rendered variants come back into a release (e.g. as additional media through a `ContentSource`, with a variant map in the release), and whether CDS reports the required variants per target as a build artifact for the image project to consume.
 
 **Problem:** Clients get original media only. Resized or cropped variants would normally need a live image server.
@@ -278,7 +278,7 @@ Sketch:
 **Image cost (for the image project):** Variants from different targets with the same source and options get the same variant key, so they're rendered and stored once (P3). Cost grows with *media in scope × presets × widths*, not with the number of targets.
 
 **Open questions:**
-- *Deferred, to be defined with the image project:* should breakpoints derive preset widths automatically (breakpoint × DPR), or does each preset list explicit widths?
+- *Decided:* breakpoints are named (`name → minimum screen width`), and each preset lists an **explicit width per breakpoint**; rendered pixels = width × DPR. Breakpoint names are shared across targets (a different value fails the build).
 
 ### P8: Media metadata as content (`_media` collection)
 

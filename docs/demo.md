@@ -31,9 +31,10 @@ demo/data/*.json ──▶ FixtureSource ──▶ Publisher ──▶ demo/publ
 4. **Generator.** For each locale returned by `client.getLocales()`, it:
    - gets the `homepage` item from `site_settings` by key, for hero, CTA and footer texts
    - gets the `features`, `goals` and `testimonials` collections
-   - gets the hero image with `getMediaInfo("hero.svg", locale)` and renders it with its localized alt text, size, and the focal point as CSS `object-position` (so cropping keeps the important part visible). Media files of the release are copied from the client cache to `demo/dist/media/`.
-   - shows the **language-specific pipeline diagram**: the homepage item references `cds-flow.png` in `translations.en.media` and `cds-flow-de.png` in `translations.de.media`, and the generator takes `content.media[0]` for the current locale.
-   - shows **one image in three crops**: `coast-with-lighthouse-balloon-sailboat.png` at the `banner` (3:1), `square` (1:1) and `portrait` (2:3) presets from `landing-page.json`, each centered on a different named focal point (`lighthouse`, `balloon`, `sailboat`) from `_media`. The crop is emulated with CSS `object-fit: cover` and a computed `object-position`; real resized files would come from the image project.
+   - renders every image through the image processor ([imaging.md](imaging.md)): for each preset of the `landing-page` target, one variant per breakpoint (`mobile` 0, `tablet` 768, `desktop` 1280) and pixel ratio (1x, 2x), written to `demo/dist/media/<variant key>.webp`. Each image becomes a `<picture>` with a `<source media="(min-width: …)">` per breakpoint, so the browser loads the file for the screen size. Variants are reused across both language pages; 2x sizes the source can't fill are skipped. Originals aren't copied to `dist`.
+   - shows the hero image (`hero` preset, 2:1) with its localized alt text.
+   - shows the **language-specific pipeline diagram** (`content` preset, `fit`): the homepage item references `cds-flow.png` in `translations.en.media` and `cds-flow-de.png` in `translations.de.media`, and the generator takes `content.media[0]` for the current locale.
+   - shows **one image in three crops**: `coast-with-lighthouse-balloon-sailboat.png` at the `banner` (3:1), `square` (1:1) and `portrait` (2:3) presets, each centered on a different named focal point (`lighthouse`, `balloon`, `sailboat`) from `_media`, with zoom 1, 1.5 and 1.3 so the crops isolate their subject.
    - renders an HTML page with `item.translations[locale]` and writes `index.html` (for `en`) or `index-<locale>.html`
    - adds a "release log" panel showing the active release ID, loaded collections and synced locales, read from the client
 
