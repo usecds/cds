@@ -299,12 +299,27 @@ interface SourceEditor {
   write(edit: SourceEdit, session: EditorSession): Promise<EditResult>;
 }
 
-interface SourceEdit { ref: SourceFieldRef; value: string; basedOn: string | null } // basedOn: what the editor saw
+type EditValue = string | number | boolean | null;               // text, or a scalar like a yes/no field
+interface SourceEdit { ref: SourceFieldRef; value: EditValue; basedOn: EditValue } // basedOn: what the editor saw
 type EditResult =
-  | { status: "saved"; value: string }
-  | { status: "conflict"; current: string | null } // the source changed since basedOn: nothing written
+  | { status: "saved"; value: EditValue }
+  | { status: "conflict"; current: EditValue } // the source changed since basedOn: nothing written
   | { status: "rejected"; message: string; code?: number };
 ```
+
+Structure changes have their own optional interface, `StructureEditor`, in CDS terms (CDS ids):
+
+```ts
+interface StructureEditor {
+  blockTypes(): string[];
+  createPage({ title, slug, status? }, session): Promise<{ page: string }>;
+  addBlock({ page, type, after?, texts? }, session): Promise<{ block: string }>; // after: block id, null = top, undefined = end
+  reorderBlocks({ page, blocks }, session): Promise<void>;                       // the release's blocks, in the new order
+  addMenuEntry({ parent, label, page? | url?, canonical? }, session): Promise<{ entry: string }>; // parent: a menu or an entry
+}
+```
+
+How pages, blocks and menus are stored is site-specific, so a `StructureEditor` is written next to the site's mapping (its inverse), on top of the adapter's editor. Structure changes can't be shown through an overlay; a preview publishes a new release after them.
 
 Writes run with the editor's session, so the source system applies its own permissions; CDS holds no write credentials. Implemented by `DirectusEditor` in `@cds/directus` ([directus.md](directus.md#editing-directuseditor)).
 

@@ -1,4 +1,4 @@
-import type { EditResult, EditorSession, SourceEdit, SourceEditor, SourceFieldRef } from "@cds/server";
+import type { EditResult, EditValue, EditorSession, SourceEdit, SourceEditor, SourceFieldRef } from "@cds/server";
 
 export interface DirectusEditorConfig {
   url: string;
@@ -69,42 +69,75 @@ export class DirectusEditor implements SourceEditor {
     if (session.refreshToken) await this.request("POST", "/auth/logout", { body: { refresh_token: session.refreshToken, mode: "json" } });
   }
 
-  async read(ref: SourceFieldRef, session: EditorSession): Promise<string | null> {
-    const res = await this.request("GET", `${itemPath(ref)}?fields=${encodeURIComponent(ref.field)}`, { token: session.accessToken });
+  async read(ref: SourceFieldRef, session: EditorSession): Promise<EditValue> {
+    const res = await this.request("GET", `${itemPath(ref.collection, ref.id)}?fields=${encodeURIComponent(ref.field)}`, { token: session.accessToken });
     if (res.status === 401) throw new DirectusAuthError(401, res.message);
     if (res.status !== 200) throw new Error(`Directus ${res.status}: ${res.message}`);
-    return text(res.body?.data?.[ref.field]);
+    return scalar(res.body?.data?.[ref.field]);
   }
 
   async write(edit: SourceEdit, session: EditorSession): Promise<EditResult> {
     const { ref } = edit;
     if (ref.editable === false) return { status: "rejected", message: "This value is derived and can't be edited in place" };
     // Optimistic check: the editor saw edit.basedOn; refuse when someone changed the field since
-    let current: string | null;
+    let current: EditValue;
     try {
       current = await this.read(ref, session);
     } catch (err) {
       if (err instanceof DirectusAuthError) throw err;
       return { status: "rejected", message: err instanceof Error ? err.message : String(err) };
     }
-    if ((current ?? "") !== (text(edit.basedOn) ?? "")) return { status: "conflict", current };
-    if ((current ?? "") === edit.value) return { status: "saved", value: edit.value };
+    if (!same(current, edit.basedOn)) return { status: "conflict", current };
+    if (same(current, edit.value)) return { status: "saved", value: edit.value };
 
-    const res = await this.request("PATCH", `${itemPath(ref)}?fields=${encodeURIComponent(ref.field)}`, {
+    const res = await this.request("PATCH", `${itemPath(ref.collection, ref.id)}?fields=${encodeURIComponent(ref.field)}`, {
       token: session.accessToken,
       body: { [ref.field]: edit.value }
     });
     if (res.status === 401) throw new DirectusAuthError(401, res.message);
     if (res.status !== 200 && res.status !== 204) return { status: "rejected", message: res.message, code: res.status };
-    return { status: "saved", value: text(res.body?.data?.[ref.field]) ?? edit.value };
+    return { status: "saved", value: scalar(res.body?.data?.[ref.field] ?? edit.value) };
+  }
+
+  /**
+   * Creates a record (nested relations included, as Directus accepts them) as the editor; returns
+   * its primary key. A building block for structure edits (pages, blocks, menu entries).
+   */
+  async createItem(collection: string, data: Record<string, unknown>, session: EditorSession): Promise<string> {
+    const res = await this.request("POST", `${collectionPath(collection)}?fields=id`, { token: session.accessToken, body: data });
+    if (res.status === 401) throw new DirectusAuthError(401, res.message);
+    if (res.status !== 200) throw new Error(`Directus ${res.status}: ${res.message}`);
+    return String(res.body?.data?.id);
+  }
+
+  /** Updates fields of a record as the editor */
+  async updateItem(collection: string, id: string, data: Record<string, unknown>, session: EditorSession): Promise<void> {
+    const res = await this.request("PATCH", `${itemPath(collection, id)}?fields=id`, { token: session.accessToken, body: data });
+    if (res.status === 401) throw new DirectusAuthError(401, res.message);
+    if (res.status !== 200 && res.status !== 204) throw new Error(`Directus ${res.status}: ${res.message}`);
+  }
+
+  /** Reads records as the editor (Directus query params, e.g. { fields: "id,sort", "filter[page_id][_eq]": id }) */
+  async readItems(collection: string, params: Record<string, string>, session: EditorSession): Promise<Array<Record<string, any>>> {
+    const res = await this.request("GET", `${collectionPath(collection)}?${new URLSearchParams(params)}`, { token: session.accessToken });
+    if (res.status === 401) throw new DirectusAuthError(401, res.message);
+    if (res.status !== 200) throw new Error(`Directus ${res.status}: ${res.message}`);
+    return res.body?.data ?? [];
   }
 }
 
-const itemPath = (ref: SourceFieldRef) => `/items/${encodeURIComponent(ref.collection)}/${encodeURIComponent(ref.id)}`;
+// System collections have their own endpoints: directus_files → /files
+const collectionPath = (collection: string) =>
+  collection.startsWith("directus_") ? `/${collection.slice("directus_".length)}` : `/items/${encodeURIComponent(collection)}`;
+const itemPath = (collection: string, id: string) => `${collectionPath(collection)}/${encodeURIComponent(id)}`;
 
-// Field values compare as text; an empty field is null
-const text = (value: unknown): string | null =>
-  value === null || value === undefined ? null : typeof value === "string" ? value : String(value);
+const scalar = (value: unknown): EditValue =>
+  value === null || value === undefined ? null
+    : typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value
+    : JSON.stringify(value);
+
+// Values compare as text, with an empty field equal to an empty string
+const same = (a: unknown, b: unknown) => (a === null || a === undefined ? "" : String(a)) === (b === null || b === undefined ? "" : String(b));
 
 // The edit contract, for apps that use the editor without depending on @cds/server
-export type { EditResult, EditorSession, SourceEdit, SourceEditor, SourceFieldRef } from "@cds/server";
+export type { EditResult, EditValue, EditorSession, SourceEdit, SourceEditor, SourceFieldRef, StructureEditor } from "@cds/server";

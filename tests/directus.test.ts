@@ -233,6 +233,7 @@ describe("DirectusSource with a mapping", () => {
     const map = await mapped().getSourceMap();
     expect(map.collections._pages.items["page-1"]).toEqual({
       id: "1",
+      collection: "pages",
       path: "/admin/content/pages/1",
       fields: { "translations.en-gb.title": { collection: "pages", id: "1", field: "title" } }
     });
@@ -297,5 +298,40 @@ describe("DirectusEditor", () => {
     await expect(editor.login({ email: "erin@example.com", password: "wrong" })).rejects.toBeInstanceOf(DirectusAuthError);
     await expect(editor.write({ ref, value: "x", basedOn: "Welcome" }, { accessToken: "expired" })).rejects.toBeInstanceOf(DirectusAuthError);
     expect((await editor.refresh(session)).accessToken).toBe("access-2");
+  });
+});
+
+describe("DirectusEditor building blocks", () => {
+  let calls: Array<{ method: string; path: string; body?: any }>;
+  beforeEach(() => {
+    calls = [];
+    vi.stubGlobal("fetch", async (input: string, init: RequestInit = {}) => {
+      const url = new URL(input);
+      const body = init.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method: init.method ?? "GET", path: url.pathname, body });
+      const data = url.pathname === "/items/flags/f1" && (init.method ?? "GET") === "GET" ? { standalone: false }
+        : init.method === "POST" ? { id: 42 }
+        : url.pathname === "/items/content_blocks" ? [{ id: "a", sort: 1 }]
+        : { standalone: body?.standalone, title: body?.title };
+      return new Response(JSON.stringify({ data }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const session = { accessToken: "t" };
+
+  it("creates, updates and reads records as the editor, system collections at their own endpoints", async () => {
+    const editor = new DirectusEditor({ url: "http://directus.test" });
+    expect(await editor.createItem("pages", { title: "New" }, session)).toBe("42");
+    await editor.updateItem("directus_files", "file-1", { title: "Alt text" }, session);
+    expect(await editor.readItems("content_blocks", { "filter[page_id][_eq]": "p1" }, session)).toEqual([{ id: "a", sort: 1 }]);
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /items/pages", "PATCH /files/file-1", "GET /items/content_blocks"]);
+  });
+
+  it("writes yes/no values", async () => {
+    const editor = new DirectusEditor({ url: "http://directus.test" });
+    const result = await editor.write({ ref: { collection: "flags", id: "f1", field: "standalone" }, value: true, basedOn: false }, session);
+    expect(result).toEqual({ status: "saved", value: true });
+    expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({ standalone: true });
   });
 });

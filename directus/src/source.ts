@@ -282,6 +282,7 @@ export class DirectusSource implements ContentSource {
         mediaIn(item, found);
         origins[collection][item.id] = {
           id: $origin ? String($origin.id) : item.id,
+          ...($origin ? { collection: $origin.collection } : {}),
           ...($origin ? { path: `/admin/content/${$origin.collection}/${encodeURIComponent(String($origin.id))}` } : {}),
           ...($sources && Object.keys($sources).length ? { fields: $sources } : {})
         };

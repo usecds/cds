@@ -98,6 +98,7 @@ export interface SourceMedia {
 // Where an item or media file lives in the source system (paths are relative to the source's baseUrl)
 export interface SourceItemRef {
   id: string;
+  collection?: string; // the source collection, when items of one CDS collection come from several
   path?: string;
   // Where the item's fields come from, keyed by field path in the CDS item ("translations.en.title")
   fields?: Record<string, SourceFieldRef>;
@@ -113,15 +114,18 @@ export interface SourceFieldRef {
 }
 
 // An edit of one published value, addressed by its source field (the optional write side of an adapter)
+// A field value an editor sets: text, or a scalar (e.g. a yes/no field)
+export type EditValue = string | number | boolean | null;
+
 export interface SourceEdit {
   ref: SourceFieldRef;
-  value: string;
-  basedOn: string | null; // the value the editor saw; the adapter refuses the edit when the source changed since
+  value: EditValue;
+  basedOn: EditValue; // the value the editor saw; the adapter refuses the edit when the source changed since
 }
 
 export type EditResult =
-  | { status: "saved"; value: string }
-  | { status: "conflict"; current: string | null }
+  | { status: "saved"; value: EditValue }
+  | { status: "conflict"; current: EditValue }
   | { status: "rejected"; message: string; code?: number };
 
 // The editor's own session with the source system. CDS holds no write credentials.
@@ -140,8 +144,28 @@ export interface SourceEditor {
   login(credentials: { email: string; password: string }): Promise<EditorSession>;
   refresh?(session: EditorSession): Promise<EditorSession>;
   logout?(session: EditorSession): Promise<void>;
-  read(ref: SourceFieldRef, session: EditorSession): Promise<string | null>;
+  read(ref: SourceFieldRef, session: EditorSession): Promise<EditValue>;
   write(edit: SourceEdit, session: EditorSession): Promise<EditResult>;
+}
+
+/**
+ * Changes to the site structure in CDS terms (pages, routes, blocks, menus), for previews. Optional,
+ * like all editing. The source system's shape of these is site-specific, so this is implemented next
+ * to the site's mapping (the mapping's inverse), on top of the adapter's editor. Ids are CDS ids.
+ */
+export interface StructureEditor {
+  /** Block types that can be added, e.g. ["hero", "text"] */
+  blockTypes(): string[];
+  createPage(input: { title: string; slug: string; status?: string }, session: EditorSession): Promise<{ page: string }>;
+  /** Adds a block after another (null: at the top, undefined: at the end) */
+  addBlock(input: { page: string; type: string; after?: string | null; texts?: Record<string, string> }, session: EditorSession): Promise<{ block: string }>;
+  /** Puts the page's published blocks in this order; content the release doesn't show keeps its place */
+  reorderBlocks(input: { page: string; blocks: string[] }, session: EditorSession): Promise<void>;
+  /** A menu entry linking a page (canonical: the page's route) or a URL, under a menu or another entry */
+  addMenuEntry(
+    input: { parent: string; label: string; page?: string; url?: string; canonical?: boolean },
+    session: EditorSession
+  ): Promise<{ entry: string }>;
 }
 
 export interface SourceMediaRef extends SourceItemRef {
