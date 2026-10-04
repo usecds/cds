@@ -1,0 +1,13 @@
+# Line endings: LF in the repository and in every checkout, on every platform.
+# Content hashes (CAS) depend on exact bytes, so text files must not change on checkout.
+* text=auto eol=lf
+
+# Binary media: never touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.pdf binary
