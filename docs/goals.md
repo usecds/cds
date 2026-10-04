@@ -326,6 +326,8 @@ Sketch:
 
 ### P11: Routes, pages and blocks
 
+**Status: implemented in G7** (schemas, publish checks, recommendations, `getRoutes`, `getAlternates`, `resolveRoute`, `getPage`). Block `links` are validated with menus in G8.
+
 **Problem:** CDS carries content but not site structure. Which URLs exist, which page each one shows, and what a page is made of all live in generator code today. In the demo, 7 section headings, the language switcher, the output file names and two links are hard-coded in `build-demo.ts`.
 
 **Direction:** Three **optional, typed** reserved collections (named like `_media` and `_jsonld`): a site can use all, some or none of them. CDS validates each against its schema only when it's present. Like everything in CDS, they only describe structure; rendering stays with the generator or client.

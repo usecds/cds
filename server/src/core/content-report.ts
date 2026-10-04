@@ -5,6 +5,7 @@ import { CollectionRules, DEFAULT_TARGET_ID, ResolvedTargets, TargetDefinition }
 import { ItemLocales, TranslationReport } from "./translations.js";
 import { meaninglessNameReason, suggestMediaName } from "./media-names.js";
 import { isJsonLdPathEmpty, jsonLdDefinitionFor, JSONLD_COLLECTION } from "./jsonld.js";
+import { siteRecommendations } from "./site.js";
 
 export type IssueSeverity = "requirement" | "recommendation";
 
@@ -83,6 +84,9 @@ export function buildContentReport(
 
   report.issues.push(...checkMediaNames(ctx, options.mediaPaths ?? []));
   report.issues.push(...checkJsonLd(ctx));
+  for (const issue of siteRecommendations(collections)) {
+    report.issues.push({ severity: "recommendation", ...issue, source: sourceLink(ctx, issue.collection, issue.id) });
+  }
 
   const defaultIssues = evaluateTarget(ctx, resolved.defaultTarget);
   report.issues.push(...defaultIssues);

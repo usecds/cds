@@ -29,6 +29,7 @@ import { resolveTargets, TargetDefinition } from "./targets.js";
 import { buildContentReport, ContentReport } from "./content-report.js";
 import { collectMediaUsage, mediaLocales, MEDIA_COLLECTION, validateMediaMetadata } from "./media-metadata.js";
 import { validateJsonLd } from "./jsonld.js";
+import { validateSite } from "./site.js";
 
 export interface PublisherConfig {
   retentionCount?: number; // How many releases to keep (default: 3)
@@ -159,6 +160,8 @@ export class Publisher {
 
     // JSON-LD definitions must be valid and refer to existing collections and definitions
     validateJsonLd(rawCollections);
+    // Optional site structure (_routes, _pages, _blocks) must be consistent
+    validateSite(rawCollections);
 
     // 3. Measure translation completeness against the source locale and the channel's current release
     const { locale: sourceLocale, origin } = await this.resolveSourceLocale(options.sourceLocale, rawCollections);

@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Block",
+  "description": "An item of the optional _blocks collection: one section of a page. CDS doesn't interpret type or settings.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "type": "string", "minLength": 1 },
+    "items": {
+      "type": "array",
+      "description": "Explicit, ordered items",
+      "items": {
+        "type": "object",
+        "properties": { "collection": { "type": "string" }, "id": { "type": "string" } },
+        "required": ["collection", "id"],
+        "additionalProperties": true
+      }
+    },
+    "source": {
+      "type": "object",
+      "description": "All items of a collection, in its order",
+      "properties": { "collection": { "type": "string" } },
+      "required": ["collection"],
+      "additionalProperties": true
+    },
+    "links": { "type": "array", "items": { "type": "string" }, "description": "_menu link item ids" },
+    "settings": { "type": "object", "description": "Presentation settings for the renderer" }
+  },
+  "required": ["id", "type"],
+  "additionalProperties": true
+}

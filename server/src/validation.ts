@@ -104,6 +104,20 @@ export function validateJsonLdDefinition(data: any): void {
   }
 }
 
+// Validators for items of the optional site-structure collections
+function itemValidator(schemaFile: string, label: string): (data: any) => void {
+  const validate = ajv.compile(loadSchema(schemaFile));
+  return (data: any) => {
+    if (!validate(data)) {
+      throw new Error(`Invalid ${label} item (${data?.id || "unknown"}): ${ajv.errorsText(validate.errors)}`);
+    }
+  };
+}
+
+export const validateRouteItem = itemValidator("route.json", "_routes");
+export const validatePageItem = itemValidator("page.json", "_pages");
+export const validateBlockItem = itemValidator("block.json", "_blocks");
+
 export interface ContentSchemaError {
   keyword: string; // e.g. "required", "minLength", "maxLength", "type"
   instancePath: string; // e.g. "/alt"

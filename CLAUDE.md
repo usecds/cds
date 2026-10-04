@@ -18,7 +18,7 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 
 ## Conventions and gotchas
 - **CDS reports, it doesn't transform.** No machine translation, AI processing or image rendering in CDS; those run in the CMS or complementary projects. CDS carries their results (`_provenance` markers) and reports.
-- Reserved names: item field `_provenance`; collections `_media` (media metadata, validated against the release's media) and `_jsonld` (schema.org definitions). The JSON-LD path reader exists in both server (validation, report) and client (resolution); keep them in sync. Only names the schema defines are CDS fields.
+- Reserved names: item field `_provenance`; collections `_media` (media metadata, validated against the release's media) and `_jsonld` (schema.org definitions); optional site structure `_routes`, `_pages`, `_blocks` (validated only when present). The JSON-LD path reader exists in both server (validation, report) and client (resolution); keep them in sync. Only names the schema defines are CDS fields.
 - Relative imports need a `.js` extension (`./types.js`), because of NodeNext ESM.
 - `server/src/types.ts` and `client/src/types.ts` duplicate the wire types on purpose (the packages are independent). Change both together, along with the schema in `schemas/v1/`.
 - Collection hash = `sha256(deterministicStringify(collection))`, which sorts keys recursively and adds no whitespace. The exact serialized string is what gets stored, and the client hashes the raw downloaded text. Never pretty-print, re-stringify or reorder object bytes.

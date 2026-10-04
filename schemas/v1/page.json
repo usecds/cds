@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Page",
+  "description": "An item of the optional _pages collection: page metadata (translations[locale].title / description) and its blocks in order.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "blocks": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["id"],
+  "additionalProperties": true
+}

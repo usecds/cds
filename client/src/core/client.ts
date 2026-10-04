@@ -6,6 +6,10 @@ import {
   CollectionItem,
   MediaInfo,
   ProvenanceStatus,
+  ResolvedBlock,
+  ResolvedPage,
+  ResolvedRoute,
+  RouteInfo,
   TranslationSummary
 } from "../types.js";
 import { sha256 } from "../utils.js";
@@ -400,6 +404,101 @@ export class CDSClient {
       if (value !== undefined && value !== null && value !== "") setJsonLdProperty(data, property, value);
     }
     return data;
+  }
+
+  // --- SITE STRUCTURE (_routes, _pages, _blocks; all optional) ---
+
+  /**
+   * All routes with their paths per locale. Empty if the release has no _routes.
+   */
+  getRoutes(): RouteInfo[] {
+    return (this.collectionsCache.get("_routes") ?? []).map((r) => ({
+      id: r.id,
+      key: r.key,
+      paths: Object.fromEntries(
+        Object.entries(r.translations)
+          .filter(([, t]) => typeof t?.path === "string")
+          .map(([locale, t]) => [locale, t.path as string])
+      ),
+      ...(r.page ? { page: r.page } : {}),
+      ...(r.redirect ? { redirect: { route: r.redirect, status: (r.status ?? 301) as 301 | 302 } } : {})
+    }));
+  }
+
+  /**
+   * Paths of a route per locale, e.g. for hreflang links and a language switcher.
+   */
+  getAlternates(routeId: string): Record<string, string> {
+    return this.getRoutes().find((r) => r.id === routeId)?.paths ?? {};
+  }
+
+  /**
+   * The route, locale and page for a path (exact match), with redirects followed to their
+   * final target. Null if no route has this path.
+   */
+  async resolveRoute(path: string): Promise<ResolvedRoute | null> {
+    const routes = this.getRoutes();
+    for (const route of routes) {
+      const locale = Object.keys(route.paths).find((l) => route.paths[l] === path);
+      if (!locale) continue;
+
+      if (route.redirect) {
+        let target = route;
+        while (target.redirect) target = routes.find((r) => r.id === target.redirect!.route)!;
+        const targetPath = target.paths[locale] ?? Object.values(target.paths)[0];
+        return { route, locale, redirect: { path: targetPath, status: route.redirect.status } };
+      }
+      const page = route.page ? await this.getPage(route.page, locale) : null;
+      return { route, locale, ...(page ? { page } : {}) };
+    }
+    return null;
+  }
+
+  /**
+   * A page in one locale with its blocks in order, each with its items resolved.
+   */
+  async getPage(pageId: string, locale: string): Promise<ResolvedPage | null> {
+    const page = await this.getItemById("_pages", pageId);
+    if (!page) return null;
+    const texts = page.translations[locale] ?? {};
+
+    const blocks: ResolvedBlock[] = [];
+    for (const blockId of (page.blocks as string[] | undefined) ?? []) {
+      const block = await this.getItemById("_blocks", blockId);
+      if (!block) continue;
+      const { media: localizedMedia, ...blockTexts } = block.translations[locale] ?? {};
+
+      let items: { collection: string; item: CollectionItem }[] = [];
+      if (block.source?.collection) {
+        const collection = block.source.collection as string;
+        items = (await this.getCollection(collection)).map((item) => ({ collection, item }));
+      } else {
+        for (const ref of (block.items ?? []) as { collection: string; id: string }[]) {
+          const item = await this.getItemById(ref.collection, ref.id);
+          if (item) items.push({ collection: ref.collection, item });
+        }
+      }
+
+      blocks.push({
+        id: block.id,
+        key: block.key,
+        type: block.type,
+        texts: blockTexts,
+        items,
+        media: [...(block.media ?? []), ...(Array.isArray(localizedMedia) ? localizedMedia : [])],
+        links: (block.links as string[] | undefined) ?? [],
+        settings: (block.settings as Record<string, unknown> | undefined) ?? {}
+      });
+    }
+
+    return {
+      id: page.id,
+      key: page.key,
+      ...(typeof texts.title === "string" ? { title: texts.title } : {}),
+      ...(typeof texts.description === "string" ? { description: texts.description } : {}),
+      texts,
+      blocks
+    };
   }
 
   /**

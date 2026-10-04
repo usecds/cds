@@ -225,6 +225,33 @@ The reserved collection `_jsonld` describes how content items become [schema.org
 
 **Checks at publish** (build fails): invalid definitions or path syntax, `ref:` or `appliesTo` to unknown collections, two defaults for one collection, references to unknown definitions. Mapped fields that are empty for an item and locale are reported as `jsonld-empty` recommendations.
 
+## Site structure (`_routes`, `_pages`, `_blocks`)
+
+Optional, typed collections: a site can use all, some or none of them, and each is validated against its schema (`route.json`, `page.json`, `block.json`) only when present. CDS describes structure; generators and clients render it.
+
+```
+_routes ──page──▶ _pages ──blocks[]──▶ _blocks ──items[] / source──▶ any collection
+```
+
+```json
+{ "id": "r_about", "key": "about", "page": "p_about",
+  "translations": { "en": { "path": "/about/" }, "de": { "path": "/de/ueber-uns/" } } }
+{ "id": "p_about", "key": "about", "blocks": ["b_hero", "b_features"],
+  "translations": { "en": { "title": "About", "description": "…" } } }
+{ "id": "b_features", "key": "features", "type": "card-grid", "source": { "collection": "features" },
+  "translations": { "en": { "title": "Core capabilities" } } }
+```
+
+| Collection | Fields |
+| --- | --- |
+| `_routes` | `translations[locale].path` (starts with `/`, one per language), and either `page` or `redirect` (route id) with `status` 301/302. Static routes: every URL is listed. |
+| `_pages` | `blocks`: block ids in order; `translations[locale].title` / `description` |
+| `_blocks` | `type` (for the renderer), either `items` (ordered `{ collection, id }`) or `source: { collection }` (the full collection, in its order; no sort/limit/filter) or neither (a generator block), `media` / `translations[locale].media`, `links` (`_menu` ids), `settings` (free, for the renderer), localized texts. The `key` doubles as the anchor. |
+
+**Checks at publish** (build fails): schema errors, a route with neither or both of `page`/`redirect`, unknown pages, routes, blocks, collections or items, redirect cycles, a route without any path, the same path twice in one language, a block with both `items` and `source`.
+
+**Recommendations:** pages no route shows (`unrouted-page`), blocks no page uses (`unused-block`); paths, titles and block texts count for translation completeness; built-in recommendations for page `title` (1–60 characters) and `description` (50–160).
+
 ## `target.json`
 
 Validates target definitions (see [server.md](server.md#targets)). Only `id` (`[a-zA-Z0-9_-]+`) is required. `collections.*.localized`, `collections.*.fields` and `recommendations.*` hold JSON Schemas, which are compiled when the target is checked. Target definitions are pipeline configuration and are never published.

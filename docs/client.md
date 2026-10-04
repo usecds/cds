@@ -159,6 +159,10 @@ All queries read from the in-memory cache of the **active** release and need no 
 | `resolveReferences(item)` | Referenced items, in order; dangling references are skipped |
 | `getMediaContent(virtualPath)` | `Buffer` from storage, or `null` if the path or file is unknown |
 | `getMediaInfo(virtualPath, locale?)` | `MediaInfo`: path, hash, size, MIME type, plus `width`, `height`, `focalPoint`, `focalPoints`, and `alt` / `description` in that locale from the `_media` collection. Fields that aren't set (or are empty in that locale) are left out. `null` if the path isn't in the release. |
+| `getRoutes()` | All routes: `{ id, key, paths: { [locale]: path }, page?, redirect? }`; empty without `_routes` |
+| `getAlternates(routeId)` | Paths of a route per locale (hreflang, language switcher) |
+| `resolveRoute(path)` | Route, locale and page for an exact path; redirects followed to their final target (`redirect: { path, status }`); `null` if unknown. Async. |
+| `getPage(pageId, locale)` | Page title, description and texts, with its blocks in order: `{ key, type, texts, items: [{ collection, item }], media, links, settings }`. A `source` block gets its full collection. Async. |
 | `getJsonLd(collection, item, locale)` | schema.org JSON-LD data for the item (own `_jsonld` reference or the collection's default), with `@context`; no URLs: images carry `_media` (virtual path) for the generator to replace. `null` if no definition applies. Async. |
 | `getTranslationSummary()` | The release's translation completeness summary, or `null` |
 | `getTranslationStatus(item, locale, field)` | `{ status, stale }` from the item's `_provenance` translation marker (`status: null` without a marker). Staleness is detected via `sourceHash` only. The publisher's previous-release fallback shows up in the build report, not here. |

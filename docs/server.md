@@ -137,7 +137,7 @@ Steps, in order:
    - validate against `collection.json` (throws on failure, which aborts the publish)
    - serialize with `deterministicStringify`, hash with SHA-256
    - record `{ hash, itemCount, size }` (`size` = UTF-8 byte length of the serialized string)
-3. Hash each published media file and record `{ hash, size, mimeType }` under its virtual path. If a `_media` collection exists, validate it (see [schemas.md](schemas.md#media-metadata-_media-collection-media-metadatajson)), and validate `_jsonld` definitions (see [schemas.md](schemas.md#json-ld-definitions-_jsonld-collection-jsonldjson)); a problem throws before anything is written.
+3. Hash each published media file and record `{ hash, size, mimeType }` under its virtual path. If a `_media` collection exists, validate it (see [schemas.md](schemas.md#media-metadata-_media-collection-media-metadatajson)), validate `_jsonld` definitions (see [schemas.md](schemas.md#json-ld-definitions-_jsonld-collection-jsonldjson)) and the optional site structure (see [schemas.md](schemas.md#site-structure-_routes-_pages-_blocks)); a problem throws before anything is written.
 4. Measure translation completeness (below), comparing against the release the channel currently points to.
 5. Check the targets and build the content report. **An unmet requirement throws `PublishRequirementsError` here, before anything is written.** The error carries the artifacts, so the pipeline can still store the report.
 6. Write objects (`store.writeObject`) and media (`store.writeMedia(hash, extname(virtualPath), bytes)`).
@@ -216,7 +216,7 @@ Empty values (`""`, `null`) count as missing, as in translation completeness.
 
 **Default and named targets:**
 - **Loading:** `loadTargets(dir)` reads `*.json`. `default.json` is the default target and is the only file that may use the id `default`. Definitions can also be passed in code.
-- **Built-in default:** if no default target is given, `BUILTIN_DEFAULT_TARGET` applies. It recommends `_media` `alt` (1–125 characters) and `description` (50–300 characters).
+- **Built-in default:** if no default target is given, `BUILTIN_DEFAULT_TARGET` applies. It recommends `_media` `alt` (1–125 characters) and `description` (50–300 characters), and `_pages` `title` (1–60) and `description` (50–160).
 - **Scope:** the default target applies to everything and can't declare a scope. A named target's `scope` limits its own rules. Rules outside the scope are a definition error.
 - **Merging (additive):** a named target's effective definition is the default plus its own rules. Lists are combined, `minCompleteness`/`minItems` take the higher value, `maxStale` the lower, and schemas are combined with `allOf` (both must pass). Nothing is overwritten.
 - **Presets and breakpoints:** all targets share one release, so a preset or breakpoint name defined differently in two targets fails the build, and so does a preset width for an undeclared breakpoint.
@@ -239,7 +239,7 @@ Empty values (`""`, `null`) count as missing, as in translation completeness.
 }
 ```
 
-`issue` is one of `missing`, `too-short`, `too-long`, `invalid`, `missing-collection`, `too-few-items`, `missing-item`, `missing-locale`, `incomplete-locale`, `too-many-stale`, plus the translation issues `untranslated` and `stale` and `meaningless-name` and `jsonld-empty` (always recommendations). `meaningless-name` flags published media whose file name (or `_media` name) has no descriptive word: camera and phone defaults (`IMG_2034`, `DSC00012`, `PXL_…`), messenger and screenshot names (`photo_2026-10-01_12-07-10`, `WhatsApp Image …`, `Screenshot …`), AI tool defaults (`ChatGPT Image 24. Sept. 2026, 12_41_16`, `DALL·E …`), UUIDs, hashes, and names made only of dates, numbers or generic words (`image1`, `untitled-copy-final`). It suggests a name from the alt text (`recommended`). See `meaninglessNameReason` and `suggestMediaName`. `source` is a deep link built from the source map, if one is available.
+`issue` is one of `missing`, `too-short`, `too-long`, `invalid`, `missing-collection`, `too-few-items`, `missing-item`, `missing-locale`, `incomplete-locale`, `too-many-stale`, plus the translation issues `untranslated` and `stale` and `meaningless-name`, `jsonld-empty`, `unrouted-page` and `unused-block` (always recommendations). `meaningless-name` flags published media whose file name (or `_media` name) has no descriptive word: camera and phone defaults (`IMG_2034`, `DSC00012`, `PXL_…`), messenger and screenshot names (`photo_2026-10-01_12-07-10`, `WhatsApp Image …`, `Screenshot …`), AI tool defaults (`ChatGPT Image 24. Sept. 2026, 12_41_16`, `DALL·E …`), UUIDs, hashes, and names made only of dates, numbers or generic words (`image1`, `untitled-copy-final`). It suggests a name from the alt text (`recommended`). See `meaninglessNameReason` and `suggestMediaName`. `source` is a deep link built from the source map, if one is available.
 
 ### Publish report
 

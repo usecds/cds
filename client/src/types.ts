@@ -102,6 +102,42 @@ export interface MediaInfo {
   description?: string;
 }
 
+// Site structure (_routes, _pages, _blocks)
+export interface RouteInfo {
+  id: string;
+  key: string;
+  paths: Record<string, string>; // locale -> path
+  page?: string; // _pages id
+  redirect?: { route: string; status: 301 | 302 };
+}
+
+export interface ResolvedBlock {
+  id: string;
+  key: string; // also the block's anchor
+  type: string;
+  texts: Record<string, any>; // the block's translations[locale], without media
+  items: { collection: string; item: CollectionItem }[]; // explicit items, or the full source collection
+  media: string[]; // the block's media plus translations[locale].media
+  links: string[]; // _menu link item ids
+  settings: Record<string, unknown>;
+}
+
+export interface ResolvedPage {
+  id: string;
+  key: string;
+  title?: string;
+  description?: string;
+  texts: Record<string, any>; // the page's translations[locale]
+  blocks: ResolvedBlock[];
+}
+
+export interface ResolvedRoute {
+  route: RouteInfo;
+  locale: string;
+  redirect?: { path: string; status: 301 | 302 }; // final target after following redirects
+  page?: ResolvedPage;
+}
+
 // Client Storage Interface
 export interface ClientStorage {
   saveObject(hash: string, content: string): Promise<void>;

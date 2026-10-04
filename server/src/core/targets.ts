@@ -61,6 +61,16 @@ export const BUILTIN_DEFAULT_TARGET: TargetDefinition = {
           description: { type: "string", minLength: 50, maxLength: 300 }
         }
       }
+    },
+    _pages: {
+      localized: {
+        type: "object",
+        required: ["title", "description"],
+        properties: {
+          title: { type: "string", minLength: 1, maxLength: 60 },
+          description: { type: "string", minLength: 50, maxLength: 160 }
+        }
+      }
     }
   }
 };

@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Route",
+  "description": "An item of the optional _routes collection: one URL, with its path per language in translations[locale].path.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "page": { "type": "string", "description": "_pages id this route shows" },
+    "redirect": { "type": "string", "description": "_routes id to redirect to, instead of a page" },
+    "status": { "enum": [301, 302], "description": "Redirect status (default 301)" },
+    "translations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string", "pattern": "^/" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": ["id"],
+  "additionalProperties": true
+}
