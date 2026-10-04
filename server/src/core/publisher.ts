@@ -100,6 +100,9 @@ export class Publisher {
    * Updates the channel manifest as the final atomic action.
    */
   async publish(channel: string, releaseId: string, options: PublishOptions = {}): Promise<PublishResult> {
+    // The content's state is the source's as of this moment (or later): previews use it to drop
+    // edits saved before it, which the release therefore contains
+    const sourceReadAt = new Date().toISOString();
     const sourceCollections = await this.source.getCollections();
     const sourceMedia = await this.source.getMedia();
     const sourceMap = this.source.getSourceMap ? await this.source.getSourceMap() : undefined;
@@ -199,6 +202,7 @@ export class Publisher {
       schemaVersion: 1,
       releaseId,
       createdAt: new Date().toISOString(),
+      sourceReadAt,
       collections: collectionsMeta,
       media: mediaMeta,
       translations: toTranslationSummary(translations),

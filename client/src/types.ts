@@ -81,6 +81,7 @@ export interface ReleaseManifest {
   schemaVersion: 1;
   releaseId: string;
   createdAt: string; // ISO date-time string
+  sourceReadAt?: string; // when the publisher started reading the source: its content is at least this recent
   collections: Record<string, CollectionMeta>;
   media: Record<string, MediaMeta>;
   translations?: TranslationSummary;

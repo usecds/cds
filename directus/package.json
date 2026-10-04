@@ -8,7 +8,8 @@
   "exports": {
     ".": "./dist/index.js",
     "./compat": "./dist/compat.js",
-    "./source": "./dist/source.js"
+    "./source": "./dist/source.js",
+    "./editor": "./dist/editor.js"
   },
   "bin": {
     "cds-directus-publish": "./dist/cli.js"

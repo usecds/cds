@@ -2,11 +2,16 @@
 // Publishes a Directus instance into a CDS store (GET requests only).
 //
 //   cds-directus-publish --config directus-source.json --out .cds/published
-//                        [--channel production] [--release <id>] [--targets targets/] [--report .cds/report]
+//                        [--mapping cds/mapping.ts] [--channel production] [--release <id>]
+//                        [--targets targets/] [--report .cds/report]
+//
+// --mapping: a module whose default export (or `map`) maps the records to the CDS contract, and
+// optionally exports `mediaPath`. TypeScript modules work on Node 23.6+ (type stripping).
 //
 // The Directus URL and read token come from the config, or DIRECTUS_URL / DIRECTUS_API_TOKEN.
 import fs from "fs/promises";
 import path from "path";
+import { pathToFileURL } from "url";
 import {
   Publisher,
   FilesystemStore,
@@ -30,7 +35,7 @@ async function main() {
   const configPath = arg("config");
   const out = arg("out");
   if (!configPath || !out) {
-    console.error("Usage: cds-directus-publish --config <file> --out <dir> [--channel production] [--release <id>] [--targets <dir>] [--report <dir>]");
+    console.error("Usage: cds-directus-publish --config <file> --out <dir> [--mapping <module>] [--channel production] [--release <id>] [--targets <dir>] [--report <dir>]");
     process.exit(2);
   }
   const config: DirectusSourceConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
@@ -43,6 +48,14 @@ async function main() {
   const releaseId = arg("release") ?? new Date().toISOString().replace(/[:.]/g, "-");
   const targetsDir = arg("targets");
   const reportDir = arg("report") ?? path.join(path.dirname(out), "report");
+
+  const mappingPath = arg("mapping");
+  if (mappingPath) {
+    const mod = await import(pathToFileURL(path.resolve(mappingPath)).href);
+    config.map = mod.map ?? mod.default;
+    if (typeof config.map !== "function") throw new Error(`${mappingPath} exports no mapping function (default or map)`);
+    if (typeof mod.mediaPath === "function") config.mediaPath = mod.mediaPath;
+  }
 
   const source = new DirectusSource({ ...config, log: (m) => console.log(`[directus] ${m}`) });
   const publisher = new Publisher(source, new FilesystemStore(out), { retentionCount: 5 });
@@ -71,6 +84,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("[cds] publish failed:", err instanceof Error ? err.message : err);
+  console.error("[cds] publish failed:", err instanceof Error ? (process.env.DEBUG ? err.stack : err.message) : err);
   process.exit(1);
 });

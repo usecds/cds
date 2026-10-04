@@ -14,6 +14,11 @@
       "type": "string",
       "format": "date-time"
     },
+    "sourceReadAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the publisher started reading the source: the content is at least this recent"
+    },
     "collections": {
       "type": "object",
       "additionalProperties": {

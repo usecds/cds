@@ -17,7 +17,8 @@ export interface MenuItem extends CollectionItem {
   link?: MenuLink;
 }
 
-const EXTERNAL_URL = /^(https?:\/\/|mailto:|tel:)/;
+// Protocol-relative //host links are external too
+const EXTERNAL_URL = /^(https?:\/\/|\/\/|mailto:|tel:)/;
 
 /**
  * Checks _menu and the links blocks use. Throws on the first problem: schema errors, unknown
@@ -42,7 +43,7 @@ export function validateMenu(collections: Record<string, CollectionItem[]>): voi
       throw new Error(`Invalid _menu item (${item.id}): a link needs either a route or a url`);
     }
     if (link.url && !EXTERNAL_URL.test(link.url)) {
-      throw new Error(`Invalid _menu item (${item.id}): url must be absolute (https://, mailto:, tel:), got "${link.url}"`);
+      throw new Error(`Invalid _menu item (${item.id}): url must be absolute (https://, //host, mailto:, tel:), got "${link.url}"`);
     }
     if (link.route) {
       const route = routes.get(link.route);

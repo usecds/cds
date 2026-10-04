@@ -53,6 +53,7 @@ Lists everything that belongs to one release.
 | `schemaVersion` | integer, `const 1` | yes | |
 | `releaseId` | string | yes | |
 | `createdAt` | string, `date-time` | yes | |
+| `sourceReadAt` | string, `date-time` | no | When the publisher started reading the source: the content is at least this recent. Previews drop edits saved before it (they are in the release) |
 | `collections` | object of `CollectionMeta` | yes | Keyed by collection name |
 | `media` | object of `MediaMeta` | yes | Keyed by virtual path; may be `{}` |
 | `translations` | `TranslationSummary` | no | Translation completeness, see below |
@@ -268,7 +269,7 @@ Optional, typed collection of nestable link items (`menu.json`). An item that no
 | `children` | `_menu` ids in order |
 | `link.route` | `_routes` id; resolved to the route's path in each language |
 | `link.block` | Optional anchor: a block on that route's page (`/de/#goals`) |
-| `link.url` | External URL (`https://`, `mailto:`, `tel:`) instead of a route |
+| `link.url` | External URL (`https://`, protocol-relative `//host`, `mailto:`, `tel:`) instead of a route |
 | `translations[locale].label` | Shown text. An entry without a label in a language, or whose route has no path there, is left out (with its children). |
 
 **Checks at publish** (build fails): unknown children, cycles, more than 3 levels, a link with neither or both of route/url, unknown routes or blocks, a block that isn't on the route's page, relative URLs, block `links` to unknown items. **Recommendation:** entries with no label in any language (`missing-label`); labels count for translation completeness.

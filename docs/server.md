@@ -266,13 +266,47 @@ interface SourceMap {
   sources: Record<string, { baseUrl?: string }>;           // per adapter
   collections: Record<string, {                              // per CDS collection
     source?: { adapter: string; collection: string };
-    items: Record<string, { id: string; path?: string }>;    // per CDS item id
+    items: Record<string, {                                  // per CDS item id
+      id: string;
+      path?: string;
+      fields?: Record<string, SourceFieldRef>;               // per field path in the item
+    }>;
   }>;
   media: Record<string, { adapter: string; id: string; path?: string }>; // per virtual path
+}
+
+interface SourceFieldRef {
+  collection: string; id: string; field: string;            // where the value comes from
+  format?: "plain" | "html";                                 // text format, for editors
+  editable?: boolean;                                        // false for derived values
 }
 ```
 
 `path` is relative to the source's `baseUrl`, so moving the CMS host changes only the artifact. The publisher passes the map through as is, without checking it against the published content.
+
+`fields` maps a value's path in the CDS item (`translations.en.title`, `interfaces.0.name`) to the source field it comes from. It is what makes a value editable in a preview (goal P13): an edit names the CDS address, and the source map says which source field to change.
+
+### Editing: `SourceEditor` (optional)
+
+The write side of a source adapter. Edits go to the source system, never into a release: releases stay immutable, CDS stores no edits, and the next publish includes them. An adapter without it simply offers no editing.
+
+```ts
+interface SourceEditor {
+  login(credentials: { email: string; password: string }): Promise<EditorSession>; // the editor's own account
+  refresh?(session: EditorSession): Promise<EditorSession>;
+  logout?(session: EditorSession): Promise<void>;
+  read(ref: SourceFieldRef, session: EditorSession): Promise<string | null>;
+  write(edit: SourceEdit, session: EditorSession): Promise<EditResult>;
+}
+
+interface SourceEdit { ref: SourceFieldRef; value: string; basedOn: string | null } // basedOn: what the editor saw
+type EditResult =
+  | { status: "saved"; value: string }
+  | { status: "conflict"; current: string | null } // the source changed since basedOn: nothing written
+  | { status: "rejected"; message: string; code?: number };
+```
+
+Writes run with the editor's session, so the source system applies its own permissions; CDS holds no write credentials. Implemented by `DirectusEditor` in `@cds/directus` ([directus.md](directus.md#editing-directuseditor)).
 
 ### Release retention
 

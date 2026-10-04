@@ -15,6 +15,7 @@ import {
   TranslationSummary
 } from "../types.js";
 import { sha256 } from "../utils.js";
+import { EditOverlay } from "./overlay.js";
 import { JSONLD_COLLECTION, JsonLdDefinition, mergeJsonLd, readFieldPath, setJsonLdProperty } from "./jsonld.js";
 import { 
   validateChannelManifest, 
@@ -45,6 +46,8 @@ export class CDSClient {
   
   // In-memory cache for fast, sub-millisecond lookups
   private collectionsCache = new Map<string, CollectionItem[]>();
+  private overlay: EditOverlay | null = null;
+  private overlaid = new Map<string, { revision: number; items: CollectionItem[] }>();
 
   constructor(config: CDSClientConfig) {
     this.storage = config.storage;
@@ -85,6 +88,7 @@ export class CDSClient {
    */
   private async loadActiveCollectionsIntoCache(): Promise<void> {
     this.collectionsCache.clear();
+    this.overlaid.clear();
     if (!this.activeRelease) return;
 
     for (const [colName, colMeta] of Object.entries(this.activeRelease.collections)) {
@@ -234,6 +238,31 @@ export class CDSClient {
   // --- QUERY & CONTENT ACCESS API ---
 
   /**
+   * Lays unpublished edits over the active release (previews only); null removes them. Every
+   * read (collections, items, pages, menus) then sees the edited values. Releases are not changed.
+   */
+  setOverlay(overlay: EditOverlay | null): void {
+    this.overlay = overlay;
+    this.overlaid.clear();
+  }
+
+  /** A collection exactly as the active release has it, without overlay edits */
+  getPublishedCollection(name: string): CollectionItem[] {
+    return this.collectionsCache.get(name) || [];
+  }
+
+  // A collection as reads see it: the release's items, with the overlay's edits applied
+  private items(name: string): CollectionItem[] | undefined {
+    const items = this.collectionsCache.get(name);
+    if (!items || !this.overlay) return items;
+    const cached = this.overlaid.get(name);
+    if (cached && cached.revision === this.overlay.revision) return cached.items;
+    const view = this.overlay.apply(name, items);
+    this.overlaid.set(name, { revision: this.overlay.revision, items: view });
+    return view;
+  }
+
+  /**
    * Returns list of collection names in the active release.
    */
   getCollectionsList(): string[] {
@@ -245,7 +274,7 @@ export class CDSClient {
    * Exposes a complete collection by name.
    */
   async getCollection(name: string): Promise<CollectionItem[]> {
-    return this.collectionsCache.get(name) || [];
+    return this.items(name) || [];
   }
 
   /**
@@ -336,7 +365,7 @@ export class CDSClient {
     if (!meta) return null;
 
     const info: MediaInfo = { path: virtualPath, hash: meta.hash, size: meta.size, mimeType: meta.mimeType };
-    const item = this.collectionsCache.get("_media")?.find((i) => i.id === virtualPath);
+    const item = this.items("_media")?.find((i) => i.id === virtualPath);
     if (!item) return info;
 
     if (typeof item.name === "string" && item.name) info.name = item.name;
@@ -367,7 +396,7 @@ export class CDSClient {
     locale: string,
     depth: number
   ): Promise<Record<string, any> | null> {
-    const definitions = (this.collectionsCache.get(JSONLD_COLLECTION) ?? []) as JsonLdDefinition[];
+    const definitions = (this.items(JSONLD_COLLECTION) ?? []) as JsonLdDefinition[];
     const own = item.references?.find((r) => r.collection === JSONLD_COLLECTION);
     const def = own ? definitions.find((d) => d.id === own.id) : definitions.find((d) => d.appliesTo === collection);
     if (!def) return null;
@@ -414,7 +443,7 @@ export class CDSClient {
    * All routes with their paths per locale. Empty if the release has no _routes.
    */
   getRoutes(): RouteInfo[] {
-    return (this.collectionsCache.get("_routes") ?? []).map((r) => ({
+    return (this.items("_routes") ?? []).map((r) => ({
       id: r.id,
       key: r.key,
       paths: Object.fromEntries(
@@ -511,7 +540,7 @@ export class CDSClient {
    * together with their children.
    */
   getMenu(key: string, locale: string): MenuEntry[] | null {
-    const items = this.collectionsCache.get("_menu") ?? [];
+    const items = this.items("_menu") ?? [];
     const children = new Set(items.flatMap((i) => (i.children as string[] | undefined) ?? []));
     const root = items.find((i) => i.key === key && !children.has(i.id));
     if (!root) return null;
@@ -531,7 +560,7 @@ export class CDSClient {
    * label in that locale, or its route has no path there.
    */
   resolveLink(id: string, locale: string): ResolvedLink | null {
-    const item = (this.collectionsCache.get("_menu") ?? []).find((i) => i.id === id);
+    const item = (this.items("_menu") ?? []).find((i) => i.id === id);
     const label = item?.translations[locale]?.label;
     if (!item || typeof label !== "string" || !label) return null;
 
@@ -540,7 +569,7 @@ export class CDSClient {
     if (link?.route) {
       const path = this.getAlternates(link.route)[locale];
       if (!path) return null;
-      const block = link.block ? (this.collectionsCache.get("_blocks") ?? []).find((b) => b.id === link.block) : undefined;
+      const block = link.block ? (this.items("_blocks") ?? []).find((b) => b.id === link.block) : undefined;
       return { id, key: item.key, label, href: block ? `${path}#${block.key}` : path, external: false };
     }
     return { id, key: item.key, label, external: false };

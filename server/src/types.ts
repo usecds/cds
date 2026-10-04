@@ -81,6 +81,7 @@ export interface ReleaseManifest {
   schemaVersion: 1;
   releaseId: string;
   createdAt: string; // ISO date-time string
+  sourceReadAt?: string; // when the publisher started reading the source: its content is at least this recent
   collections: Record<string, CollectionMeta>;
   media: Record<string, MediaMeta>;
   translations?: TranslationSummary;
@@ -98,6 +99,49 @@ export interface SourceMedia {
 export interface SourceItemRef {
   id: string;
   path?: string;
+  // Where the item's fields come from, keyed by field path in the CDS item ("translations.en.title")
+  fields?: Record<string, SourceFieldRef>;
+}
+
+// The source field a published value comes from: what an edit of that value has to change
+export interface SourceFieldRef {
+  collection: string; // source collection
+  id: string; // source record id
+  field: string; // source field
+  format?: "plain" | "html"; // text format, for editors (default plain)
+  editable?: boolean; // false for derived values: shown, but not editable in place (default true)
+}
+
+// An edit of one published value, addressed by its source field (the optional write side of an adapter)
+export interface SourceEdit {
+  ref: SourceFieldRef;
+  value: string;
+  basedOn: string | null; // the value the editor saw; the adapter refuses the edit when the source changed since
+}
+
+export type EditResult =
+  | { status: "saved"; value: string }
+  | { status: "conflict"; current: string | null }
+  | { status: "rejected"; message: string; code?: number };
+
+// The editor's own session with the source system. CDS holds no write credentials.
+export interface EditorSession {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number; // epoch ms
+  user?: { id: string; name?: string };
+}
+
+/**
+ * The optional write side of a source adapter. Edits go to the source system, never into a release:
+ * the next publish includes them. Adapters without it simply offer no editing.
+ */
+export interface SourceEditor {
+  login(credentials: { email: string; password: string }): Promise<EditorSession>;
+  refresh?(session: EditorSession): Promise<EditorSession>;
+  logout?(session: EditorSession): Promise<void>;
+  read(ref: SourceFieldRef, session: EditorSession): Promise<string | null>;
+  write(edit: SourceEdit, session: EditorSession): Promise<EditResult>;
 }
 
 export interface SourceMediaRef extends SourceItemRef {

@@ -171,6 +171,20 @@ All queries read from the in-memory cache of the **active** release and need no 
 
 The query API leaves locale fallback to the application. `item.translations[locale]` is `undefined` when an item lacks that locale.
 
+### Preview edits: `EditOverlay`
+
+A preview shows an edit as soon as it is saved in the source, before a release includes it. `setOverlay(overlay)` lays an `EditOverlay` over the active release: every read above sees the edited values. The release itself is never changed (overlaid items are copies), and `getPublishedCollection(name)` still returns the release's own items.
+
+```ts
+const overlay = new EditOverlay();
+client.setOverlay(overlay);
+overlay.set({ collection: "_blocks", id: "b_hero", path: "translations.en.title", value: "Welcome back" });
+// on each newly activated release: drop what it makes redundant
+overlay.prune((name) => client.getPublishedCollection(name), Date.parse(release.sourceReadAt ?? release.createdAt));
+```
+
+`prune` drops edits the release contains, and every edit saved before the release's source was read (`sourceReadAt`): the release has the source's state from then on, including later changes to an edited value. Values are addressed by `FieldAddress` (`{ collection, id, path }`); `formatAddress` / `parseAddress` turn it into `collection/id/path` (each part URI-encoded) and back, e.g. for a `data-` attribute on the element that shows the value.
+
 ## Current limitations
 
 - **Local GC:** pruning deletes old *release manifests* only. Objects and media they referenced stay in storage indefinitely.

@@ -6,6 +6,7 @@ import { Publisher, FilesystemStore } from "../server/src/index.js";
 import { CDSClient, MemoryStorage, FilesystemDownloader } from "../client/src/index.js";
 import { DirectusSource } from "../directus/src/source.js";
 import { createDirectusCompat, DirectusCompatError } from "../directus/src/compat.js";
+import { DirectusEditor, DirectusAuthError } from "../directus/src/editor.js";
 import { runQuery, project, parseFields } from "../directus/src/query.js";
 
 const FILE_ID = "4f4b14fa-a43a-46d0-b7ad-90af5919bebb";
@@ -178,5 +179,123 @@ describe("DirectusSource and the compat API", () => {
     const optional = new DirectusSource({ ...config, optional: ["secret"] });
     expect(Object.keys(await optional.getCollections())).toEqual(["pages", "_media"]);
     await expect(new DirectusSource(config).getCollections()).rejects.toThrow(/secret: 403/);
+  });
+});
+
+describe("DirectusSource with a mapping", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), "cds-directus-mapped-"));
+    mockDirectus();
+  });
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  const mapped = () =>
+    new DirectusSource({
+      url: "http://directus.test",
+      defaultLocale: "en-gb",
+      collections: { pages: {} },
+      mediaPath: (file) => `cms/${file.id}.jpg`,
+      map: (records, ctx) => ({
+        _pages: records.pages.filter((p) => p.status === "published").map((p) => ({
+          id: `page-${p.id}`,
+          key: p.slug,
+          hero: ctx.media(p.hero),
+          translations: { [ctx.locale]: { title: p.title } },
+          $origin: { collection: "pages", id: p.id },
+          $sources: { [`translations.${ctx.locale}.title`]: ctx.source("pages", p.id, "title") }
+        })),
+        languages: [{ id: "en-gb", key: "en-gb" }]
+      })
+    });
+
+  it("publishes the contract the mapping returns, with the files it asked for listed on the items", async () => {
+    const source = mapped();
+    const { manifest } = await new Publisher(source, new FilesystemStore(dir)).publish("production", "r1");
+    expect(Object.keys(manifest.collections).sort()).toEqual(["_media", "_pages", "languages"]);
+    expect(Object.keys(manifest.media)).toEqual([`cms/${FILE_ID}.jpg`]);
+
+    const client = new CDSClient({ storage: new MemoryStorage(), downloader: new FilesystemDownloader(dir) });
+    await client.initialize();
+    await client.sync("production");
+    const home = (await client.getCollection("_pages")).find((p) => p.key === "home")!;
+    expect(home).toMatchObject({ hero: `cms/${FILE_ID}.jpg`, media: [`cms/${FILE_ID}.jpg`], translations: { "en-gb": { title: "Home" } } });
+    expect(home).not.toHaveProperty("$sources");
+    expect(home).not.toHaveProperty("directus");
+    expect((await client.getCollection("languages"))[0].translations).toEqual({});
+    expect((await client.getCollection("_media"))[0]).toMatchObject({ filename: "Hotel Lobby.jpg", name: "hotel-lobby" });
+  });
+
+  it("puts each value's source field into the source map, for editing", async () => {
+    const map = await mapped().getSourceMap();
+    expect(map.collections._pages.items["page-1"]).toEqual({
+      id: "1",
+      path: "/admin/content/pages/1",
+      fields: { "translations.en-gb.title": { collection: "pages", id: "1", field: "title" } }
+    });
+  });
+});
+
+describe("DirectusEditor", () => {
+  let row: Record<string, any>;
+  let requests: Array<{ method: string; path: string; auth?: string; body?: any }>;
+
+  beforeEach(() => {
+    row = { id: "b1", title: "Welcome" };
+    requests = [];
+    vi.stubGlobal("fetch", async (input: string, init: RequestInit = {}) => {
+      const url = new URL(input);
+      const auth = (init.headers as Record<string, string> | undefined)?.Authorization;
+      const body = init.body ? JSON.parse(String(init.body)) : undefined;
+      requests.push({ method: init.method ?? "GET", path: url.pathname, auth, body });
+      const json = (status: number, data: unknown) =>
+        new Response(JSON.stringify(status < 300 ? { data } : { errors: [{ message: String(data) }] }), { status, headers: { "content-type": "application/json" } });
+      if (url.pathname === "/auth/login") {
+        return body.password === "secret" ? json(200, { access_token: "access-1", refresh_token: "refresh-1", expires: 900000 }) : json(401, "Invalid user credentials.");
+      }
+      if (url.pathname === "/auth/refresh") return json(200, { access_token: "access-2", refresh_token: "refresh-2", expires: 900000 });
+      if (url.pathname === "/users/me") return json(200, { id: "u1", first_name: "Erin", last_name: "Editor" });
+      if (auth === "Bearer expired") return json(401, "Token expired.");
+      if (url.pathname === "/items/block_hero/b1" && (init.method ?? "GET") === "GET") return json(200, { title: row.title });
+      if (url.pathname === "/items/block_hero/b1" && init.method === "PATCH") {
+        Object.assign(row, body);
+        return json(200, { title: row.title });
+      }
+      return json(403, "Forbidden");
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const ref = { collection: "block_hero", id: "b1", field: "title" };
+
+  it("signs in as the editor and writes one field with their session", async () => {
+    const editor = new DirectusEditor({ url: "http://directus.test" });
+    const session = await editor.login({ email: "erin@example.com", password: "secret" });
+    expect(session).toMatchObject({ accessToken: "access-1", refreshToken: "refresh-1", user: { id: "u1", name: "Erin Editor" } });
+
+    expect(await editor.write({ ref, value: "Welcome back", basedOn: "Welcome" }, session)).toEqual({ status: "saved", value: "Welcome back" });
+    expect(row.title).toBe("Welcome back");
+    const patch = requests.find((r) => r.method === "PATCH")!;
+    expect(patch).toMatchObject({ path: "/items/block_hero/b1", auth: "Bearer access-1", body: { title: "Welcome back" } });
+  });
+
+  it("refuses an edit based on a value that changed since, and never writes then", async () => {
+    const editor = new DirectusEditor({ url: "http://directus.test" });
+    const session = await editor.login({ email: "erin@example.com", password: "secret" });
+    row.title = "Changed meanwhile";
+    expect(await editor.write({ ref, value: "Mine", basedOn: "Welcome" }, session)).toEqual({ status: "conflict", current: "Changed meanwhile" });
+    expect(requests.some((r) => r.method === "PATCH")).toBe(false);
+  });
+
+  it("rejects derived values, bad logins and expired sessions", async () => {
+    const editor = new DirectusEditor({ url: "http://directus.test" });
+    const session = await editor.login({ email: "erin@example.com", password: "secret" });
+    expect((await editor.write({ ref: { ...ref, editable: false }, value: "x", basedOn: "Welcome" }, session)).status).toBe("rejected");
+    await expect(editor.login({ email: "erin@example.com", password: "wrong" })).rejects.toBeInstanceOf(DirectusAuthError);
+    await expect(editor.write({ ref, value: "x", basedOn: "Welcome" }, { accessToken: "expired" })).rejects.toBeInstanceOf(DirectusAuthError);
+    expect((await editor.refresh(session)).accessToken).toBe("access-2");
   });
 });

@@ -6,7 +6,7 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - `schemas/v1/*.json`: the wire format (JSON Schema draft-07). This is the source of truth.
 - `server/` (`@cds/server`): `Publisher`, `ContentSource` / `ObjectStore` interfaces, `FixtureSource`, `FilesystemStore`
 - `client/` (`@cds/client`): `CDSClient`, `ClientStorage` / `RemoteDownloader` interfaces, `MemoryStorage`, `FilesystemStorage`
-- `directus/` (`@cds/directus`): `DirectusSource` (GET-only publishing from Directus), `cds-directus-publish` CLI, `createDirectusCompat` (Directus REST semantics over a synced client). See docs/directus.md.
+- `directus/` (`@cds/directus`): `DirectusSource` (GET-only publishing; a site mapping turns records into the CDS contract, `$sources` go into the source map), `cds-directus-publish --mapping` CLI, `DirectusEditor` (optional write side for editable previews), `createDirectusCompat` (migration aid: Directus REST semantics over a raw release). See docs/directus.md.
 - `imaging/` (`@cds/imaging`): complementary image processor (sharp): crops by focal point, sizes per breakpoint. Not CDS core; the demo generator uses it after sync.
 - `demo/`: publishes `demo/data/*.json`, syncs it, and builds an EN/DE site from `_routes`/`_pages`/`_blocks`/`_menu` (static files or a Hono server)
 - `tests/integration.test.ts`: a single end-to-end lifecycle test (publish, sync, CAS reuse, retention, GC)
@@ -19,6 +19,7 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - No lint config exists, even though a `lint` script is defined.
 
 ## Conventions and gotchas
+- **Edits never go into CDS.** Editing is an adapter's optional write side (`SourceEditor`): an edit addressed by CDS field address goes to the source field the source map names; previews show it through the client's `EditOverlay` until a release includes it.
 - **CDS reports, it doesn't transform.** No machine translation, AI processing or image rendering in CDS; those run in the CMS or complementary projects. CDS carries their results (`_provenance` markers) and reports.
 - Reserved names: item field `_provenance`; collections `_media` (media metadata, validated against the release's media) and `_jsonld` (schema.org definitions); optional site structure `_routes`, `_pages`, `_blocks` and menus `_menu` (validated only when present). The JSON-LD path reader exists in both server (validation, report) and client (resolution); keep them in sync. Only names the schema defines are CDS fields.
 - Relative imports need a `.js` extension (`./types.js`), because of NodeNext ESM.

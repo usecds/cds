@@ -37,6 +37,7 @@ G7 Routes, pages, blocks ─▶ G8 Menus ─▶ G9 Demo on the site structure (s
 The first end-to-end run against real systems.
 - Done: **`@cds/directus`** with `DirectusSource` (GET only; records, referenced files, `_media`, source map), the `cds-directus-publish` CLI, and `createDirectusCompat`, a Directus-compatible read API over a synced client. Proven on hotelplatform.io: identical rendered pages with CDS in between ([directus.md](directus.md)).
 - Done: `HttpDownloader` and `FilesystemDownloader` in `@cds/client`.
+- Done: mapped publishing (a site mapping turns records into the CDS contract) and editing (P13): field-level source map, `SourceEditor` / `DirectusEditor`, the client's `EditOverlay`, `sourceReadAt` on releases. hotelplatform.io reads CDS natively and has an editable preview.
 - Open: real ETag handling in `sync()` (`If-None-Match`, `304`) end to end; publishing from a Directus flow or webhook instead of a manual CLI run.
 
 ### G11: S3 object store

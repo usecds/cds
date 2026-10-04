@@ -398,7 +398,7 @@ _routes  ──page──▶  _pages  ──blocks[]──▶  _blocks  ──it
 
 - **Link targets:** `route` (resolved to the localized path), optionally with `block` (anchor), or an external `url`. The same link shape is used by blocks (hero buttons), so menus and blocks share one link model.
 - **Per locale:** labels are translated content. An entry without a label in a locale is hidden there and reported.
-- **Checks:** no cycles, link targets exist, a maximum depth (e.g. 3); external URLs must be absolute.
+- **Checks:** no cycles, link targets exist, a maximum depth (e.g. 3); external URLs must be absolute (`https://`, protocol-relative `//host`, `mailto:`, `tel:`).
 - **Client:** `getMenu(key, locale)` → a tree of `{ label, href, children }` with resolved hrefs.
 
 ### Decided: frontends read CDS, not the backend's API
@@ -409,7 +409,7 @@ The Directus compat layer in `@cds/directus` (Directus REST semantics answered f
 
 ### P13: Editing in the frontend, through the source adapter
 
-**Status: decided direction, not implemented.**
+**Status: first version implemented** (field-level source map, `SourceEditor` with `DirectusEditor`, `EditOverlay` in the client, `sourceReadAt` on releases), and proven on hotelplatform.io with an editable Nuxt preview ([directus.md](directus.md#case-study-hotelplatformio)). Still open: rich text beyond bold/italic/links, images, and a write side for other adapters.
 
 **Problem:** editors want to fix wording where they see it: on the page, in a preview mode. If the frontend writes to the backend directly (as Directus' Visual Editor does), the frontend is tied to that backend again, which defeats the contract.
 
