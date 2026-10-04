@@ -61,12 +61,22 @@ export function startServer(options: {
     }
   }, options.syncIntervalMs).unref();
 
-  serve({ fetch: app.fetch, port }, (info) => {
+  const server = serve({ fetch: app.fetch, port }, (info) => {
     console.log(`🌐 [Hono] Serving the demo at http://localhost:${info.port}/ (routes from _routes, Ctrl+C to stop)`);
     for (const route of client.getRoutes()) {
       for (const [locale, routePath] of Object.entries(route.paths)) {
         console.log(`   ${locale}  http://localhost:${info.port}${routePath}${route.redirect ? "  (redirect)" : ""}`);
       }
     }
+  });
+
+  // Without this, a busy port fails silently: no URL, no error, and the process keeps running
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`❌ [Hono] Port ${port} is already in use. Stop the other process or choose another port: pnpm demo:serve --port=${port + 1}`);
+    } else {
+      console.error("❌ [Hono] Server error:", err);
+    }
+    process.exit(1);
   });
 }

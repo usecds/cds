@@ -5,7 +5,7 @@ The demo runs the full CDS pipeline in one process: it publishes a release, sync
 | Mode | Command | Output |
 | --- | --- | --- |
 | **static** (default) | `pnpm demo` | One HTML file per route and language in `demo/dist/`, with relative links; for prerendered hosting |
-| **hono** | `pnpm demo:serve` (or `--mode=hono --port=3000`) | A [Hono](https://hono.dev) server that resolves every request path through the client's routes at request time (SSR) |
+| **hono** | `pnpm demo:serve` (port 3000; another one with `pnpm demo:serve --port=3001`) | A [Hono](https://hono.dev) server that resolves every request path through the client's routes at request time (SSR) |
 
 ## Run it
 
