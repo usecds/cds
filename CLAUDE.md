@@ -6,13 +6,14 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - `schemas/v1/*.json`: the wire format (JSON Schema draft-07). This is the source of truth.
 - `server/` (`@cds/server`): `Publisher`, `ContentSource` / `ObjectStore` interfaces, `FixtureSource`, `FilesystemStore`
 - `client/` (`@cds/client`): `CDSClient`, `ClientStorage` / `RemoteDownloader` interfaces, `MemoryStorage`, `FilesystemStorage`
+- `directus/` (`@cds/directus`): `DirectusSource` (GET-only publishing from Directus), `cds-directus-publish` CLI, `createDirectusCompat` (Directus REST semantics over a synced client). See docs/directus.md.
 - `imaging/` (`@cds/imaging`): complementary image processor (sharp): crops by focal point, sizes per breakpoint. Not CDS core; the demo generator uses it after sync.
 - `demo/`: publishes `demo/data/*.json`, syncs it, and builds an EN/DE site from `_routes`/`_pages`/`_blocks`/`_menu` (static files or a Hono server)
 - `tests/integration.test.ts`: a single end-to-end lifecycle test (publish, sync, CAS reuse, retention, GC)
 
 ## Commands
 - `pnpm test`: Vitest, imports from `src`, no build needed
-- `pnpm build`: `tsc` for server, client and imaging (demo imports their `dist`)
+- `pnpm build`: `tsc` for server, client, imaging and directus (demo and apps using them import their `dist`)
 - `pnpm demo`: builds, then writes the static site (one file per route and language) to `demo/dist/`
 - `pnpm demo:serve`: the same site served by Hono (SSR), routes resolved per request, images rendered on first request; `pnpm demo:images` pre-generates them into `demo/cache-site/`. The demo compiles to `demo/build/`; each mode works in `demo/.work/<mode>/`
 - No lint config exists, even though a `lint` script is defined.
@@ -31,7 +32,7 @@ TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed 
 - The server throws if schema files are missing. The client falls back to loose inline schemas (`client/src/validation.ts`).
 
 ## Not implemented yet (don't assume these exist)
-S3 store, Directus source, IndexedDB storage, HTTP downloader, client-side rollback API, client object/media GC, delta sync (Milestone 2). Image rendering lives in `imaging/`, not in CDS core.
+S3 store, IndexedDB storage, client-side rollback API, client object/media GC, delta sync (Milestone 2). Image rendering lives in `imaging/`, not in CDS core.
 
 ## Git
 Branch `dev`, main branch `main`. Commit style: conventional commits (`feat(cds): …`, `feat(demo): …`).

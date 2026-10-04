@@ -9,6 +9,7 @@ The Content Distribution System (CDS) moves content out of a CMS and into immuta
 | [schemas.md](schemas.md) | The v1 JSON schemas (manifests, collections, media metadata, JSON-LD, site structure, menus, targets) and the storage layout |
 | [server.md](server.md) | `@cds/server`: `Publisher`, content sources, object stores, retention and garbage collection |
 | [client.md](client.md) | `@cds/client`: `CDSClient`, the sync algorithm, storage adapters, the query API |
+| [directus.md](directus.md) | `@cds/directus`: publishing from Directus, and a Directus-compatible read API over a synced release (with the hotelplatform.io case study) |
 | [imaging.md](imaging.md) | `@cds/imaging`: the complementary image processor (crops, focal points, sizes per breakpoint) |
 | [demo.md](demo.md) | `@cds/demo`: the multilingual landing page generator that runs the full pipeline end to end |
 

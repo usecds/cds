@@ -65,6 +65,18 @@ importers:
         specifier: ^5.5.4
         version: 5.9.3
 
+  directus:
+    devDependencies:
+      '@cds/client':
+        specifier: workspace:*
+        version: link:../client
+      '@cds/server':
+        specifier: workspace:*
+        version: link:../server
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
   imaging:
     dependencies:
       sharp:

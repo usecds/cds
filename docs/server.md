@@ -323,6 +323,6 @@ GC is **not** called by `publish()`. Run it separately, for example after each p
 
 ## Current limitations
 
-- Only the filesystem store and fixture source exist. Directus and S3 adapters are planned but not implemented.
+- Only the filesystem store exists; S3 is planned. Sources: the fixture source here, and `DirectusSource` in `@cds/directus` ([directus.md](directus.md)).
 - No locking: two concurrent publishers to the same store can race on the channel manifest and on retention.
 - Delta / diff releases (Milestone 2) are not implemented.

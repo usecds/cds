@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Content Distribution System (CDS)",
   "scripts": {
-    "build": "pnpm --filter=server build && pnpm --filter=client build && pnpm --filter=imaging build",
+    "build": "pnpm --filter=server build && pnpm --filter=client build && pnpm --filter=imaging build && pnpm --filter=@cds/directus build",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts",

@@ -2,4 +2,5 @@ packages:
   - 'server'
   - 'client'
   - 'imaging'
+  - 'directus'
   - 'demo'

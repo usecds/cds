@@ -32,11 +32,12 @@ G7 Routes, pages, blocks ─▶ G8 Menus ─▶ G9 Demo on the site structure (s
 
 ## Next (proposed)
 
-### G10: Real content source and transport
+### G10: Real content source and transport (largely done, on `feat/directus-adapter`)
 
-The first end-to-end run against real systems; today everything runs against local files.
-- **HTTP `RemoteDownloader`** in `@cds/client`, with real ETag handling in `sync()` (`If-None-Match`, `304`).
-- **Directus `ContentSource`**: collections and files from a Directus instance, mapped to CDS items (`translations`, `_media` metadata incl. focal point, source map links back to Directus).
+The first end-to-end run against real systems.
+- Done: **`@cds/directus`** with `DirectusSource` (GET only; records, referenced files, `_media`, source map), the `cds-directus-publish` CLI, and `createDirectusCompat`, a Directus-compatible read API over a synced client. Proven on hotelplatform.io: identical rendered pages with CDS in between ([directus.md](directus.md)).
+- Done: `HttpDownloader` and `FilesystemDownloader` in `@cds/client`.
+- Open: real ETag handling in `sync()` (`If-None-Match`, `304`) end to end; publishing from a Directus flow or webhook instead of a manual CLI run.
 
 ### G11: S3 object store
 

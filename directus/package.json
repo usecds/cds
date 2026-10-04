@@ -1,0 +1,25 @@
+{
+  "name": "@cds/directus",
+  "version": "1.0.0",
+  "description": "Directus adapter for CDS: a content source for publishing, and a Directus-compatible read API over a synced CDS release",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./compat": "./dist/compat.js",
+    "./source": "./dist/source.js"
+  },
+  "bin": {
+    "cds-directus-publish": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist"
+  },
+  "devDependencies": {
+    "@cds/client": "workspace:*",
+    "@cds/server": "workspace:*",
+    "typescript": "^5.5.4"
+  }
+}
