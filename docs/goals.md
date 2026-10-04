@@ -401,6 +401,41 @@ _routes  ──page──▶  _pages  ──blocks[]──▶  _blocks  ──it
 - **Checks:** no cycles, link targets exist, a maximum depth (e.g. 3); external URLs must be absolute.
 - **Client:** `getMenu(key, locale)` → a tree of `{ label, href, children }` with resolved hrefs.
 
+### Decided: frontends read CDS, not the backend's API
+
+CDS is the data contract between a backend and a frontend: either side can be replaced without touching the other. A frontend therefore reads CDS collections (`getCollection`, `_routes`, `_pages`, `_menu`, …), not the backend's query language.
+
+The Directus compat layer in `@cds/directus` (Directus REST semantics answered from a release) does the opposite: the frontend keeps thinking in Directus. It is a **migration aid** for existing Directus frontends, proven on hotelplatform.io. It is not the target integration.
+
+### P13: Editing in the frontend, through the source adapter
+
+**Status: decided direction, not implemented.**
+
+**Problem:** editors want to fix wording where they see it: on the page, in a preview mode. If the frontend writes to the backend directly (as Directus' Visual Editor does), the frontend is tied to that backend again, which defeats the contract.
+
+**Decided:**
+- **Edits never go into CDS.** Releases stay immutable, CDS stores no edits, and the backend stays the only source of truth. Writing into a release or keeping edits in CDS is the anti-pattern.
+- **Editing belongs to the content source adapter.** Every adapter must do the read side (backend → CDS). It may also support the write side (an edit addressed in CDS terms → the backend's own update). An adapter without the write side simply means "no editing for this backend".
+
+```
+read:  backend ──adapter.read──▶ release ──▶ frontend
+edit:  frontend ──{ collection, item, field, locale, value, basedOn }──▶ adapter.write ──▶ backend
+```
+
+**What it takes:**
+- **Field-level addressing.** The frontend only knows CDS addresses (`pages/home/title/en`) and marks editable text with them in preview (e.g. `data-cds="…"`). The adapter maps an address to its source: collection, record, field (for Directus: `pages` item 12, field `title`, or a translation row). This extends the source map (P6) from items to fields.
+- **Only 1:1 fields are editable.** The adapter tells which fields map 1:1 to a source field and which are derived (joined, computed, converted from Markdown, taken from another record). Derived fields aren't editable in place.
+- **Conflicts.** An edit carries the source version it was based on (`basedOn`; for Directus `date_updated`). The adapter refuses it when the record changed in the meantime.
+- **Permissions.** The write runs with the editor's own credentials, and the backend enforces its own permissions. CDS holds no write credentials and does no authentication.
+- **Translations.** An edit targets one locale. Editing a machine translation marks it human-made in `_provenance` (P2).
+- **Showing the result.** The preview client lays unpublished edits over the release (an overlay, preview only) until the next publish includes them.
+
+**Open:**
+- The adapter interface: the shape of `write`, how an adapter declares which fields are editable, and the error and conflict results.
+- Rich text: what the editor sends and how the adapter converts it to the backend's format.
+- Where the editing UI lives (likely a companion package, like `@cds/imaging`).
+- How the preview obtains the editor's credentials for the backend.
+
 ### Verification against the demo
 
 The demo page mapped onto P11/P12:
