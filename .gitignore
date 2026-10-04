@@ -48,5 +48,7 @@ tmp/
 # Demo ephemeral files
 demo/dist/
 demo/.work/
+demo/published/
+demo/cache/
 demo/reports/
 demo/cache-site/
