@@ -68,6 +68,44 @@ export interface ResponsiveSize {
 const VECTOR_TYPES = new Set(["image/svg+xml"]);
 
 /**
+ * URL-safe, readable file name part: lowercase ASCII words joined by dashes.
+ * "Küste mit Leuchtturm.png" -> "kueste-mit-leuchtturm-png"
+ */
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Base name of a media file for output: the _media name if set, otherwise the original
+ * file name without folder and extension.
+ */
+export function mediaBaseName(virtualPath: string, name?: string): string {
+  const original = virtualPath.split("/").pop()!.replace(/\.[^.]+$/, "");
+  return slugify(name || original) || "image";
+}
+
+/**
+ * Readable, cache-safe variant file name: <base>[-<preset>][-<width>].<shortid>.<ext>.
+ * The short id comes from the variant key, so the name changes whenever the content does.
+ */
+export function variantFileName(parts: {
+  base: string;
+  preset?: string;
+  width?: number; // only when needed to tell variants of the same base, preset and format apart
+  key: string;
+  format: string;
+}): string {
+  const ext = parts.format === "jpeg" ? "jpg" : parts.format;
+  const name = [parts.base, parts.preset, parts.width].filter((p) => p !== undefined && p !== "").join("-");
+  return `${name}.${parts.key.slice(0, 8)}.${ext}`;
+}
+
+/**
  * Vector images scale to any size on their own, and rasterizing makes them larger and blurrier.
  * Generators should pass them through unchanged instead of rendering variants.
  */

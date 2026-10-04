@@ -37,6 +37,7 @@ export interface CollectionItem {
 
 // Item of the reserved _media collection; id = the media file's virtual path
 export interface MediaMetadataItem extends CollectionItem {
+  name?: string; // readable output file name; defaults to the original file name
   translations: Record<string, { alt?: string | null; description?: string | null; [field: string]: any }>;
   focalPoint?: { x: number; y: number }; // 0..1, relative to width/height
   focalPoints?: Record<string, { x: number; y: number }>; // named points of interest, e.g. per crop

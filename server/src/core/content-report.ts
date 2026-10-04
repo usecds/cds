@@ -3,6 +3,7 @@ import { compileContentSchema, ContentSchemaError } from "../validation.js";
 import { deterministicStringify } from "../utils.js";
 import { CollectionRules, DEFAULT_TARGET_ID, ResolvedTargets, TargetDefinition } from "./targets.js";
 import { ItemLocales, TranslationReport } from "./translations.js";
+import { meaninglessNameReason, suggestMediaName } from "./media-names.js";
 
 export type IssueSeverity = "requirement" | "recommendation";
 
@@ -49,9 +50,13 @@ export function buildContentReport(
   collections: Record<string, CollectionItem[]>,
   translations: TranslationReport,
   resolved: ResolvedTargets,
-  sourceMap?: SourceMap,
-  itemLocales?: ItemLocales
+  options: {
+    sourceMap?: SourceMap;
+    itemLocales?: ItemLocales;
+    mediaPaths?: string[]; // published media, checked for meaningless file names
+  } = {}
 ): ContentReport {
+  const { sourceMap, itemLocales } = options;
   const allLocales = new Set<string>();
   for (const items of Object.values(collections)) {
     items.forEach((item) => Object.keys(item.translations).forEach((l) => allLocales.add(l)));
@@ -75,6 +80,8 @@ export function buildContentReport(
     });
   }
 
+  report.issues.push(...checkMediaNames(ctx, options.mediaPaths ?? []));
+
   const defaultIssues = evaluateTarget(ctx, resolved.defaultTarget);
   report.issues.push(...defaultIssues);
   const defaultFailed = countBy(defaultIssues, "requirement");
@@ -96,6 +103,34 @@ export function buildContentReport(
   }
 
   return report;
+}
+
+// File names like IMG_2034.jpg or a UUID say nothing about the image; suggest a name from its alt text
+function checkMediaNames(ctx: Context, mediaPaths: string[]): ContentIssue[] {
+  const issues: ContentIssue[] = [];
+  const sourceLocale = ctx.translations.sourceLocale;
+  for (const path of mediaPaths) {
+    const meta = ctx.collections._media?.find((m) => m.id === path);
+    const name = typeof meta?.name === "string" && meta.name ? meta.name : undefined;
+    const reason = meaninglessNameReason(name ?? path);
+    if (!reason) continue;
+
+    const alts = meta ? [meta.translations[sourceLocale]?.alt, ...Object.values(meta.translations).map((t) => t?.alt)] : [];
+    const alt = alts.find((a): a is string => typeof a === "string" && a.length > 0);
+    const suggestion = alt ? suggestMediaName(alt) : undefined;
+    const shown = name ?? path.split("/").pop();
+    issues.push({
+      severity: "recommendation",
+      issue: "meaningless-name",
+      message: `${name ? "_media name" : "File name"} "${shown}" doesn't describe the image (${reason}). Set a name in _media${suggestion ? `, e.g. "${suggestion}"` : ""}.`,
+      collection: "_media",
+      id: path,
+      field: "name",
+      ...(suggestion ? { recommended: suggestion } : {}),
+      source: sourceLink(ctx, "_media", path)
+    });
+  }
+  return issues;
 }
 
 function evaluateTarget(ctx: Context, target: TargetDefinition): ContentIssue[] {

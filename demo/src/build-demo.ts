@@ -37,6 +37,8 @@ import {
   cropRegion,
   isVector,
   presetFormats,
+  mediaBaseName,
+  variantFileName,
   MIME_TYPES,
   ImageFormat,
   Preset,
@@ -282,15 +284,18 @@ async function run() {
     const alt = escapeAttr(info.alt ?? "");
 
     // Vector images scale on their own: serve the original instead of rasterized variants
+    // Output names: the _media name or the original file name, plus a short id for caching
+    const base = mediaBaseName(info.path, info.name);
     if (isVector(info.mimeType)) {
-      if (!copied.has(info.path)) {
-        await fs.writeFile(path.join(distDir, "media", info.path), original);
-        copied.add(info.path);
+      const file = `media/${variantFileName({ base, key: info.hash, format: info.path.split(".").pop()!.toLowerCase() })}`;
+      if (!copied.has(file)) {
+        await fs.writeFile(path.join(distDir, file), original);
+        copied.add(file);
         stats.vector++;
       }
-      pageImages.set(`media/${info.path}`, info);
+      pageImages.set(file, info);
       return {
-        html: `<img src="media/${info.path}" alt="${alt}" width="${info.width ?? ""}" height="${info.height ?? ""}" class="${imgClass}">`,
+        html: `<img src="${file}" alt="${alt}" width="${info.width ?? ""}" height="${info.height ?? ""}" class="${imgClass}">`,
         report: {
           path: info.path, preset: "original (vector)", variants: 0, formats: "svg",
           storedBytes: original.length, renderMs: 0, originalBytes: original.length,
@@ -304,8 +309,9 @@ async function run() {
     const groups = new Map<number, Map<ImageFormat, (Variant & { dpr: number })[]>>();
     const used = new Set<Variant>();
 
+    const focalPoint = crop.focalPoint ?? info.focalPoint;
+    const planned: { size: ReturnType<typeof responsiveSizes>[number]; format: ImageFormat; options: RenderOptions; key: string }[] = [];
     for (const size of responsiveSizes(preset, imageContract.breakpoints!, imageContract.dpr)) {
-      const focalPoint = crop.focalPoint ?? info.focalPoint;
       // Higher pixel ratios only help if the source has the pixels
       const available = fill && info.width && info.height
         ? cropRegion(info.width, info.height, size.width / size.height!, focalPoint, crop.zoom).width
@@ -314,7 +320,6 @@ async function run() {
         stats.skipped += formats.length;
         continue;
       }
-
       for (const format of formats) {
         const options: RenderOptions = {
           width: size.width,
@@ -327,7 +332,15 @@ async function run() {
           lossless: preset.lossless,
           background: preset.background
         };
-        const key = variantKey(info.hash, options);
+        planned.push({ size, format, options, key: variantKey(info.hash, options) });
+      }
+    }
+    // The width is only part of the name when one format has several sizes
+    const sizesPerFormat = new Map<ImageFormat, number>();
+    for (const p of planned) sizesPerFormat.set(p.format, (sizesPerFormat.get(p.format) ?? 0) + 1);
+
+    for (const { size, format, options, key } of planned) {
+      {
         let variant = variants.get(key);
         if (variant) {
           stats.reused++;
@@ -341,8 +354,9 @@ async function run() {
             console.log(`⚠️  [Imaging] ${info.path} ${presetName} as ${format}: transparency flattened onto ${preset.background ?? "#ffffff"}`);
           }
           // Name and MIME type follow the requested format (sharp reports AVIF as "heif")
+          const width = (sizesPerFormat.get(format) ?? 0) > 1 ? size.width : undefined;
           variant = {
-            file: `media/${key.slice(0, 16)}.${format === "jpeg" ? "jpg" : format}`,
+            file: `media/${variantFileName({ base, preset: presetName, width, key, format })}`,
             format,
             width: result.width,
             height: result.height,

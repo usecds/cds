@@ -163,7 +163,11 @@ export class Publisher {
 
     // 4. Check targets; an unmet requirement fails the build before anything is written
     const resolved = resolveTargets(options.targets ?? []);
-    const content = buildContentReport(rawCollections, translations, resolved, sourceMap, itemLocales);
+    const content = buildContentReport(rawCollections, translations, resolved, {
+      sourceMap,
+      itemLocales,
+      mediaPaths: rawMedia.map((m) => m.virtualPath)
+    });
     content.warnings.push(...warnings);
     const artifacts: PublishArtifacts = { translations, content, targets: resolved.effective };
     if (sourceMap) {

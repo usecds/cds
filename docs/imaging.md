@@ -45,6 +45,16 @@ A target declares the screen sizes it supports and, per preset, the width to ren
 
 Widths are declared explicitly per breakpoint, not derived. Rendered pixels = CSS width × DPR.
 
+## File names
+
+Output files get readable names with a short id: `<name>[-<preset>][-<width>].<shortid>.<ext>`, for example `coast-lighthouse-banner-1152.7350c4c1.avif` or `hero.95c23ffb.svg`.
+
+- **Name:** the `name` from `_media` if set, otherwise the original file name (without folder and extension), as a slug (`slugify`, `mediaBaseName`). One name for all languages; the alt text carries the language.
+- **Width:** only included when one format of an image and preset has several sizes, i.e. when it's needed to tell the files apart.
+- **Short id:** the first 8 characters of the variant key (or of the media hash for passed-through SVGs). It changes whenever the content changes, so files can be cached forever, and two sources with the same name can't collide.
+
+CDS storage itself stays content-addressed (`media/<sha256>.<ext>`); readable names only apply to the generator's output. The content report flags meaningless original names (see [server.md](server.md#targets)).
+
 ## Formats
 
 Measured on the demo images (1152 px wide):
@@ -75,6 +85,7 @@ Inside `<picture>`, the browser takes the **first** `<source>` whose `media` and
 | `cropRegion(srcW, srcH, aspect, focalPoint?, zoom?)` | The source region a `fill` render keeps: largest region of the output aspect, shrunk by `zoom`, centered on the focal point, clamped to the edges |
 | `render(bytes, options)` | Renders one variant: `{ data, width, height, format, upscaled }` |
 | `variantKey(sourceHash, options)` | Identity of a variant, known before rendering: SHA-256 of the source hash and the canonical options |
+| `slugify(text)`, `mediaBaseName(path, name?)`, `variantFileName(parts)` | Readable output file names (see above) |
 | `isVector(mimeType)` | `true` for SVG. Vector images aren't rendered: they scale on their own, and rasterizing makes them larger and blurrier (the demo's 1.3 KB hero SVG became 3.6–5.3 KB per WebP). Generators serve the original. |
 
 `RenderOptions`: `width`, `height` (required for `fill`), `fit`, `focalPoint`, `zoom` (≥ 1, `fill` only), `format`, `quality`, `lossless`, `background`. `RenderResult` adds `upscaled` and `flattened` for reporting.

@@ -332,6 +332,7 @@ export class CDSClient {
     const item = this.collectionsCache.get("_media")?.find((i) => i.id === virtualPath);
     if (!item) return info;
 
+    if (typeof item.name === "string" && item.name) info.name = item.name;
     if (typeof item.width === "number") info.width = item.width;
     if (typeof item.height === "number") info.height = item.height;
     if (item.focalPoint) info.focalPoint = item.focalPoint;

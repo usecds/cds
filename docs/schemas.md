@@ -168,6 +168,7 @@ Alt texts, descriptions, focal points and sizes of media files are content, kept
 | Field | Type | Notes |
 | --- | --- | --- |
 | `id` | string | The media file's virtual path; must exist in the release's `media` map. `key` is the same value. |
+| `name` | string | Optional readable name for output files (e.g. `coast-lighthouse`). Defaults to the original file name. |
 | `translations[locale].alt` | string | Short functional text for accessibility (recommended 1–125 characters) |
 | `translations[locale].description` | string | Longer text for llms.txt, SEO and JSON-LD (recommended 50–300 characters) |
 | `focalPoint` | `{ x, y }`, each `0..1` | The important point of the image, relative to width and height; used when cropping |

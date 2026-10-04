@@ -5,6 +5,7 @@
   "type": "object",
   "properties": {
     "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "description": "Readable output file name (slug); defaults to the original file name" },
     "translations": {
       "type": "object",
       "additionalProperties": {
