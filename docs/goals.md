@@ -78,7 +78,7 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_provenance`)
 
 ### P3: Optimized media (pre-rendered, imgproxy-compatible)
 
-**Status: moved out of CDS** into the complementary package `@cds/imaging` ([imaging.md](imaging.md)), which runs in the site generator after sync. Following "CDS reports, it doesn't transform", image rendering is not part of CDS core. CDS provides its inputs: original media, focal point and intrinsic size (P8), and the presets/breakpoints declared in targets (P7). The design below is kept as the starting point for that project.
+**Status: moved out of CDS** into the complementary package `@cds/imaging` ([imaging.md](imaging.md)), which runs in the site generator after sync. Optional and early stage; its main idea is fully prerendered sites without runtime dependencies. A live imgproxy service can be added, but needs separate hosting. Following "CDS reports, it doesn't transform", image rendering is not part of CDS core. CDS provides its inputs: original media, focal point and intrinsic size (P8), and the presets/breakpoints declared in targets (P7). The design below is kept as the starting point for that project.
 **Open:** how rendered variants come back into a release (e.g. as additional media through a `ContentSource`, with a variant map in the release), and whether CDS reports the required variants per target as a build artifact for the image project to consume.
 
 **Problem:** Clients get original media only. Resized or cropped variants would normally need a live image server.

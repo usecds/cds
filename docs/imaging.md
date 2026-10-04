@@ -1,5 +1,7 @@
 # Image processor (`@cds/imaging`)
 
+> **Optional, early stage.** The main idea is **fully prerendered sites without runtime dependencies**: every image variant is rendered at build time and served as a static file from any host or CDN. A live image service such as imgproxy can still be added (e.g. for sizes nobody declared), but it has to be hosted and operated separately. It's not part of CDS or this package.
+
 A complementary package, separate from `@cds/server` and `@cds/client`. CDS itself doesn't transform content (see [goals.md](goals.md)), so CDS carries the inputs and this package renders the images:
 
 - the **original** media file (from the release)

@@ -477,9 +477,71 @@ async function run() {
         </div>
     </section>` : ""}
 
+    <!-- Features Section -->
+    <section class="py-20 bg-slate-950/50 border-b border-slate-900">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-bold text-white mb-4">
+                    ${locale === 'en' ? 'Core Capabilities' : 'Kernfunktionen'}
+                </h2>
+                <p class="text-slate-400 max-w-xl mx-auto">
+                    ${locale === 'en'
+                      ? 'Engineered for reliability, ultra-low latency, and absolute independent client delivery.'
+                      : 'Entwickelt für Ausfallsicherheit, extrem niedrige Latenzzeiten und völlig unabhängige Bereitstellung.'}
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                ${features.map(feat => {
+                  const translation = feat.translations[locale];
+                  return `
+                  <div class="p-8 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition-colors">
+                      <h3 class="text-xl font-bold text-teal-400 mb-3">${translation.title}</h3>
+                      <p class="text-slate-400 leading-relaxed text-sm">${translation.description}</p>
+                  </div>
+                  `;
+                }).join("")}
+            </div>
+        </div>
+    </section>
+
+    <!-- Goals Section (Query list) -->
+    <section id="goals" class="py-20 bg-slate-950 border-b border-slate-900">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-bold text-white mb-4">
+                    ${locale === 'en' ? 'Design Principles' : 'Projektziele'}
+                </h2>
+                <p class="text-slate-400 max-w-xl mx-auto">
+                    ${locale === 'en' 
+                      ? 'CDS aims to revolutionize static asset pipelines for edge applications.' 
+                      : 'CDS revolutioniert statische Asset-Pipelines für Edge-Anwendungen.'}
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                ${goals.map(goal => {
+                  const translation = goal.translations[locale];
+                  return `
+                  <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800/60 flex flex-col items-center text-center">
+                      <span class="text-4xl mb-4">${translation.icon || '🎯'}</span>
+                      <h4 class="font-semibold text-white text-base leading-snug">${translation.title}</h4>
+                  </div>
+                  `;
+                }).join("")}
+            </div>
+        </div>
+    </section>
+
     <!-- One image, three crops around different focal points -->
     ${coast && crops.length ? `<section class="py-20 bg-slate-950 border-b border-slate-900">
         <div class="max-w-6xl mx-auto px-6">
+            <div class="max-w-3xl mx-auto mb-12 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 text-sm leading-relaxed">
+                <span class="inline-block text-[10px] uppercase font-bold tracking-wide text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-0.5 mb-2">${en ? "Optional · early stage" : "Optional · frühes Stadium"}</span>
+                <p class="text-slate-300">${en
+                  ? "Image processing is an optional complement to CDS (<code class=\"code-font text-amber-200\">@cds/imaging</code>), not part of its core. Its main idea is fully prerendered sites without runtime dependencies: every variant is rendered at build time and served as a static file. A live image service such as imgproxy can still be added for sizes nobody declared, but it has to be hosted separately."
+                  : "Die Bildverarbeitung ist eine optionale Ergänzung zu CDS (<code class=\"code-font text-amber-200\">@cds/imaging</code>), nicht Teil des Kerns. Die Grundidee sind vollständig vorgerenderte Websites ohne Laufzeitabhängigkeiten: Jede Variante wird beim Build gerendert und als statische Datei ausgeliefert. Ein Live-Bilddienst wie imgproxy kann für nicht deklarierte Größen ergänzt werden, muss aber separat betrieben werden."}</p>
+            </div>
             <div class="text-center mb-10">
                 <h2 class="text-3xl font-bold text-white mb-4">${content.galleryTitle}</h2>
                 <p class="text-slate-400 max-w-2xl mx-auto">${content.galleryIntro}</p>
@@ -547,62 +609,6 @@ async function run() {
             <p class="text-xs text-slate-500 mt-3">${en
               ? "Original counts the coast photo once per crop, since each crop is cut from it. Stored and render time cover every variant of the image, rendered once per build and shared by both language pages."
               : "Original zählt das Küstenfoto pro Ausschnitt, da jeder Ausschnitt daraus geschnitten wird. Gespeichert und Renderzeit umfassen alle Varianten des Bildes, einmal pro Build gerendert und von beiden Sprachseiten geteilt."}</p>
-        </div>
-    </section>
-
-    <!-- Features Section -->
-    <section class="py-20 bg-slate-950/50 border-b border-slate-900">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl font-bold text-white mb-4">
-                    ${locale === 'en' ? 'Core Capabilities' : 'Kernfunktionen'}
-                </h2>
-                <p class="text-slate-400 max-w-xl mx-auto">
-                    ${locale === 'en'
-                      ? 'Engineered for reliability, ultra-low latency, and absolute independent client delivery.'
-                      : 'Entwickelt für Ausfallsicherheit, extrem niedrige Latenzzeiten und völlig unabhängige Bereitstellung.'}
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                ${features.map(feat => {
-                  const translation = feat.translations[locale];
-                  return `
-                  <div class="p-8 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-slate-700 transition-colors">
-                      <h3 class="text-xl font-bold text-teal-400 mb-3">${translation.title}</h3>
-                      <p class="text-slate-400 leading-relaxed text-sm">${translation.description}</p>
-                  </div>
-                  `;
-                }).join("")}
-            </div>
-        </div>
-    </section>
-
-    <!-- Goals Section (Query list) -->
-    <section id="goals" class="py-20 bg-slate-950 border-b border-slate-900">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl font-bold text-white mb-4">
-                    ${locale === 'en' ? 'Design Principles' : 'Projektziele'}
-                </h2>
-                <p class="text-slate-400 max-w-xl mx-auto">
-                    ${locale === 'en' 
-                      ? 'CDS aims to revolutionize static asset pipelines for edge applications.' 
-                      : 'CDS revolutioniert statische Asset-Pipelines für Edge-Anwendungen.'}
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                ${goals.map(goal => {
-                  const translation = goal.translations[locale];
-                  return `
-                  <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800/60 flex flex-col items-center text-center">
-                      <span class="text-4xl mb-4">${translation.icon || '🎯'}</span>
-                      <h4 class="font-semibold text-white text-base leading-snug">${translation.title}</h4>
-                  </div>
-                  `;
-                }).join("")}
-            </div>
         </div>
     </section>
 
