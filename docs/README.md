@@ -5,7 +5,8 @@ The Content Distribution System (CDS) moves content out of a CMS and into immuta
 | Document | What it covers |
 | --- | --- |
 | [goals.md](goals.md) | Purpose, goals with current status, principles, non-goals, milestones |
-| [schemas.md](schemas.md) | The three v1 JSON schemas and the on-disk storage layout they describe |
+| [implementation-plan.md](implementation-plan.md) | What's done (G1–G9, image processor, report, llms.txt) and the proposed next groups (G10–G13) |
+| [schemas.md](schemas.md) | The v1 JSON schemas (manifests, collections, media metadata, JSON-LD, site structure, menus, targets) and the storage layout |
 | [server.md](server.md) | `@cds/server`: `Publisher`, content sources, object stores, retention and garbage collection |
 | [client.md](client.md) | `@cds/client`: `CDSClient`, the sync algorithm, storage adapters, the query API |
 | [imaging.md](imaging.md) | `@cds/imaging`: the complementary image processor (crops, focal points, sizes per breakpoint) |

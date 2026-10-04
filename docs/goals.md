@@ -459,10 +459,11 @@ Routes: `r_home` with `/` (en) and `/de/` (de) replaces the hard-coded `index.ht
 
 ### Open gaps against the goals
 
-Not assigned to a milestone yet, but needed before the table above is fully "done":
+Needed before the table above is fully "done"; [implementation-plan.md](implementation-plan.md) groups them as G10–G13:
 
 - Production adapters: S3-compatible `ObjectStore`, Directus `ContentSource`, HTTP `RemoteDownloader`, IndexedDB `ClientStorage` (#1, #5)
 - Browser-compatible hashing (WebCrypto) in the client (#1, #4)
 - Real HTTP ETag handling in `sync()` (#7)
 - Client rollback API and client-side object/media GC (#9)
-- Tier 2 specs: routing, layout tree, SEO metadata
+
+The Tier 2 specs from the root README (routing, layout tree, SEO metadata) are covered by P11 (routes, pages, blocks), P12 (menus) and P5 (JSON-LD).
