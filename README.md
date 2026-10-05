@@ -127,6 +127,7 @@ Collections represent arrays of normalized content entries. Each entry has a uni
     }
   ]
 }
+```
 
 ---
 
