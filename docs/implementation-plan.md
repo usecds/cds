@@ -2,13 +2,13 @@
 
 The proposals in [goals.md](goals.md#proposed-goals-under-discussion) were split into groups that could be built, tested and merged one at a time, each leaving the system working. Each group shipped with tests and doc updates (`docs/*.md`, status in `goals.md`). All groups below are on `dev`.
 
-Guiding rule: **CDS reports, it doesn't transform.** Machine translation and AI processing run in the CMS; image rendering lives in the complementary package `@cds/imaging`.
+Guiding rule: **CDS reports, it doesn't transform.** Machine translation and AI processing run in the CMS; image rendering lives in the complementary package `@usecds/imaging`.
 
 ```
 G1 Foundation ─▶ G2 Artifacts & GC ─▶ G3 Translations ─▶ G4 Targets & report ─▶ G5 Media metadata ─▶ G6 JSON-LD
                                                                                           │
 G7 Routes, pages, blocks ─▶ G8 Menus ─▶ G9 Demo on the site structure (static + Hono) ◀──┘
-                                       + @cds/imaging, publish report, llms.txt (alongside)
+                                       + @usecds/imaging, publish report, llms.txt (alongside)
 ```
 
 ## Done
@@ -26,7 +26,7 @@ G7 Routes, pages, blocks ─▶ G8 Menus ─▶ G9 Demo on the site structure (s
 | G9 Demo on the site structure | All structure as content; static mode (files per route) and Hono mode (routes resolved per request, live re-sync) | `c67e9dc`, `11a241a` |
 
 **Alongside the groups:**
-- **`@cds/imaging`** (P3, complementary): crops by focal point and zoom, sizes per breakpoint, formats ordered by measured size, readable file names, SVG pass-through, and a `VariantCache` that renders on request (`feat` commits `f5f4756` … `bab0fa3`).
+- **`@usecds/imaging`** (P3, complementary): crops by focal point and zoom, sizes per breakpoint, formats ordered by measured size, readable file names, SVG pass-through, and a `VariantCache` that renders on request (`feat` commits `f5f4756` … `bab0fa3`).
 - **Publish report** (`report.json` + `index.html`) for editors and CI (`273034c`).
 - **llms.txt** generated from the rendered pages, with image descriptions (`3d61b61`).
 
@@ -35,8 +35,8 @@ G7 Routes, pages, blocks ─▶ G8 Menus ─▶ G9 Demo on the site structure (s
 ### G10: Real content source and transport (largely done, on `feat/directus-adapter`)
 
 The first end-to-end run against real systems.
-- Done: **`@cds/directus`** with `DirectusSource` (GET only; records, referenced files, `_media`, source map), the `cds-directus-publish` CLI, and `createDirectusCompat`, a Directus-compatible read API over a synced client. Proven on hotelplatform.io: identical rendered pages with CDS in between ([directus.md](directus.md)).
-- Done: `HttpDownloader` and `FilesystemDownloader` in `@cds/client`.
+- Done: **`@usecds/directus`** with `DirectusSource` (GET only; records, referenced files, `_media`, source map), the `cds-directus-publish` CLI, and `createDirectusCompat`, a Directus-compatible read API over a synced client. Proven on hotelplatform.io: identical rendered pages with CDS in between ([directus.md](directus.md)).
+- Done: `HttpDownloader` and `FilesystemDownloader` in `@usecds/client`.
 - Done: mapped publishing (a site mapping turns records into the CDS contract) and editing (P13): field-level source map, `SourceEditor` / `DirectusEditor`, the client's `EditOverlay`, `sourceReadAt` on releases. hotelplatform.io reads CDS natively and has an editable preview.
 - Open: real ETag handling in `sync()` (`If-None-Match`, `304`) end to end; publishing from a Directus flow or webhook instead of a manual CLI run.
 
@@ -46,7 +46,7 @@ An `ObjectStore` for S3-compatible storage (AWS, R2, MinIO), with cache headers 
 
 ### G12: Browser client
 
-`@cds/client` in the browser: `IndexedDB` storage, WebCrypto hashing, no Node APIs.
+`@usecds/client` in the browser: `IndexedDB` storage, WebCrypto hashing, no Node APIs.
 
 ### G13: Smaller open items
 
@@ -67,5 +67,5 @@ Record-level deltas between releases, with full download as fallback. See [goals
 
 ## Not in CDS
 
-- **Image rendering:** `@cds/imaging`, used by site generators (see [imaging.md](imaging.md)).
+- **Image rendering:** `@usecds/imaging`, used by site generators (see [imaging.md](imaging.md)).
 - **Machine translation and AI processing** (P2, P9): run in the CMS. CDS carries `_provenance` markers and reports.

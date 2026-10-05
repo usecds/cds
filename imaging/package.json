@@ -1,6 +1,6 @@
 {
-  "name": "@cds/imaging",
-  "version": "1.0.0",
+  "name": "@usecds/imaging",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,5 +13,14 @@
   },
   "devDependencies": {
     "typescript": "^5.5.4"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usecds/cds.git",
+    "directory": "imaging"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

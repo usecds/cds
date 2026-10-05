@@ -1,4 +1,4 @@
-# Demo (`@cds/demo`)
+# Demo (`@usecds/demo`)
 
 The demo runs the full CDS pipeline in one process: it publishes a release, syncs it into a client cache, and builds a bilingual (EN/DE) site from the site structure in the content (`_routes`, `_pages`, `_blocks`, `_menu`). It has two generator modes:
 

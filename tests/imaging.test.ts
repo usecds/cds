@@ -17,7 +17,7 @@ async function testImage(): Promise<Buffer> {
     .toBuffer();
 }
 
-describe("Image processor (@cds/imaging)", () => {
+describe("Image processor (@usecds/imaging)", () => {
   it("crops the largest region of the output aspect, centered on the focal point and clamped", () => {
     // 1536x1024 source, square output: 1024x1024 region
     expect(cropRegion(1536, 1024, 1, { x: 0.5, y: 0.5 })).toEqual({ left: 256, top: 0, width: 1024, height: 1024 });

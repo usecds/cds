@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { CDSClient } from "@cds/client";
+import { CDSClient } from "@usecds/client";
 import { createImageRenderer, ImageContract } from "./images.js";
 import { renderRoute } from "./site.js";
 import { buildLlmsTxt, buildSitemap } from "./outputs.js";

@@ -35,7 +35,7 @@
       },
       "itemReviewed": {
         "@type": "SoftwareApplication",
-        "name": "Content Distribution System (CDS)",
+        "name": "Content Decoupling System (CDS)",
         "applicationCategory": "DeveloperApplication"
       }
     },

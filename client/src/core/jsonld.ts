@@ -1,6 +1,6 @@
 import { CollectionItem } from "../types.js";
 
-// Reserved collection holding schema.org JSON-LD definitions (same rules as @cds/server)
+// Reserved collection holding schema.org JSON-LD definitions (same rules as @usecds/server)
 export const JSONLD_COLLECTION = "_jsonld";
 
 export interface JsonLdDefinition extends CollectionItem {

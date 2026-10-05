@@ -1,6 +1,6 @@
 {
-  "name": "@cds/directus",
-  "version": "1.0.0",
+  "name": "@usecds/directus",
+  "version": "0.1.0",
   "description": "Directus adapter for CDS: a content source for publishing, and a Directus-compatible read API over a synced CDS release",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,10 +20,19 @@
     "clean": "rimraf dist"
   },
   "devDependencies": {
-    "@cds/client": "workspace:*",
+    "@usecds/client": "workspace:*",
     "typescript": "^5.5.4"
   },
   "dependencies": {
-    "@cds/server": "workspace:*"
+    "@usecds/server": "workspace:*"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usecds/cds.git",
+    "directory": "directus"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -24,7 +24,7 @@ import {
   PublishArtifacts,
   ReleaseManifest,
   TargetDefinition
-} from "@cds/server";
+} from "@usecds/server";
 import { DirectusSource, DirectusSourceConfig } from "./source.js";
 
 const args = process.argv.slice(2);

@@ -1,13 +1,13 @@
-# CDS — Content Distribution System
+# CDS — Content Decoupling System
 
-TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed JSON releases to an object store, and clients sync and verify them, then query them locally. Detailed docs are in `docs/` (goals.md, server.md, client.md, schemas.md, demo.md). `docs/goals.md` has the goals and their current status, so check proposed work against it and update the status column when a goal moves. Read the relevant one before changing behaviour, and update it when you change behaviour.
+The CMS and the frontend never talk to each other directly, and a frontend built on CDS works with any backend that supports CDS (the data contract is loose on purpose). TypeScript pnpm monorepo (ESM, `NodeNext`). The CMS publishes content-addressed JSON releases to an object store, and clients sync and verify them, then query them locally. Detailed docs are in `docs/` (goals.md, server.md, client.md, schemas.md, demo.md). `docs/goals.md` has the goals and their current status, so check proposed work against it and update the status column when a goal moves. Read the relevant one before changing behaviour, and update it when you change behaviour.
 
 ## Layout
 - `schemas/v1/*.json`: the wire format (JSON Schema draft-07). This is the source of truth.
-- `server/` (`@cds/server`): `Publisher`, `ContentSource` / `ObjectStore` interfaces, `FixtureSource`, `FilesystemStore`
-- `client/` (`@cds/client`): `CDSClient`, `ClientStorage` / `RemoteDownloader` interfaces, `MemoryStorage`, `FilesystemStorage`
-- `directus/` (`@cds/directus`): `DirectusSource` (GET-only publishing; a site mapping turns records into the CDS contract, `$sources` go into the source map), `cds-directus-publish --mapping` CLI, `DirectusEditor` (optional write side for editable previews), `createDirectusCompat` (migration aid: Directus REST semantics over a raw release). See docs/directus.md.
-- `imaging/` (`@cds/imaging`): complementary image processor (sharp): crops by focal point, sizes per breakpoint. Not CDS core; the demo generator uses it after sync.
+- `server/` (`@usecds/server`): `Publisher`, `ContentSource` / `ObjectStore` interfaces, `FixtureSource`, `FilesystemStore`
+- `client/` (`@usecds/client`): `CDSClient`, `ClientStorage` / `RemoteDownloader` interfaces, `MemoryStorage`, `FilesystemStorage`
+- `directus/` (`@usecds/directus`): `DirectusSource` (GET-only publishing; a site mapping turns records into the CDS contract, `$sources` go into the source map), `cds-directus-publish --mapping` CLI, `DirectusEditor` (optional write side for editable previews), `createDirectusCompat` (migration aid: Directus REST semantics over a raw release). See docs/directus.md.
+- `imaging/` (`@usecds/imaging`): complementary image processor (sharp): crops by focal point, sizes per breakpoint. Not CDS core; the demo generator uses it after sync.
 - `demo/`: publishes `demo/data/*.json`, syncs it, and builds an EN/DE site from `_routes`/`_pages`/`_blocks`/`_menu` (static files or a Hono server)
 - `tests/integration.test.ts`: a single end-to-end lifecycle test (publish, sync, CAS reuse, retention, GC)
 

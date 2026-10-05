@@ -1,17 +1,17 @@
 {
-  "name": "cds-monorepo",
+  "name": "usecds",
   "private": true,
-  "version": "1.0.0",
-  "description": "Content Distribution System (CDS)",
+  "version": "0.1.0",
+  "description": "Content Decoupling System: frontends that work with any CMS backend, without ever talking to it.",
   "scripts": {
-    "build": "pnpm --filter=server build && pnpm --filter=client build && pnpm --filter=imaging build && pnpm --filter=@cds/directus build",
+    "build": "pnpm --filter=server build && pnpm --filter=client build && pnpm --filter=imaging build && pnpm --filter=@usecds/directus build",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
-    "demo": "pnpm build && pnpm --filter=@cds/demo generate",
-    "demo:serve": "pnpm build && pnpm --filter=@cds/demo serve",
-    "demo:images": "pnpm build && pnpm --filter=@cds/demo images"
+    "demo": "pnpm build && pnpm --filter=@usecds/demo generate",
+    "demo:serve": "pnpm build && pnpm --filter=@usecds/demo serve",
+    "demo:images": "pnpm build && pnpm --filter=@usecds/demo images"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
@@ -20,5 +20,10 @@
     "sharp": "^0.35.5",
     "typescript": "^5.5.4",
     "vitest": "^2.0.5"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usecds/cds.git"
   }
 }

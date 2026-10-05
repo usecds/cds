@@ -1,4 +1,4 @@
-# Server (`@cds/server`)
+# Server (`@usecds/server`)
 
 The server package turns content from a source into a published release in an object store. It is a library, not a running service: you call `Publisher.publish()` from a script, a CMS webhook handler, a CI job, etc.
 
@@ -20,7 +20,7 @@ server/src/
 ## Quick start
 
 ```ts
-import { Publisher, FixtureSource, FilesystemStore } from "@cds/server";
+import { Publisher, FixtureSource, FilesystemStore } from "@usecds/server";
 
 const source = new FixtureSource({
   pages: [
@@ -257,7 +257,7 @@ interface ContentField {
 }
 ```
 
-The derived target (scoped to the declared collections) requires the declared required fields (texts in the source locale, values on the item) and restricts selects to their options. A declared collection without items passes: declaring a type doesn't require content. `mapContentTypes` in `@cds/directus` maps Directus records to content types ([directus.md](directus.md#content-types)).
+The derived target (scoped to the declared collections) requires the declared required fields (texts in the source locale, values on the item) and restricts selects to their options. A declared collection without items passes: declaring a type doesn't require content. `mapContentTypes` in `@usecds/directus` maps Directus records to content types ([directus.md](directus.md#content-types)).
 
 ### Publish report
 
@@ -339,7 +339,7 @@ interface StructureEditor {
 
 How pages, blocks and menus are stored is site-specific, so a `StructureEditor` is written next to the site's mapping (its inverse), on top of the adapter's editor. Structure changes can't be shown through an overlay; a preview publishes a new release after them.
 
-Writes run with the editor's session, so the source system applies its own permissions; CDS holds no write credentials. Implemented by `DirectusEditor` in `@cds/directus` ([directus.md](directus.md#editing-directuseditor)).
+Writes run with the editor's session, so the source system applies its own permissions; CDS holds no write credentials. Implemented by `DirectusEditor` in `@usecds/directus` ([directus.md](directus.md#editing-directuseditor)).
 
 ### Release retention
 
@@ -390,6 +390,6 @@ GC is **not** called by `publish()`. Run it separately, for example after each p
 
 ## Current limitations
 
-- Only the filesystem store exists; S3 is planned. Sources: the fixture source here, and `DirectusSource` in `@cds/directus` ([directus.md](directus.md)).
+- Only the filesystem store exists; S3 is planned. Sources: the fixture source here, and `DirectusSource` in `@usecds/directus` ([directus.md](directus.md)).
 - No locking: two concurrent publishers to the same store can race on the channel manifest and on retention.
 - Delta / diff releases (Milestone 2) are not implemented.

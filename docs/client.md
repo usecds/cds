@@ -1,4 +1,4 @@
-# Client (`@cds/client`)
+# Client (`@usecds/client`)
 
 The client package keeps a local, verified copy of a channel's active release and serves queries from memory. It works without network access once a release has been synced.
 
@@ -19,7 +19,7 @@ client/src/
 ## Quick start
 
 ```ts
-import { CDSClient, FilesystemStorage } from "@cds/client";
+import { CDSClient, FilesystemStorage } from "@usecds/client";
 
 const client = new CDSClient({
   storage: new FilesystemStorage("./cds-cache"),

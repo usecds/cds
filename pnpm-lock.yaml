@@ -42,18 +42,18 @@ importers:
 
   demo:
     dependencies:
-      '@cds/client':
-        specifier: workspace:*
-        version: link:../client
-      '@cds/imaging':
-        specifier: workspace:*
-        version: link:../imaging
-      '@cds/server':
-        specifier: workspace:*
-        version: link:../server
       '@hono/node-server':
         specifier: ^2.1.3
         version: 2.1.3(hono@4.13.13)
+      '@usecds/client':
+        specifier: workspace:*
+        version: link:../client
+      '@usecds/imaging':
+        specifier: workspace:*
+        version: link:../imaging
+      '@usecds/server':
+        specifier: workspace:*
+        version: link:../server
       hono:
         specifier: ^4.13.13
         version: 4.13.13
@@ -67,11 +67,11 @@ importers:
 
   directus:
     dependencies:
-      '@cds/server':
+      '@usecds/server':
         specifier: workspace:*
         version: link:../server
     devDependencies:
-      '@cds/client':
+      '@usecds/client':
         specifier: workspace:*
         version: link:../client
       typescript:

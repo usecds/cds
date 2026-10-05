@@ -14,7 +14,7 @@ import {
   PublishRequirementsError,
   PublishArtifacts,
   ReleaseManifest as PublishedManifest
-} from "@cds/server";
+} from "@usecds/server";
 
 // Client imports
 import {
@@ -23,9 +23,9 @@ import {
   RemoteDownloader,
   ChannelManifest,
   ReleaseManifest
-} from "@cds/client";
+} from "@usecds/client";
 
-import { VariantCache } from "@cds/imaging";
+import { VariantCache } from "@usecds/imaging";
 import { createImageRenderer } from "./images.js";
 import { renderAllPages, llmsFromPages, buildSitemap, redirectPage } from "./outputs.js";
 import { localHref, outputFile } from "./paths.js";

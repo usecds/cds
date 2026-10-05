@@ -1,4 +1,4 @@
-import type { CollectionItem, ContentSource, SourceFieldRef, SourceItemRef, SourceMap, SourceMedia } from "@cds/server";
+import type { CollectionItem, ContentSource, SourceFieldRef, SourceItemRef, SourceMap, SourceMedia } from "@usecds/server";
 
 type Row = Record<string, any>;
 

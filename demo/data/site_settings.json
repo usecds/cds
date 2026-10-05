@@ -4,15 +4,15 @@
     "key": "homepage",
     "translations": {
       "en": {
-        "siteTitle": "Content Distribution System (CDS)",
-        "heroTitle": "The Portable Content Delivery Layer",
-        "heroSubtitle": "Bridge the gap between your CMS and client applications with resilient, static, content-addressed delivery.",
+        "siteTitle": "Content Decoupling System (CDS)",
+        "heroTitle": "Your CMS publishes, your frontend reads",
+        "heroSubtitle": "Neither knows the other exists. Swap either side: a frontend built on CDS works with any backend that supports it.",
         "footerText": "© 2026 CDS Project. Open Source & CMS-independent."
       },
       "de": {
-        "siteTitle": "Content Distribution System (CDS)",
-        "heroTitle": "Die portable Content-Delivery-Ebene",
-        "heroSubtitle": "Schließen Sie die Lücke zwischen Ihrem CMS und Ihren Client-Anwendungen mit einer resilienten, statischen und inhaltsadressierten Bereitstellung.",
+        "siteTitle": "Content Decoupling System (CDS)",
+        "heroTitle": "Ihr CMS veröffentlicht, Ihr Frontend liest",
+        "heroSubtitle": "Keines kennt das andere. Tauschen Sie eine Seite aus: Ein Frontend auf Basis von CDS funktioniert mit jedem Backend, das CDS unterstützt.",
         "footerText": "© 2026 CDS-Projekt. Open Source & CMS-unabhängig."
       }
     },

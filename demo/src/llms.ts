@@ -1,4 +1,4 @@
-import { MediaInfo } from "@cds/client";
+import { MediaInfo } from "@usecds/client";
 import { NodeHtmlMarkdown } from "node-html-markdown";
 import { LANGUAGE_NAMES } from "./site.js";
 

@@ -1,4 +1,4 @@
-import type { EditResult, EditValue, EditorSession, SourceEdit, SourceEditor, SourceFieldRef } from "@cds/server";
+import type { EditResult, EditValue, EditorSession, SourceEdit, SourceEditor, SourceFieldRef } from "@usecds/server";
 
 export interface DirectusEditorConfig {
   url: string;
@@ -139,5 +139,5 @@ const scalar = (value: unknown): EditValue =>
 // Values compare as text, with an empty field equal to an empty string
 const same = (a: unknown, b: unknown) => (a === null || a === undefined ? "" : String(a)) === (b === null || b === undefined ? "" : String(b));
 
-// The edit contract, for apps that use the editor without depending on @cds/server
-export type { EditResult, EditValue, EditorSession, SourceEdit, SourceEditor, SourceFieldRef, StructureEditor } from "@cds/server";
+// The edit contract, for apps that use the editor without depending on @usecds/server
+export type { EditResult, EditValue, EditorSession, SourceEdit, SourceEditor, SourceFieldRef, StructureEditor } from "@usecds/server";

@@ -6,6 +6,8 @@ An application that reads content straight from a CMS API is tied to that CMS in
 
 CDS removes all four ties. Content is compiled into immutable release snapshots, published as plain files to any file host or CDN, and synced by clients into a local, verified copy that they query without the network.
 
+That is what the name says: the CMS and the frontend are decoupled. They never talk to each other directly, and a frontend built on CDS works with any backend that supports CDS. The data contract is loose on purpose, so adopting CDS doesn't force either side into a rigid model.
+
 ## Problems and how the code addresses them
 
 Status reflects the code on `dev` as of 2026-10-03.
@@ -78,7 +80,7 @@ Items are open objects, so CDS metadata uses the `_` prefix (e.g. `_provenance`)
 
 ### P3: Optimized media (pre-rendered, imgproxy-compatible)
 
-**Status: moved out of CDS** into the complementary package `@cds/imaging` ([imaging.md](imaging.md)), which runs in the site generator after sync. Optional and early stage; its main idea is fully prerendered sites without runtime dependencies. A live imgproxy service can be added, but needs separate hosting. Following "CDS reports, it doesn't transform", image rendering is not part of CDS core. CDS provides its inputs: original media, focal point and intrinsic size (P8), and the presets/breakpoints declared in targets (P7). The design below is kept as the starting point for that project.
+**Status: moved out of CDS** into the complementary package `@usecds/imaging` ([imaging.md](imaging.md)), which runs in the site generator after sync. Optional and early stage; its main idea is fully prerendered sites without runtime dependencies. A live imgproxy service can be added, but needs separate hosting. Following "CDS reports, it doesn't transform", image rendering is not part of CDS core. CDS provides its inputs: original media, focal point and intrinsic size (P8), and the presets/breakpoints declared in targets (P7). The design below is kept as the starting point for that project.
 **Open:** how rendered variants come back into a release (e.g. as additional media through a `ContentSource`, with a variant map in the release), and whether CDS reports the required variants per target as a build artifact for the image project to consume.
 
 **Problem:** Clients get original media only. Resized or cropped variants would normally need a live image server.
@@ -351,7 +353,7 @@ _routes  ──page──▶  _pages  ──blocks[]──▶  _blocks  ──it
 
 ```json
 { "id": "p_home", "key": "home", "blocks": ["b_hero", "b_how", "b_flow", "b_features", "b_goals"],
-  "translations": { "en": { "title": "CDS – Content Distribution System", "description": "…" }, "de": { … } } }
+  "translations": { "en": { "title": "CDS – Content Decoupling System", "description": "…" }, "de": { … } } }
 ```
 
 **`_blocks`**: one section of a page. `type` tells the generator how to render it (CDS doesn't interpret it). Block texts (heading, intro, link labels) are localized like any content, so they're counted for translation completeness.
@@ -405,7 +407,7 @@ _routes  ──page──▶  _pages  ──blocks[]──▶  _blocks  ──it
 
 CDS is the data contract between a backend and a frontend: either side can be replaced without touching the other. A frontend therefore reads CDS collections (`getCollection`, `_routes`, `_pages`, `_menu`, …), not the backend's query language.
 
-The Directus compat layer in `@cds/directus` (Directus REST semantics answered from a release) does the opposite: the frontend keeps thinking in Directus. It is a **migration aid** for existing Directus frontends, proven on hotelplatform.io. It is not the target integration.
+The Directus compat layer in `@usecds/directus` (Directus REST semantics answered from a release) does the opposite: the frontend keeps thinking in Directus. It is a **migration aid** for existing Directus frontends, proven on hotelplatform.io. It is not the target integration.
 
 ### P13: Editing in the frontend, through the source adapter
 
@@ -433,12 +435,12 @@ edit:  frontend ──{ collection, item, field, locale, value, basedOn }──�
 **Open:**
 - The adapter interface: the shape of `write`, how an adapter declares which fields are editable, and the error and conflict results.
 - Rich text: what the editor sends and how the adapter converts it to the backend's format.
-- Where the editing UI lives (likely a companion package, like `@cds/imaging`).
+- Where the editing UI lives (likely a companion package, like `@usecds/imaging`).
 - How the preview obtains the editor's credentials for the backend.
 
 ### P14: Content types declared by consumers
 
-**Status: implemented.** A consumer (here: a template's collection bundle) declares the collections it needs as content types; adapters map to them generically (`mapContentTypes` in `@cds/directus`) and the declaration yields the publish checks (`contentTypeTarget`). On hotelplatform.io the integrations bundle and the templates' style schemas are the contract for their content; site structure (routes, pages, blocks, menus) stays in the site's mapping.
+**Status: implemented.** A consumer (here: a template's collection bundle) declares the collections it needs as content types; adapters map to them generically (`mapContentTypes` in `@usecds/directus`) and the declaration yields the publish checks (`contentTypeTarget`). On hotelplatform.io the integrations bundle and the templates' style schemas are the contract for their content; site structure (routes, pages, blocks, menus) stays in the site's mapping.
 
 ### P15: Icons as editable values
 
@@ -471,7 +473,7 @@ edit:  frontend ──{ collection, item, field, locale, value, basedOn }──�
 **Problem:** CDS reports missing and stale translations (P1, P2), but filling them is manual.
 
 **Direction:**
-- **A companion package, not CDS core.** It follows "CDS reports, it doesn't transform" and works like `@cds/imaging`: one plugin per provider (DeepL first, others behind the same interface).
+- **A companion package, not CDS core.** It follows "CDS reports, it doesn't transform" and works like `@usecds/imaging`: one plugin per provider (DeepL first, others behind the same interface).
 - **Flow:**
   - read the release's translation report (missing and stale fields per locale);
   - translate those values with the provider;

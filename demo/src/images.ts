@@ -1,4 +1,4 @@
-import { CDSClient, MediaInfo } from "@cds/client";
+import { CDSClient, MediaInfo } from "@usecds/client";
 import {
   responsiveSizes,
   variantKey,
@@ -15,7 +15,7 @@ import {
   Point,
   VariantCache,
   CachedVariant
-} from "@cds/imaging";
+} from "@usecds/imaging";
 import { escapeHtml } from "./paths.js";
 
 export interface ImageContract {
@@ -48,7 +48,7 @@ export interface PageImages {
 export type ImagePriority = "high" | "lazy";
 
 /**
- * Renders images through the image processor (@cds/imaging) from the target's breakpoints and
+ * Renders images through the image processor (@usecds/imaging) from the target's breakpoints and
  * presets, into a VariantCache. Eager: every variant is rendered while the page is rendered
  * (static build, image pre-generation). Lazy: variants are only planned; the server renders each
  * one when it's first requested.

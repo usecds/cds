@@ -1,4 +1,4 @@
-import { CDSClient, CollectionItem, MenuEntry, RouteInfo } from "@cds/client";
+import { CDSClient, CollectionItem, MenuEntry, RouteInfo } from "@usecds/client";
 import { createImageRenderer, ImageContract, PageImages } from "./images.js";
 import { renderBlocks, RenderContext } from "./blocks.js";
 import { escapeHtml, localHref, rootPrefix } from "./paths.js";

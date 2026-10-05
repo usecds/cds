@@ -13,11 +13,11 @@
     ],
     "translations": {
       "en": {
-        "title": "CDS – Content Distribution System",
+        "title": "CDS – Content Decoupling System",
         "description": "Bridge your CMS and client apps with static, content-addressed releases that clients sync, verify and use offline."
       },
       "de": {
-        "title": "CDS – Content Distribution System",
+        "title": "CDS – Content Decoupling System",
         "description": "Verbinden Sie CMS und Client-Apps mit statischen, inhaltsadressierten Releases, die Clients synchronisieren, prüfen und offline nutzen."
       }
     }

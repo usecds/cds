@@ -1,4 +1,4 @@
-import { CDSClient, RouteInfo } from "@cds/client";
+import { CDSClient, RouteInfo } from "@usecds/client";
 import { createImageRenderer, ImageContract } from "./images.js";
 import { renderLlmsTxt, LlmsPage } from "./llms.js";
 import { OutputMode, RenderedRoute, renderRoute, SITE_URL } from "./site.js";

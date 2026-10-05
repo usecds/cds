@@ -1,4 +1,4 @@
-# @cds/directus
+# @usecds/directus
 
 The Directus source adapter. It puts CDS, as a data contract, between a Directus instance and a frontend:
 
@@ -19,8 +19,8 @@ Proven on a real site: hotelplatform.io, rewritten to read CDS natively, renders
 ## Publishing: `DirectusSource`
 
 ```ts
-import { Publisher, FilesystemStore } from "@cds/server";
-import { DirectusSource } from "@cds/directus/source";
+import { Publisher, FilesystemStore } from "@usecds/server";
+import { DirectusSource } from "@usecds/directus/source";
 import map, { mediaPath } from "./cds/mapping"; // the site's contract
 
 const source = new DirectusSource({
@@ -83,7 +83,7 @@ cds-directus-publish --config directus-source.json --out .cds/published [--mappi
 Collections a consumer declares (CDS [content types](server.md#content-types)) don't need hand-written mapping code:
 
 ```ts
-import { contentTypeCollections, contentTypeTarget, mapContentTypes } from "@cds/directus/content-types";
+import { contentTypeCollections, contentTypeTarget, mapContentTypes } from "@usecds/directus/content-types";
 
 export const collections = contentTypeCollections(types); // what to fetch: top-level types, children nested
 export const targets = [contentTypeTarget(types)];        // publish checks from the declaration
@@ -99,7 +99,7 @@ export default function map(records, ctx) {
 The optional write side ([`SourceEditor`](server.md#editing-sourceeditor-optional)):
 
 ```ts
-import { DirectusEditor } from "@cds/directus/editor";
+import { DirectusEditor } from "@usecds/directus/editor";
 
 const editor = new DirectusEditor({ url: "https://cms.example.com" });
 const session = await editor.login({ email, password });              // the editor's own account
@@ -112,14 +112,14 @@ const result = await editor.write({ ref, value: "New title", basedOn: "Old title
 - Values are text or scalars: a yes/no field is written as a boolean.
 - An expired session throws `DirectusAuthError`; `refresh(session)` renews it with the refresh token. `editable: false` refs are rejected.
 - Building blocks for structure edits: `createItem(collection, data, session)` (nested relations as Directus accepts them), `updateItem` and `readItems`, all as the editor; `directus_*` collections go to their own endpoints (`directus_files` → `/files`). A site's [`StructureEditor`](server.md#editing-sourceeditor-optional) is built on them.
-- `@cds/directus/editor` has no runtime dependencies and re-exports the edit types, so a frontend server can use it without `@cds/server`.
+- `@usecds/directus/editor` has no runtime dependencies and re-exports the edit types, so a frontend server can use it without `@usecds/server`.
 
 How a preview puts it together (from the case study): the page marks each editable text with its CDS address; the preview server resolves the address through the source map, takes the value the page showed as `basedOn`, calls `write`, and on success lays the new value over the release with an [`EditOverlay`](client.md#preview-edits-editoverlay) until the next release has it.
 
 ## Migration aid: `createDirectusCompat`
 
 ```ts
-import { createDirectusCompat } from "@cds/directus/compat";
+import { createDirectusCompat } from "@usecds/directus/compat";
 
 const directus = createDirectusCompat(client, { transform }); // client: a CDSClient synced from a raw (unmapped) publish
 await directus.request("/items/menu_items?filter[status][_eq]=published&fields=*,to.slug&sort=sort");

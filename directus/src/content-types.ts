@@ -1,4 +1,4 @@
-import type { ContentField, ContentType } from "@cds/server";
+import type { ContentField, ContentType } from "@usecds/server";
 import type { DirectusCollectionConfig, DirectusMapContext, MappedItem } from "./source.js";
 
 type Row = Record<string, any>;
@@ -33,7 +33,7 @@ export function contentTypeCollections(types: ContentType[]): Record<string, Dir
 }
 
 /**
- * Maps Directus records to declared content types (see ContentType in @cds/server): texts into
+ * Maps Directus records to declared content types (see ContentType in @usecds/server): texts into
  * translations[locale] with their source fields (editable in a preview), values onto the item
  * (with their source fields too, for a preview's field editor), files to media, references to ids,
  * and one-to-many children into their own collection, referenced by id in their order. Every
@@ -101,6 +101,6 @@ export function mapContentTypes(types: ContentType[], records: Record<string, Ro
   return out;
 }
 
-// The content type contract, for sites that use this mapper without depending on @cds/server directly
-export { contentTypeTarget } from "@cds/server";
-export type { ContentField, ContentFieldKind, ContentType } from "@cds/server";
+// The content type contract, for sites that use this mapper without depending on @usecds/server directly
+export { contentTypeTarget } from "@usecds/server";
+export type { ContentField, ContentFieldKind, ContentType } from "@usecds/server";

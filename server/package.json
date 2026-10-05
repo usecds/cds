@@ -1,6 +1,6 @@
 {
-  "name": "@cds/server",
-  "version": "1.0.0",
+  "name": "@usecds/server",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,5 +14,14 @@
   },
   "devDependencies": {
     "typescript": "^5.5.4"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usecds/cds.git",
+    "directory": "server"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

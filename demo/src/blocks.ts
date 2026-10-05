@@ -1,5 +1,5 @@
-import { CDSClient, CollectionItem, MediaInfo, ResolvedBlock, ResolvedPage, ResolvedLink } from "@cds/client";
-import { Point } from "@cds/imaging";
+import { CDSClient, CollectionItem, MediaInfo, ResolvedBlock, ResolvedPage, ResolvedLink } from "@usecds/client";
+import { Point } from "@usecds/imaging";
 import { ImageContract, ImagePriority, PageImages } from "./images.js";
 import { escapeHtml } from "./paths.js";
 
