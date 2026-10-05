@@ -15,20 +15,20 @@ G7 Routes, pages, blocks ─▶ G8 Menus ─▶ G9 Demo on the site structure (s
 
 | Group | Contents | Commit |
 | --- | --- | --- |
-| G1 Foundation | Extensible v1 schemas (`additionalProperties: true`), required `CollectionMeta.size`, `publish()` returns `{ manifest, artifacts }` | `914fe92` |
-| G2 Artifacts & GC (P6, P4) | Source map artifact, `analyzeStorage()`, `garbageCollect({ dryRun })`, channel-pinned retention | `a61f81b` |
-| G3 Translations (P1, P2) | `_provenance` markers, source locale resolution, completeness and stale detection, manifest summary, client helpers | `37c9e14`, `8d1a961` |
-| G4 Targets & content report (P7, P10) | Target files, additive merge, requirements (fail the build) and recommendations, content report, client `target` option | `559835b` |
-| G5 Media metadata (P8) | `_media` collection, only referenced media published, language-specific media, named focal points, readable names, meaningless-name recommendations | `b4f387f`, `508b33f`, `07f0bc2` |
-| G6 JSON-LD (P5) | `_jsonld` collection with plain field paths, publish checks, `jsonld-empty` recommendations, `client.getJsonLd()` | `57b6b97` |
-| G7 Routes, pages, blocks (P11) | Optional typed `_routes`, `_pages`, `_blocks`; checks and recommendations; `getRoutes`, `getAlternates`, `resolveRoute`, `getPage` | `fe6270f` |
-| G8 Menus (P12) | Optional typed `_menu`, nestable link items shared with blocks; `getMenu`, `resolveLink` | `23484de` |
-| G9 Demo on the site structure | All structure as content; static mode (files per route) and Hono mode (routes resolved per request, live re-sync) | `c67e9dc`, `11a241a` |
+| G1 Foundation | Extensible v1 schemas (`additionalProperties: true`), required `CollectionMeta.size`, `publish()` returns `{ manifest, artifacts }` | `d9fe3b0` |
+| G2 Artifacts & GC (P6, P4) | Source map artifact, `analyzeStorage()`, `garbageCollect({ dryRun })`, channel-pinned retention | `2fd9f4e` |
+| G3 Translations (P1, P2) | `_provenance` markers, source locale resolution, completeness and stale detection, manifest summary, client helpers | `00ff2e0`, `31ae5d6` |
+| G4 Targets & content report (P7, P10) | Target files, additive merge, requirements (fail the build) and recommendations, content report, client `target` option | `02ec62e` |
+| G5 Media metadata (P8) | `_media` collection, only referenced media published, language-specific media, named focal points, readable names, meaningless-name recommendations | `b32783a`, `2d9c263`, `5a4d1b6` |
+| G6 JSON-LD (P5) | `_jsonld` collection with plain field paths, publish checks, `jsonld-empty` recommendations, `client.getJsonLd()` | `0fef035` |
+| G7 Routes, pages, blocks (P11) | Optional typed `_routes`, `_pages`, `_blocks`; checks and recommendations; `getRoutes`, `getAlternates`, `resolveRoute`, `getPage` | `69648b4` |
+| G8 Menus (P12) | Optional typed `_menu`, nestable link items shared with blocks; `getMenu`, `resolveLink` | `145f1fb` |
+| G9 Demo on the site structure | All structure as content; static mode (files per route) and Hono mode (routes resolved per request, live re-sync) | `0ad6c09`, `9e0b0b3` |
 
 **Alongside the groups:**
-- **`@usecds/imaging`** (P3, complementary): crops by focal point and zoom, sizes per breakpoint, formats ordered by measured size, readable file names, SVG pass-through, and a `VariantCache` that renders on request (`feat` commits `f5f4756` … `bab0fa3`).
-- **Publish report** (`report.json` + `index.html`) for editors and CI (`273034c`).
-- **llms.txt** generated from the rendered pages, with image descriptions (`3d61b61`).
+- **`@usecds/imaging`** (P3, complementary): crops by focal point and zoom, sizes per breakpoint, formats ordered by measured size, readable file names, SVG pass-through, and a `VariantCache` that renders on request (`feat` commits `cd5f3dd` … `f91fe4f`).
+- **Publish report** (`report.json` + `index.html`) for editors and CI (`d555870`).
+- **llms.txt** generated from the rendered pages, with image descriptions (`3ace6a8`).
 
 ## Next (proposed)
 
