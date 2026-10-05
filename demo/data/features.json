@@ -33,11 +33,11 @@
     "translations": {
       "en": {
         "title": "Offline-First Design",
-        "description": "Operating with unreliable connectivity? CDS client caches the entire active release locally in IndexedDB or Filesystem, ensuring sub-millisecond offline lookups."
+        "description": "Operating with unreliable connectivity? The CDS client keeps the entire active release locally (filesystem or memory today, IndexedDB planned), so lookups work offline."
       },
       "de": {
         "title": "Offline-First Design",
-        "description": "Unzuverlässige Verbindung? Der CDS-Client speichert das gesamte Release lokal im IndexedDB- oder Dateisystem und sorgt für Offline-Lookups im Sub-Millisekundenbereich."
+        "description": "Unzuverlässige Verbindung? Der CDS-Client hält das gesamte aktive Release lokal vor (heute im Dateisystem oder Speicher, IndexedDB geplant), sodass Abfragen offline funktionieren."
       }
     }
   },
@@ -47,11 +47,11 @@
     "translations": {
       "en": {
         "title": "CMS & Target Agnostic",
-        "description": "Works with any CMS (Directus, Contentful, Headless WordPress) and any storage target (Local Filesystem, S3, Cloudflare R2, or traditional CDNs)."
+        "description": "Built for any CMS and any file host. Directus and the local filesystem work today; S3 and Cloudflare R2 are planned, further CMS adapters such as Contentful or headless WordPress are in discussion."
       },
       "de": {
         "title": "CMS- & Ziel-Agnostisch",
-        "description": "Funktioniert mit jedem CMS (Directus, Contentful, Headless WordPress) und jedem Speicherziel (lokales Dateisystem, S3, Cloudflare R2 oder klassische CDNs)."
+        "description": "Ausgelegt für jedes CMS und jeden Datei-Host. Directus und das lokale Dateisystem funktionieren heute; S3 und Cloudflare R2 sind geplant, weitere CMS-Adapter wie Contentful oder Headless WordPress in Diskussion."
       }
     }
   }

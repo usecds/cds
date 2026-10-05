@@ -4,14 +4,14 @@
     "key": "kiosk-dev",
     "translations": {
       "en": {
-        "quote": "CDS saved our Interactive Kiosks. When network drops, our museum apps still respond instantly using the local IndexedDB snapshot.",
+        "quote": "CDS saved our Interactive Kiosks. When network drops, our museum apps still respond instantly using the local snapshot.",
         "author": "Marcus, Exhibit Architect",
-        "role": "Museum Kiosk Systems"
+        "role": "Example · Museum kiosk systems"
       },
       "de": {
         "quote": "CDS hat unsere interaktiven Kioske gerettet. Bei Netzwerkausfällen reagieren unsere Museums-Apps dank des lokalen Snapshots weiterhin sofort.",
         "author": "Marcus, Ausstellungsarchitekt",
-        "role": "Museums-Kiosksysteme"
+        "role": "Beispiel · Museums-Kiosksysteme"
       }
     }
   },
@@ -20,14 +20,14 @@
     "key": "hotel-tv",
     "translations": {
       "en": {
-        "quote": "Delivering stable, multilingual room service catalogs to thousands of hotel TVs was a nightmare. CDS normalized everything into static JSON files served straight from S3.",
+        "quote": "Delivering stable, multilingual room service catalogs to thousands of hotel TVs was a nightmare. CDS normalized everything into static JSON files served from a plain file host.",
         "author": "Thomas, CTO",
-        "role": "Hospitality TV Solutions"
+        "role": "Example · Hospitality TV solutions"
       },
       "de": {
         "quote": "Die Bereitstellung stabiler, mehrsprachiger Zimmerservice-Kataloge auf Tausenden Hotel-TVs war ein Albtraum. CDS hat alles in statisches JSON verwandelt.",
         "author": "Thomas, CTO",
-        "role": "Hospitality-TV-Lösungen"
+        "role": "Beispiel · Hospitality-TV-Lösungen"
       }
     }
   }

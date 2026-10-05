@@ -1,8 +1,10 @@
-# Content Distribution System (CDS)
+# Content Decoupling System (CDS)
 
-CDS is a portable, high-performance, and resilient delivery layer designed to bridge Content Management Systems (CMS) and client applications. 
+CDS gives a frontend the content of a CMS backend without the two ever talking to each other directly. A frontend built on CDS works with any backend that supports CDS, and the data contract between them is deliberately loose.
 
-Rather than querying a CMS directly over a live, unreliable API, CDS normalizes CMS content into static, version-controlled, content-addressed JSON collections and media assets. These assets are compiled into immutable releases and pushed to standard S3-compatible object storage or CDNs. Client applications use a lightweight CDS client library to pull, locally cache, and atomically consume content, ensuring offline resilience and sub-millisecond local lookups.
+> **Early stage.** Milestone 1 is implemented: publishing, sync and verification, the filesystem store, Node storage (filesystem, memory) and the Directus adapter. The client runs in Node only, not yet in browsers. APIs and the schema may change before 1.0. Items marked *planned* or *in discussion* don't exist yet; [docs/goals.md](docs/goals.md) has the current status of every goal.
+
+Rather than querying a CMS directly over a live, unreliable API, CDS normalizes CMS content into static, version-controlled, content-addressed JSON collections and media assets. These assets are compiled into immutable releases and published as plain files (the filesystem store today; an S3 store is *planned*), so any file host or CDN can serve them. Client applications use a lightweight CDS client library to pull, locally cache, and atomically consume content, so they keep working offline and query content locally without the network.
 
 ```
 +------------+     Publish     +------------+     Sync/Push     +------------------------+
@@ -20,7 +22,7 @@ Rather than querying a CMS directly over a live, unreliable API, CDS normalizes 
 +------------------+           Query API            +------------+     Lightweight Sync
 |   Client App     | <----------------------------- | CDS Client | <-------------------------+
 | (Kiosk, TV, Web) |                                +------------+
-+------------------+                                (IndexedDB / FS)
++------------------+                                (FS / memory)   
 ```
 
 ---
@@ -32,15 +34,15 @@ Rather than querying a CMS directly over a live, unreliable API, CDS normalizes 
 - **Offline Resilience:** The client maintains a complete, valid local snapshot of the active release. If connectivity is lost or an update fails, the app continues running instantly.
 - **Atomic Activation:** Clients stage downloaded releases completely in a temporary background buffer before performing a swift, atomic switchover. They never experience a half-updated state.
 - **Channel-Driven Updates:** Clients periodically monitor a tiny `channels/<channel-name>/manifest.json` file using HTTP ETags. This manifest specifies the active `releaseId`, permitting near-instant update detection.
-- **Rollback and Retention:** The server retains a configurable history of recent or pinned releases. Clients can revert to previous snapshots stored locally if a bad release is activated.
-- **Safe Garbage Collection:** Server-side background jobs periodically scan for and delete orphaned object and media files that are no longer referenced by any retained release.
-- **Delta/Diff Synchronization (Optional):** Supports record-level incremental delta streams for high-volume content, transmitting only modified or deleted records between release versions, with seamless full-download fallbacks.
+- **Rollback and Retention:** The server retains a configurable history of recent or channel-pinned releases. A client-side rollback API to revert to an earlier local snapshot is *planned*.
+- **Safe Garbage Collection:** `garbageCollect()` on the server deletes object and media files that no retained release references, with a dry run to preview it. Client-side GC is *planned*.
+- **Delta/Diff Synchronization (*planned*, Milestone 2):** Would support record-level incremental delta streams for high-volume content, transmitting only modified or deleted records between release versions, with seamless full-download fallbacks.
 
 ---
 
 ## CDS Protocol & Storage Structure
 
-The distribution target (e.g. S3, local filesystem) follows a strict, predictable flat directory layout:
+The distribution target (the local filesystem today; S3 *planned*) follows a strict, predictable flat directory layout:
 
 ```
 <storage-root>/
@@ -155,16 +157,16 @@ To achieve both **absolute operational stability** and **unlimited schema flexib
 The core library operates completely blind to what the content represents. It is 100% content-agnostic, treating collections as flat, generic JSON records. Its only duties are:
 *   Enforcing SHA-256 CAS content integrity.
 *   Resolving, staging, and executing atomic release updates.
-*   Pruning old releases and garbage-collecting orphaned files on S3/Local disks.
+*   Pruning old releases and garbage-collecting orphaned files in the store.
 
 ### 2. Tier 2: Specifications & Best Practices (The Semantics)
-While the Core does not care about fields, CDS defines optional, standardized schemas to solve common client-side concerns (SEO, routing, component trees):
-*   **Routing Specification (`routes.json`):** A standard mapping schema connecting URL slug parameters to stable collection keys.
-*   **Component Layout Tree Schema:** Standardizing the structural representation of modular blocks (e.g., `{ type: "hero", props: { ... }, children: [] }`) so clients can render arbitrary pages dynamically.
-*   **Semantic SEO Metadata:** Standards for injecting Schema.org ontologies into records (e.g., `"$semanticType": "https://schema.org/Product"`) to auto-build JSON-LD on edge apps.
+While the Core does not care about fields, CDS defines optional reserved collections for common client-side concerns. They are validated only when present (see [docs/schemas.md](docs/schemas.md)):
+*   **Site structure (`_routes`, `_pages`, `_blocks`, `_menu`):** URLs per language, page metadata, ordered blocks and nestable menus, so clients can render pages without knowing the CMS.
+*   **Media metadata (`_media`):** alt texts, descriptions, focal points and readable names per language.
+*   **Schema.org definitions (`_jsonld`):** how items map to JSON-LD, resolved by the client with `getJsonLd()`.
 
 ### 3. Tier 3: Adapters & Custom Mappers (The Bridge)
-This tier connects specific content sources (like Directus, Strapi, or Headless WordPress) to client targets (React Web, Android TV, Museum Kiosk).
+This tier connects specific content sources to client targets (web, TV apps, kiosks). The Directus adapter (`@usecds/directus`) exists today; adapters for other CMSs such as Strapi or headless WordPress are *in discussion*.
 
 To guarantee end-to-end compatibility, Tier 3 introduces **Custom Mappers**:
 
@@ -185,10 +187,10 @@ The TypeScript CDS client utilizes the following workflow during synchronization
 2. **Assess Compatibility:** Check `schemaVersion` in the manifest. If incompatible, log an error (requires client library upgrade).
 3. **Compare Release ID:** If the target `releaseId` matches the currently active local release, stop.
 4. **Fetch Release Manifest:** Download `releases/<releaseId>.json`.
-5. **Identify Missing Assets:** Compare the hashes in `collections` and `media` against local storage (IndexedDB or Filesystem). Compile a queue of only new/missing hashes.
+5. **Identify Missing Assets:** Compare the hashes in `collections` and `media` against local storage (filesystem or memory; IndexedDB *planned*). Compile a queue of only new/missing hashes.
 6. **Staged Download:** Download missing `.json` objects and media assets into a temporary staging layer. Verify the SHA-256 hash of each file during download.
 7. **Atomic Switch:** Once 100% of the files are validated, update the client pointer pointing to the active `releaseId`.
-8. **Pruning:** Remove local files belonging to older releases that exceed the local retention quota.
+8. **Pruning (*planned*):** Remove local files belonging to older releases that exceed the local retention quota.
 
 ---
 
@@ -196,23 +198,15 @@ The TypeScript CDS client utilizes the following workflow during synchronization
 
 ```
 cds/
-├── package.json               # Monorepo configuration (pnpm/npm workspaces)
-├── tsconfig.json              # Base TypeScript configuration
-├── schemas/                   # Shared JSON schemas (v1)
-│   ├── channel-manifest.json
-│   ├── release-manifest.json
-│   └── collection.json
-├── server/                    # CDS Publish and Compilation Tooling
-│   ├── package.json
-│   ├── core/                  # Compiles raw CMS structures to CAS
-│   ├── sources/               # CMS Adapters (fixture, directus)
-│   └── storage/               # Push targets (filesystem, S3)
-├── client/                    # Lightweight client SDK for UI frameworks & environments
-│   ├── package.json
-│   ├── core/                  # Sync loop and index queries
-│   └── storage/               # Environment storage (memory, indexeddb, fs)
-├── fixtures/                  # Conformance and mock database sets
-└── docs/                      # Architectural docs & RFCs
+├── package.json               # pnpm workspace scripts (test, build, demo)
+├── schemas/v1/                # JSON Schemas: the wire format and source of truth
+├── server/                    # @usecds/server: Publisher, reports, FixtureSource, FilesystemStore
+├── client/                    # @usecds/client: CDSClient, MemoryStorage, FilesystemStorage, HTTP downloader
+├── directus/                  # @usecds/directus: Directus source, publish CLI, optional editor
+├── imaging/                   # @usecds/imaging: complementary image processor (not CDS core)
+├── demo/                      # EN/DE demo site built from a synced release (static or Hono)
+├── tests/                     # Vitest suites, including the end-to-end lifecycle test
+└── docs/                      # Goals, server, client, schemas, Directus, imaging, demo
 ```
 
 ---

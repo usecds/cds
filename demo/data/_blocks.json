@@ -81,11 +81,11 @@
     "translations": {
       "en": {
         "title": "Core Capabilities",
-        "intro": "Engineered for reliability, ultra-low latency, and absolute independent client delivery."
+        "intro": "Engineered for reliability, ultra-low latency, and frontends that stay independent of any CMS."
       },
       "de": {
         "title": "Kernfunktionen",
-        "intro": "Entwickelt für Ausfallsicherheit, extrem niedrige Latenzzeiten und völlig unabhängige Bereitstellung."
+        "intro": "Entwickelt für Ausfallsicherheit, extrem niedrige Latenzzeiten und Frontends, die von jedem CMS unabhängig bleiben."
       }
     }
   },
@@ -99,11 +99,11 @@
     "translations": {
       "en": {
         "title": "Design Principles",
-        "intro": "CDS aims to revolutionize static asset pipelines for edge applications."
+        "intro": "The principles CDS is built on."
       },
       "de": {
         "title": "Designprinzipien",
-        "intro": "CDS revolutioniert statische Asset-Pipelines für Edge-Anwendungen."
+        "intro": "Die Prinzipien, auf denen CDS aufbaut."
       }
     }
   },
@@ -116,10 +116,12 @@
     },
     "translations": {
       "en": {
-        "title": "What Integrators Say"
+        "title": "Example testimonials",
+        "intro": "Example data that shows the quotes block. These are not real customers."
       },
       "de": {
-        "title": "Was Entwickler sagen"
+        "title": "Beispiel-Testimonials",
+        "intro": "Beispieldaten, die den Zitat-Block zeigen. Es handelt sich nicht um echte Kunden."
       }
     }
   },
@@ -160,11 +162,11 @@
     "translations": {
       "en": {
         "badge": "Optional · early stage",
-        "text": "Image processing is an optional complement to CDS (@cds/imaging), not part of its core. Its main idea is fully prerendered sites without runtime dependencies: every variant is rendered at build time and served as a static file. A live image service such as imgproxy can still be added for sizes nobody declared, but it has to be hosted separately."
+        "text": "Image processing is an optional complement to CDS (@usecds/imaging), not part of its core. Its main idea is fully prerendered sites without runtime dependencies: every variant is rendered at build time and served as a static file. A live image service such as imgproxy can still be added for sizes nobody declared, but it has to be hosted separately."
       },
       "de": {
         "badge": "Optional · frühes Stadium",
-        "text": "Die Bildverarbeitung ist eine optionale Ergänzung zu CDS (@cds/imaging), nicht Teil des Kerns. Die Grundidee sind vollständig vorgerenderte Websites ohne Laufzeitabhängigkeiten: Jede Variante wird beim Build gerendert und als statische Datei ausgeliefert. Ein Live-Bilddienst wie imgproxy kann für nicht deklarierte Größen ergänzt werden, muss aber separat betrieben werden."
+        "text": "Die Bildverarbeitung ist eine optionale Ergänzung zu CDS (@usecds/imaging), nicht Teil des Kerns. Die Grundidee sind vollständig vorgerenderte Websites ohne Laufzeitabhängigkeiten: Jede Variante wird beim Build gerendert und als statische Datei ausgeliefert. Ein Live-Bilddienst wie imgproxy kann für nicht deklarierte Größen ergänzt werden, muss aber separat betrieben werden."
       }
     }
   },
