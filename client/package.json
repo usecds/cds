@@ -6,7 +6,8 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "prepare": "node -e \"require('node:fs').cpSync('../schemas', 'schemas', { recursive: true })\" && tsc"
   },
   "dependencies": {
     "ajv": "^8.17.1",
@@ -23,5 +24,9 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "dist",
+    "schemas"
+  ]
 }

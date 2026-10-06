@@ -52,3 +52,7 @@ demo/published/
 demo/cache/
 demo/reports/
 demo/cache-site/
+
+# copied from schemas/ when a package is packed (prepare)
+client/schemas/
+server/schemas/
