@@ -1,12 +1,14 @@
 {
   "name": "@usecds/imaging",
   "version": "0.1.0",
+  "description": "Image processing that complements CDS: focal-point crops and sizes per breakpoint, rendered with sharp",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "prepare": "tsc"
   },
   "dependencies": {
     "sharp": "^0.35.5"
@@ -22,5 +24,8 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }

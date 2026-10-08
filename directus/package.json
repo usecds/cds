@@ -17,14 +17,15 @@
   },
   "scripts": {
     "build": "tsc",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "prepare": "tsc"
   },
   "devDependencies": {
-    "@usecds/client": "workspace:*",
+    "@usecds/client": "workspace:^",
     "typescript": "^5.5.4"
   },
   "dependencies": {
-    "@usecds/server": "workspace:*"
+    "@usecds/server": "workspace:^"
   },
   "license": "Apache-2.0",
   "repository": {
@@ -34,5 +35,8 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }

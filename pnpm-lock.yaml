@@ -68,11 +68,11 @@ importers:
   directus:
     dependencies:
       '@usecds/server':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../server
     devDependencies:
       '@usecds/client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../client
       typescript:
         specifier: ^5.5.4
