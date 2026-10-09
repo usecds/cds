@@ -1,0 +1,17 @@
+{
+  "id": "faq_groups",
+  "recommendations": {
+    "faq_groups": {
+      "fields": {
+        "type": "object",
+        "required": ["status"],
+        "properties": { "status": { "enum": ["published", "draft", "archived"] } }
+      },
+      "localized": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 80 } }
+      }
+    }
+  }
+}

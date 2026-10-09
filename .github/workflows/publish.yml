@@ -49,7 +49,7 @@ jobs:
       # pnpm packs (it turns workspace:^ into the version range), npm publishes the tarball
       - name: Publish new versions
         run: |
-          for dir in server client imaging directus; do
+          for dir in server client imaging directus collections; do
             name=$(node -p "require('./$dir/package.json').name")
             version=$(node -p "require('./$dir/package.json').version")
             if ! npm view "$name" name > /dev/null 2>&1; then

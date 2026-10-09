@@ -206,6 +206,7 @@ cds/
 ├── client/                    # @usecds/client: CDSClient, MemoryStorage, FilesystemStorage, HTTP downloader
 ├── directus/                  # @usecds/directus: Directus source, publish CLI, optional editor
 ├── imaging/                   # @usecds/imaging: complementary image processor (not CDS core)
+├── collections/               # @usecds/collections: recommended rules for posts, FAQs, videos (targets extend them)
 ├── demo/                      # EN/DE demo site built from a synced release (static or Hono)
 ├── tests/                     # Vitest suites, including the end-to-end lifecycle test
 └── docs/                      # Goals, server, client, schemas, Directus, imaging, demo

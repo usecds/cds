@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import { createRequire } from "module";
 import path from "path";
 import { deterministicStringify } from "../utils.js";
 import { validateTargetDefinition } from "../validation.js";
@@ -30,6 +31,7 @@ export interface MediaPreset {
 
 export interface TargetDefinition {
   id: string;
+  extends?: string[]; // definitions this one builds on: package paths or ./relative files (see loadTargets)
   scope?: string[]; // collections this target applies to; omitted = all
   locales?: {
     required?: string[];
@@ -84,13 +86,15 @@ export interface ResolvedTargets {
 
 /**
  * Loads all *.json target definitions from a folder. default.json is the default target.
+ * A definition's `extends` is resolved here: each entry is a package path, resolved like an import
+ * from the file's folder (`@usecds/collections/posts`), or a file relative to it (`./shared.json`).
+ * What it extends is merged in first, in order, then the definition itself (mergeTargets).
  */
 export async function loadTargets(dir: string): Promise<TargetDefinition[]> {
   const files = (await fs.readdir(dir)).filter((f) => f.endsWith(".json")).sort();
   const targets: TargetDefinition[] = [];
   for (const file of files) {
-    const target = JSON.parse(await fs.readFile(path.join(dir, file), "utf-8"));
-    validateTargetDefinition(target);
+    const target = await readTarget(path.resolve(dir, file), []);
     const expectedDefault = file === `${DEFAULT_TARGET_ID}.json`;
     if (expectedDefault !== (target.id === DEFAULT_TARGET_ID)) {
       throw new Error(`Target file ${file}: only default.json may (and must) use the id "${DEFAULT_TARGET_ID}"`);
@@ -98,6 +102,29 @@ export async function loadTargets(dir: string): Promise<TargetDefinition[]> {
     targets.push(target);
   }
   return targets;
+}
+
+// Reads one definition file with everything it extends merged in; chain holds the files above it
+async function readTarget(file: string, chain: string[]): Promise<TargetDefinition> {
+  if (chain.includes(file)) throw new Error(`Target extends itself: ${[...chain, file].join(" -> ")}`);
+  const target: TargetDefinition = JSON.parse(await fs.readFile(file, "utf-8"));
+  validateTargetDefinition(target);
+  const { extends: bases = [], ...own } = target;
+  let merged: TargetDefinition | undefined;
+  for (const spec of bases) {
+    const base = await readTarget(resolveExtends(spec, file), [...chain, file]);
+    merged = merged ? mergeTargets(merged, base) : base;
+  }
+  return merged ? mergeTargets(merged, own) : own;
+}
+
+function resolveExtends(spec: string, from: string): string {
+  if (spec.startsWith("./") || spec.startsWith("../")) return path.resolve(path.dirname(from), spec);
+  try {
+    return createRequire(from).resolve(spec);
+  } catch {
+    throw new Error(`Target ${path.basename(from)} extends "${spec}", which can't be found (is the package installed?)`);
+  }
 }
 
 /**
@@ -109,6 +136,7 @@ export function resolveTargets(definitions: TargetDefinition[]): ResolvedTargets
   const seen = new Set<string>();
   for (const def of definitions) {
     validateTargetDefinition(def);
+    if (def.extends?.length) throw new Error(`Target ${def.id}: extends is resolved when targets are loaded from files (loadTargets)`);
     if (seen.has(def.id)) throw new Error(`Duplicate target id: ${def.id}`);
     seen.add(def.id);
     if (def.id !== DEFAULT_TARGET_ID) checkOwnScope(def);

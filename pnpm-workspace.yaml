@@ -3,4 +3,5 @@ packages:
   - 'client'
   - 'imaging'
   - 'directus'
+  - 'collections'
   - 'demo'

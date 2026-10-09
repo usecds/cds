@@ -1,0 +1,27 @@
+{
+  "id": "posts",
+  "recommendations": {
+    "posts": {
+      "fields": {
+        "type": "object",
+        "required": ["slug", "status", "coverImage", "dateCreated"],
+        "properties": {
+          "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+          "status": { "enum": ["published", "draft", "archived"] },
+          "coverImage": { "type": "string", "minLength": 1 },
+          "dateCreated": { "type": "string", "format": "date-time" },
+          "dateUpdated": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "localized": {
+        "type": "object",
+        "required": ["title", "intro", "content"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 60 },
+          "intro": { "type": "string", "minLength": 1 },
+          "content": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

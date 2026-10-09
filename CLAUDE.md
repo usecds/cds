@@ -8,6 +8,7 @@ The CMS and the frontend never talk to each other directly, and a frontend built
 - `client/` (`@usecds/client`): `CDSClient`, `ClientStorage` / `RemoteDownloader` interfaces, `MemoryStorage`, `FilesystemStorage`
 - `directus/` (`@usecds/directus`): `DirectusSource` (GET-only publishing; a site mapping turns records into the CDS contract, `$sources` go into the source map), `cds-directus-publish --mapping` CLI, `DirectusEditor` (optional write side for editable previews), `createDirectusCompat` (migration aid: Directus REST semantics over a raw release). See docs/directus.md.
 - `imaging/` (`@usecds/imaging`): complementary image processor (sharp): crops by focal point, sizes per breakpoint. Not CDS core; the demo generator uses it after sync.
+- `collections/` (`@usecds/collections`): recommended rules for common collections (posts, FAQs, videos) as target definitions that targets `extends` one by one; recommendations only, they never fail a publish. JSON only, nothing to build.
 - `demo/`: publishes `demo/data/*.json`, syncs it, and builds an EN/DE site from `_routes`/`_pages`/`_blocks`/`_menu` (static files or a Hono server)
 - `tests/integration.test.ts`: a single end-to-end lifecycle test (publish, sync, CAS reuse, retention, GC)
 
