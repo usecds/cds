@@ -144,6 +144,8 @@ The Nuxt 4 site (`hotelplatform-io`, template `hotelplatform`) was rewritten in 
 
 **Result** (`NUXT_ASSETS_MODE=local nuxt generate`, no Directus variable set, compared with the unmodified app built from the same Directus): the same 41 pages and 92 routes; **identical markup on all 41 pages** (build hashes and Nuxt's random ids aside); identical asset files, asset manifest, web manifest, cover map, sitemap and robots.txt; identical page payloads and `/api` data except two values that are no longer part of the contract (the globals row id as a number, and FAQ junction row ids). The page-mapping snapshot tests of the old Directus mappers pass unchanged against the CDS path (two snapshots updated: orphaned `faqs_faq_groups` module rows without an item are no longer passed through).
 
+**Deployment: a committed release** ([deployment.md](deployment.md), setup 2). The site's Directus isn't reachable from its CI runners, so its Docker build first failed: it ran the publish inside `docker build`. The release is now published where Directus is reachable and committed to the site's repository (`.cds/published`, with the report); CI and the image build generate from it and never contact Directus.
+
 **The editable preview** (`CDS_PREVIEW=1`, a server build; static builds are unaffected):
 
 - Templates mark editable texts with `:data-cds-field="cdsField(block, 'title')"` (`#core`, template API 3.3). In a preview with an editor signed in, the data carries each text's CDS address (`$cds`), so the attribute appears; for visitors and in static builds the binding is `undefined` and Vue leaves it out. About 70 texts in 17 components: block titles, subtitles, rich-text contents, call-to-action texts, features, FAQs, menu labels and descriptions, footer texts.
