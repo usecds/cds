@@ -274,6 +274,23 @@ Optional, typed collection of nestable link items (`menu.json`). An item that no
 
 **Checks at publish** (build fails): unknown children, cycles, more than 3 levels, a link with neither or both of route/url, unknown routes or blocks, a block that isn't on the route's page, relative URLs, block `links` to unknown items. **Recommendation:** entries with no label in any language (`missing-label`); labels count for translation completeness.
 
+## Site settings and languages (`_site`, `_languages`)
+
+Optional, typed collections, validated against `site.json` and `language.json` only when present.
+
+```json
+{ "id": "site", "key": "site", "defaultLanguage": "en", "copyright": "© Example",
+  "translations": { "en": { "siteName": "Example" }, "de": { "siteName": "Beispiel" } } }
+{ "id": "de", "key": "de", "translations": { "en": { "name": "German" }, "de": { "name": "Deutsch" } } }
+```
+
+| Collection | Fields |
+| --- | --- |
+| `_site` | Exactly one item. `translations[locale].siteName` in every locale it has; `defaultLanguage`: a `_languages` key. Other fields (copyright, footer text, styles, social links) are the site's own. |
+| `_languages` | One item per language the site is published in. `key`: the locale code as used in `translations` (`en`, `de`, `en-GB`); `translations[locale].name`: its name in each language. |
+
+**Checks at publish** (build fails): schema errors, a `_site` with other than one item, a language listed twice, a `defaultLanguage` that isn't in `_languages`, a route path in a language `_languages` doesn't list. Without `_languages`, languages aren't checked.
+
 ## `target.json`
 
 Validates target definitions (see [server.md](server.md#targets)). Only `id` (`[a-zA-Z0-9_-]+`) is required. `collections.*.localized`, `collections.*.fields` and `recommendations.*` hold JSON Schemas, which are compiled when the target is checked. Target definitions are pipeline configuration and are never published.
@@ -282,7 +299,7 @@ Validates target definitions (see [server.md](server.md#targets)). Only `id` (`[
 
 - `references` are not checked against existing items. `resolveReferences` on the client silently skips dangling ones.
 - Strings in an item's `media` array are not checked against the release's `media` map.
-- Locale codes are free-form strings. No locale is required, and items in one collection don't have to share the same set of locales.
+- Locale codes are free-form strings (with `_languages`, route paths must use its keys). No locale is required, and items in one collection don't have to share the same set of locales.
 - Hash strings are not checked for format (length, hex).
 
 ## Schema loading

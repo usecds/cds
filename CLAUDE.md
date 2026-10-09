@@ -14,7 +14,7 @@ The CMS and the frontend never talk to each other directly, and a frontend built
 ## Commands
 - `pnpm test`: Vitest, imports from `src`, no build needed
 - `pnpm build`: `tsc` for server, client, imaging and directus (demo and apps using them import their `dist`)
-- Publishing: `pnpm --filter <package> publish` from a clean `main` (pnpm turns `workspace:^` into the version range; `npm publish` would ship `workspace:` as is). `prepare` builds; `files` limits the tarball to `dist` (server and client add `schemas`).
+- Publishing: CI (`.github/workflows/publish.yml`) publishes every package whose version isn't on npm yet when a pull request is merged to `main`; raise the version in the pull request. It packs with pnpm (which turns `workspace:^` into the version range; `npm publish` from the folder would ship `workspace:` as is) and needs the repository secret `NPM_TOKEN`. `prepare` builds; `files` limits the tarball to `dist` (server and client add `schemas`).
 - `pnpm demo`: builds, then writes the static site (one file per route and language) to `demo/dist/`
 - `pnpm demo:serve`: the same site served by Hono (SSR), routes resolved per request, images rendered on first request; `pnpm demo:images` pre-generates them into `demo/cache-site/`. The demo compiles to `demo/build/`; each mode works in `demo/.work/<mode>/`
 - No lint config exists, even though a `lint` script is defined.
@@ -22,7 +22,7 @@ The CMS and the frontend never talk to each other directly, and a frontend built
 ## Conventions and gotchas
 - **Edits never go into CDS.** Editing is an adapter's optional write side (`SourceEditor`): an edit addressed by CDS field address goes to the source field the source map names; previews show it through the client's `EditOverlay` until a release includes it.
 - **CDS reports, it doesn't transform.** No machine translation, AI processing or image rendering in CDS; those run in the CMS or complementary projects. CDS carries their results (`_provenance` markers) and reports.
-- Reserved names: item field `_provenance`; collections `_media` (media metadata, validated against the release's media) and `_jsonld` (schema.org definitions); optional site structure `_routes`, `_pages`, `_blocks` and menus `_menu` (validated only when present). The JSON-LD path reader exists in both server (validation, report) and client (resolution); keep them in sync. Only names the schema defines are CDS fields.
+- Reserved names: item field `_provenance`; collections `_media` (media metadata, validated against the release's media) and `_jsonld` (schema.org definitions); optional site structure `_routes`, `_pages`, `_blocks`, menus `_menu`, settings `_site` and `_languages` (validated only when present). The JSON-LD path reader exists in both server (validation, report) and client (resolution); keep them in sync. Only names the schema defines are CDS fields.
 - Relative imports need a `.js` extension (`./types.js`), because of NodeNext ESM.
 - `server/src/types.ts` and `client/src/types.ts` duplicate the wire types on purpose (the packages are independent). Change both together, along with the schema in `schemas/v1/`.
 - Collection hash = `sha256(deterministicStringify(collection))`, which sorts keys recursively and adds no whitespace. The exact serialized string is what gets stored, and the client hashes the raw downloaded text. Never pretty-print, re-stringify or reorder object bytes.
