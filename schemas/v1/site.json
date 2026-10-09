@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Site",
+  "description": "The one item of the optional _site collection: the site's settings. translations[locale].siteName names the site in each language; defaultLanguage is a _languages key. Other fields (copyright, styles, social links) are the site's own.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "defaultLanguage": { "type": "string", "minLength": 1, "description": "_languages key" },
+    "translations": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "properties": { "siteName": { "type": "string", "minLength": 1 } },
+        "required": ["siteName"]
+      }
+    }
+  },
+  "required": ["id", "translations"],
+  "additionalProperties": true
+}

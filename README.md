@@ -163,6 +163,7 @@ The core library operates completely blind to what the content represents. It is
 ### 2. Tier 2: Specifications & Best Practices (The Semantics)
 While the Core does not care about fields, CDS defines optional reserved collections for common client-side concerns. They are validated only when present (see [docs/schemas.md](docs/schemas.md)):
 *   **Site structure (`_routes`, `_pages`, `_blocks`, `_menu`):** URLs per language, page metadata, ordered blocks and nestable menus, so clients can render pages without knowing the CMS.
+*   **Site settings (`_site`, `_languages`):** the site's name per language, its default language and the languages it is published in.
 *   **Media metadata (`_media`):** alt texts, descriptions, focal points and readable names per language.
 *   **Schema.org definitions (`_jsonld`):** how items map to JSON-LD, resolved by the client with `getJsonLd()`.
 

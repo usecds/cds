@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Language",
+  "description": "An item of the optional _languages collection: a language the site is published in. The key is its locale code, as used in translations (en, de, en-GB); translations[locale].name is its name in each language.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "key": { "type": "string", "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$" }
+  },
+  "required": ["id", "key"],
+  "additionalProperties": true
+}
