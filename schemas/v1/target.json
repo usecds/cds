@@ -4,6 +4,11 @@
   "type": "object",
   "properties": {
     "id": { "type": "string", "pattern": "^[a-zA-Z0-9_-]+$" },
+    "extends": {
+      "type": "array",
+      "description": "Definitions this one builds on, merged in first: package paths (@usecds/collections/posts) or files relative to this one (./shared.json)",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "scope": {
       "type": "array",
       "items": { "type": "string" }

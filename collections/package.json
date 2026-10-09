@@ -1,0 +1,25 @@
+{
+  "name": "@usecds/collections",
+  "version": "0.1.0",
+  "description": "Recommended rules for common CDS collections (posts, FAQs, videos), for targets to extend one by one",
+  "exports": {
+    "./posts": "./posts.json",
+    "./faqs": "./faqs.json",
+    "./faq_groups": "./faq_groups.json",
+    "./videos": "./videos.json",
+    "./package.json": "./package.json"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usecds/cds.git",
+    "directory": "collections"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "*.json",
+    "README.md"
+  ]
+}
