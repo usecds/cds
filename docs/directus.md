@@ -134,7 +134,7 @@ It keeps a frontend thinking in Directus, so it is a step, not the goal: the hot
 
 The Nuxt 4 site (`hotelplatform-io`, template `hotelplatform`) was rewritten in separate worktrees (branch `cds/directus-via-cds` of the app and of the template). The original checkouts and the live Directus were not modified; edits were tested against a throwaway copy of the database.
 
-**The contract** (`cds/mapping.ts` in the app): `_routes` (one per page, path computed at publish time from the menus with the site's own canonical-path rules, plus 301 routes for non-canonical menu paths), `_pages`, `_blocks` (type, layout settings, texts, image, feature items, modules), `_menu` (one root per menu position), and `site`, `languages`, `styles`, `posts`, `faqs`, `faq_groups`, `features`, `videos`, `integrations`, `integration_categories`. Files keep their names (`cms/<file id>.<ext>`). Every text records its Directus field.
+**The contract** (`cds/mapping.ts` in the app): `_routes` (one per page, path computed at publish time from the menus with the site's own canonical-path rules, plus 301 routes for non-canonical menu paths), `_pages`, `_blocks` (type, layout settings, texts, image, feature items, modules), `_menu` (one root per menu position), `_site`, `_languages`, and `styles`, `posts`, `faqs`, `faq_groups`, `features`, `videos`, `integrations`, `integration_categories`. Files keep their names (`cms/<file id>.<ext>`). Every text records its Directus field.
 
 **The app** reads CDS only:
 

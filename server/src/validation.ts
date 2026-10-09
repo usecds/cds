@@ -118,6 +118,8 @@ export const validateRouteItem = itemValidator("route.json", "_routes");
 export const validatePageItem = itemValidator("page.json", "_pages");
 export const validateBlockItem = itemValidator("block.json", "_blocks");
 export const validateMenuItem = itemValidator("menu.json", "_menu");
+export const validateSiteItem = itemValidator("site.json", "_site");
+export const validateLanguageItem = itemValidator("language.json", "_languages");
 
 export interface ContentSchemaError {
   keyword: string; // e.g. "required", "minLength", "maxLength", "type"

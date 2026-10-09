@@ -1,0 +1,65 @@
+# Pull requests are tested; a merge to main publishes every package whose version isn't on npm
+# yet. A pull request that should be released raises the version of the packages it changes.
+# Nobody publishes by hand, and there is no token: npm trusts this workflow (trusted publishing,
+# set up per package on npmjs.com). A package npm doesn't know yet can't be published this way;
+# it is skipped with a notice until it has been published once and trusts this workflow.
+name: publish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+
+  publish:
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      # Trusted publishing needs npm 11.5.1 or later
+      - run: npm install -g npm@latest
+      # pnpm packs (it turns workspace:^ into the version range), npm publishes the tarball
+      - name: Publish new versions
+        run: |
+          for dir in server client imaging directus; do
+            name=$(node -p "require('./$dir/package.json').name")
+            version=$(node -p "require('./$dir/package.json').version")
+            if ! npm view "$name" name > /dev/null 2>&1; then
+              echo "::notice::$name is not on npm yet: publish it once, then add this workflow as its trusted publisher"
+              continue
+            fi
+            if npm view "$name@$version" version > /dev/null 2>&1; then
+              echo "$name@$version is published"
+              continue
+            fi
+            tarball=$(cd "$dir" && pnpm pack --pack-destination "$RUNNER_TEMP" | tail -1)
+            npm publish "$tarball" --access public
+          done
