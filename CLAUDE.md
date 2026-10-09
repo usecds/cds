@@ -14,7 +14,7 @@ The CMS and the frontend never talk to each other directly, and a frontend built
 ## Commands
 - `pnpm test`: Vitest, imports from `src`, no build needed
 - `pnpm build`: `tsc` for server, client, imaging and directus (demo and apps using them import their `dist`)
-- Publishing: CI (`.github/workflows/publish.yml`) publishes every package whose version isn't on npm yet when a pull request is merged to `main`; raise the version in the pull request. It packs with pnpm (which turns `workspace:^` into the version range; `npm publish` from the folder would ship `workspace:` as is) and needs the repository secret `NPM_TOKEN`. `prepare` builds; `files` limits the tarball to `dist` (server and client add `schemas`).
+- Publishing: CI (`.github/workflows/publish.yml`) publishes every package whose version isn't on npm yet when a pull request is merged to `main`; raise the version in the pull request. It packs with pnpm (which turns `workspace:^` into the version range; `npm publish` from the folder would ship `workspace:` as is) and uses npm trusted publishing (no token; each package trusts `publish.yml` on npmjs.com). A package that isn't on npm yet is skipped until it has been published once. `prepare` builds; `files` limits the tarball to `dist` (server and client add `schemas`).
 - `pnpm demo`: builds, then writes the static site (one file per route and language) to `demo/dist/`
 - `pnpm demo:serve`: the same site served by Hono (SSR), routes resolved per request, images rendered on first request; `pnpm demo:images` pre-generates them into `demo/cache-site/`. The demo compiles to `demo/build/`; each mode works in `demo/.work/<mode>/`
 - No lint config exists, even though a `lint` script is defined.
