@@ -216,6 +216,7 @@ Empty values (`""`, `null`) count as missing, as in translation completeness.
 
 **Default and named targets:**
 - **Loading:** `loadTargets(dir)` reads `*.json`. `default.json` is the default target and is the only file that may use the id `default`. Definitions can also be passed in code.
+- **Extends:** a definition can build on others: `"extends": ["@usecds/collections/posts", "./shared.json"]`. A package path resolves like an import from the definition's folder; `./` and `../` paths are files relative to it. `loadTargets` merges what it extends first, in order, then the definition's own rules, with the same additive merge as below; cycles and paths that can't be found fail. Definitions passed in code must already be merged. `@usecds/collections` ships recommended rules for common collections ([collections/README.md](../collections/README.md)).
 - **Built-in default:** if no default target is given, `BUILTIN_DEFAULT_TARGET` applies. It recommends `_media` `alt` (1–125 characters) and `description` (50–300 characters), and `_pages` `title` (1–60) and `description` (50–160).
 - **Scope:** the default target applies to everything and can't declare a scope. A named target's `scope` limits its own rules. Rules outside the scope are a definition error.
 - **Merging (additive):** a named target's effective definition is the default plus its own rules. Lists are combined, `minCompleteness`/`minItems` take the higher value, `maxStale` the lower, and schemas are combined with `allOf` (both must pass). Nothing is overwritten.

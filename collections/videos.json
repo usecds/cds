@@ -1,0 +1,21 @@
+{
+  "id": "videos",
+  "recommendations": {
+    "videos": {
+      "fields": {
+        "type": "object",
+        "required": ["status", "provider", "videoId"],
+        "properties": {
+          "status": { "enum": ["published", "draft", "archived"] },
+          "provider": { "type": "string", "minLength": 1 },
+          "videoId": { "type": "string", "minLength": 1 }
+        }
+      },
+      "localized": {
+        "type": "object",
+        "required": ["description"],
+        "properties": { "description": { "type": "string", "minLength": 1 } }
+      }
+    }
+  }
+}
