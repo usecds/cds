@@ -8,7 +8,8 @@ import {
   ChannelManifest, 
   CollectionMeta, 
   MediaMeta,
-  SourceMap
+  SourceMap,
+  SourceMedia
 } from "../types.js";
 import { deterministicStringify, sha256 } from "../utils.js";
 import { 
@@ -32,6 +33,7 @@ import { validateJsonLd } from "./jsonld.js";
 import { validateSite } from "./site.js";
 import { validateMenu } from "./menu.js";
 import { validateSettings } from "./settings.js";
+import { MediaRenderer, planVariants, renderVariants } from "./media-variants.js";
 
 export interface PublisherConfig {
   retentionCount?: number; // How many releases to keep (default: 3)
@@ -40,6 +42,7 @@ export interface PublisherConfig {
 export interface PublishOptions {
   sourceLocale?: string; // original-content language; detected from the source if omitted
   targets?: TargetDefinition[]; // default + named targets (see loadTargets); built-in defaults if none
+  renderer?: MediaRenderer; // renders the image sizes the targets' presets ask for; without one, only originals are published
 }
 
 // Per-publish outputs meant for the pipeline (reports, source maps), never written to the store
@@ -122,7 +125,7 @@ export class Publisher {
 
     const collectionsMeta: Record<string, CollectionMeta> = {};
     const mediaMeta: Record<string, MediaMeta> = {};
-    const objects: { hash: string; serialized: string }[] = [];
+    let objects: { collection: string; hash: string; serialized: string }[] = [];
 
     // 1. Normalize, validate and hash collections (nothing is written before all checks pass)
     for (const [colName, items] of Object.entries(rawCollections)) {
@@ -138,7 +141,7 @@ export class Publisher {
       // Serialize deterministically and compute SHA-256 hash
       const serialized = deterministicStringify(normalizedCollection);
       const hash = sha256(serialized);
-      objects.push({ hash, serialized });
+      objects.push({ collection: colName, hash, serialized });
 
       // Update release manifest metadata
       collectionsMeta[colName] = {
@@ -191,12 +194,45 @@ export class Publisher {
       throw new PublishRequirementsError(artifacts);
     }
 
+    // 4b. Render the image sizes the targets ask for: after every check, before anything is written.
+    // The sizes become media of the release and are listed on their original's _media item.
+    const variantMedia: { item: SourceMedia; hash: string }[] = [];
+    if (options.renderer) {
+      const planned = planVariants(rawCollections, rawMedia, resolved.effective);
+      if (planned.length) {
+        const hashes = new Map(rawMedia.map((m, i) => [m.virtualPath, mediaHashes[i]]));
+        const { media, variants } = await renderVariants(planned, rawMedia, hashes, options.renderer);
+        for (const item of media) {
+          const hash = sha256(item.content);
+          variantMedia.push({ item, hash });
+          mediaMeta[item.virtualPath] = { hash, size: item.content.length, mimeType: item.mimeType };
+        }
+        const items: CollectionItem[] = (rawCollections[MEDIA_COLLECTION] ?? []).map((m) =>
+          variants.has(m.id) ? { ...m, variants: variants.get(m.id) } : m
+        );
+        for (const [path, list] of variants) {
+          if (!items.some((m) => m.id === path)) items.push({ id: path, key: path, translations: {}, variants: list });
+        }
+        rawCollections[MEDIA_COLLECTION] = items;
+        validateMediaMetadata(items, mediaMeta);
+        const normalized: Collection = { schemaVersion: 1, collection: MEDIA_COLLECTION, items };
+        validateCollection(normalized);
+        const serialized = deterministicStringify(normalized);
+        const hash = sha256(serialized);
+        objects = [...objects.filter((o) => o.collection !== MEDIA_COLLECTION), { collection: MEDIA_COLLECTION, hash, serialized }];
+        collectionsMeta[MEDIA_COLLECTION] = { hash, itemCount: items.length, size: Buffer.byteLength(serialized, "utf-8") };
+      }
+    }
+
     // 5. Write objects and media to CAS
     for (const { hash, serialized } of objects) {
       await this.store.writeObject(hash, serialized);
     }
     for (const [i, item] of rawMedia.entries()) {
       await this.store.writeMedia(mediaHashes[i], path.extname(item.virtualPath), item.content);
+    }
+    for (const { item, hash } of variantMedia) {
+      await this.store.writeMedia(hash, path.extname(item.virtualPath), item.content);
     }
 
     // 6. Construct and write the Release Manifest

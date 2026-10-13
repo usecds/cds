@@ -1,6 +1,6 @@
 {
   "name": "@usecds/imaging",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Image processing that complements CDS: focal-point crops and sizes per breakpoint, rendered with sharp",
   "type": "module",
   "main": "./dist/index.js",

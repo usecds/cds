@@ -13,6 +13,21 @@ export interface DirectusCollectionConfig {
   localized?: string[];
 }
 
+/**
+ * Limits a publish to one scope (e.g. a project) of a token that can read several. Every fetched
+ * collection is filtered by its path to the scope's key, or declared shared; a fetched collection
+ * with neither fails the publish before anything is read, because a missing filter would silently
+ * publish other scopes' records.
+ */
+export interface DirectusScope {
+  /** The scope's key, e.g. the project id */
+  value: string;
+  /** Per fetched collection, the relation path to the scope's key, e.g. "projects.projects_id" */
+  paths: Record<string, string>;
+  /** Fetched collections that belong to every scope (e.g. languages): not filtered */
+  shared?: string[];
+}
+
 export interface DirectusSourceConfig {
   url: string;
   /** Read-only token; the source only sends GET requests */
@@ -22,6 +37,8 @@ export interface DirectusSourceConfig {
   collections: Record<string, DirectusCollectionConfig>;
   /** Collections that may not exist or may be forbidden for the token: skipped with a warning */
   optional?: string[];
+  /** Publish only this scope's records (see DirectusScope) */
+  scope?: DirectusScope;
   /** Base URL for source map links (default: url) */
   adminUrl?: string;
   /**
@@ -92,6 +109,31 @@ const EXTENSIONS: Record<string, string> = {
 const defaultMediaPath = (f: FileMeta) =>
   `directus/${f.id}${(f.filename_download?.match(/\.[a-z0-9]+$/i)?.[0] ?? EXTENSIONS[f.type ?? ""] ?? "").toLowerCase()}`;
 
+/**
+ * The filter per fetched collection for a scope (a JSON filter on the path to the scope's key).
+ * Throws when a fetched collection has neither a path nor is shared.
+ */
+export function scopeFilters(scope: DirectusScope | undefined, collections: string[]): Map<string, string> {
+  const filters = new Map<string, string>();
+  if (!scope) return filters;
+  if (!scope.value) throw new Error("Directus scope without a value");
+  const shared = new Set(scope.shared ?? []);
+  const unscoped = collections.filter((c) => !scope.paths[c] && !shared.has(c));
+  if (unscoped.length) {
+    throw new Error(
+      `Scope ${scope.value}: no scope path for ${unscoped.join(", ")}. Add a path (scope.paths) or declare it shared (scope.shared); ` +
+        "without one, the records of every scope the token can read would be published"
+    );
+  }
+  for (const collection of collections) {
+    const path = scope.paths[collection];
+    if (!path || shared.has(collection)) continue;
+    const filter = path.split(".").reduceRight<Record<string, unknown>>((inner, key) => ({ [key]: inner }), { _eq: scope.value });
+    filters.set(collection, JSON.stringify(filter));
+  }
+  return filters;
+}
+
 const slug = (text: string) =>
   text.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
@@ -134,10 +176,12 @@ export class DirectusSource implements ContentSource {
   private load() {
     this.loaded ??= (async () => {
       // 1. Records
+      const filters = scopeFilters(this.config.scope, Object.keys(this.config.collections));
       const records: Record<string, Row[]> = {};
       for (const [collection, cfg] of Object.entries(this.config.collections)) {
         const fields = encodeURIComponent(cfg.fields ?? "*");
-        const { status, body } = await this.get(`/items/${collection}?fields=${fields}&limit=-1`);
+        const filter = filters.get(collection);
+        const { status, body } = await this.get(`/items/${collection}?fields=${fields}&limit=-1${filter ? `&filter=${encodeURIComponent(filter)}` : ""}`);
         if (status !== 200) {
           const message = `${collection}: ${status} ${body?.errors?.[0]?.message ?? ""}`.trim();
           if (this.config.optional?.includes(collection)) {

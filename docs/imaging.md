@@ -114,6 +114,10 @@ Inside `<picture>`, the browser takes the **first** `<source>` whose `media` and
 
 **Variant keys.** The canonical options contain only what changes the output: focal point and zoom count for `fill`, not for `fit`. Same source + same effective options = same key, so a generator renders each variant once (the demo reuses variants across language pages).
 
+## Renderer for the publisher
+
+`createRenderer({ cacheDir? })` is the `MediaRenderer` the CDS publisher takes (`publish(…, { renderer })`, see [server.md](server.md#image-sizes-at-release)): the publisher renders the targets' preset sizes into the release, so clients get ready-made sizes (a browser can't run sharp). Each size is keyed by `variantKey(original hash, options)`; with a cache folder, a size rendered once is read back on the next publish instead of being rendered again.
+
 ## Using it in a site generator
 
 The demo's `picture()` helper (`demo/src/build-demo.ts`) shows the full flow. Vector images (`isVector`) skip all of it: the original is copied once and used in a plain `<img>`. A `fill` preset's aspect ratio is then not applied, so vector images should already have the intended proportions.

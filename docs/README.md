@@ -10,6 +10,7 @@ The Content Decoupling System (CDS) decouples frontends from the CMS behind them
 | [server.md](server.md) | `@usecds/server`: `Publisher`, content sources, object stores, retention and garbage collection |
 | [client.md](client.md) | `@usecds/client`: `CDSClient`, the sync algorithm, storage adapters, the query API |
 | [directus.md](directus.md) | `@usecds/directus`: publishing from Directus, and a Directus-compatible read API over a synced release (with the hotelplatform.io case study) |
+| [deployment.md](deployment.md) | Where a frontend gets its release: publishing in the build, a committed release, or remote storage |
 | [imaging.md](imaging.md) | `@usecds/imaging`: the complementary image processor (crops, focal points, sizes per breakpoint) |
 | [demo.md](demo.md) | `@usecds/demo`: the multilingual landing page generator that runs the full pipeline end to end |
 

@@ -486,6 +486,56 @@ edit:  frontend ──{ collection, item, field, locale, value, basedOn }──�
   - cost limits per run;
   - whether the bridge runs in CI or from the preview.
 
+### P18: Content placed by handle, scoped per project
+
+**Status: implemented (2026-10-13)**, except what waits for the S3 store (G11) and the browser client (G12). `client.use()`, the Directus scope (`--scope`), the `uniqueKeys` target rule, and `@checkin247/cds-snippets` (own repository, private), verified on the sandbox: installed by schema apply (a second run changes nothing), content for two projects with the same handles, scoped publishes byte-identical to single-project tokens, an unscoped publish of both refused by the handle check, read with `use()` and `qrPayload()`.
+
+**Problem:** a frontend deployed many times (e.g. screens in several hotels) fills fixed places in its layout with small pieces of content: a contact text, a website link, the WiFi credentials as a QR code. Every deployment must find the same content under the same name, while each tenant edits its own values.
+
+**Direction:**
+- **The handle is the item key.** The record's place in the layout (`position`: `contact-info`, `wifi`) is a unique slug and becomes the CDS `key`. Source ids are never handles, `name` is only a label for editors.
+- **Reading by handle: `client.use(collection)`.** Returns a handle bound to one collection; `get(key)` reads from it. A frontend keeps one handle per collection (`const snippets = client.use("snippets")`). The handle holds no release, only the collection name, so a sync after `use()` is seen by the next `get()`. The client itself remembers nothing: a remembered "current collection" on a shared client would change under concurrent async code (two components switching it between their calls).
+- **Collections `snippets` and `qrcodes`** (`kind` `text`/`html` with `text` and `html`; `kind` `website`/`wifi` with `url`, `ssid`, `password`, `encryption` one of `WPA`, `WEP`, `nopass`, `SAE`), each related to the source's project. They live in a **private package** (`@checkin247/cds-snippets`, GitLab registry), not in `@usecds/collections`: it declares them as content types (P14), installs them into a Directus (schema apply), and builds the QR payload.
+- **QR codes are data, not images.** The release carries the fields; the frontend builds the payload (`WIFI:T:WPA;S:…;P:…;;`) and renders it (SVG) at its own size. A pre-rendered image would duplicate the data and goes against "CDS reports, it doesn't transform".
+- **One identity: the source's users.** Editing in a preview signs in to the source (as today); scripts use a source user's static token, which is the same `EditorSession` (`accessToken` only). CDS holds no credentials and manages no users.
+- **Tenancy is the source's permissions plus a project scope.** A token may reach several projects (one token per tenant, not per project); a publish names the project, and the adapter adds it to every request as a filter. One store prefix per project (`<project>/`), so retention and GC are per project. A deployment is configured by one URL (store prefix + channel); prefixes must be unguessable, since anyone with the URL can read a release.
+- **Media** go to the same store (content-addressed, cached forever, downloaded once).
+
+**Verified on the sandbox (2026-10-13)** before any code: the hotelplatform site's real publish, run with a token scoped to project A, with the same token plus a filter for A, and with a token scoped to A and B plus a filter for A, produced **byte-identical** releases (all collection hashes, media, source map, report). Without the filter, the A+B token mixed B's page, post and FAQs into A's release. What it took:
+- the filter needs read permission on the junctions (`<collection>_projects`) and the relation field in restricted field lists, which a single-project token doesn't; without them the publish fails with 403 (loud);
+- the filter must cover **every** project-scoped collection the publish fetches. A collection left out (`integrations`, fetched for the template bundle, not listed in the source config) **silently** put A's 25 integrations into B's release.
+
+Hence the rule: **with a scope, every fetched collection has a scope path or is declared shared**, otherwise the publish fails before reading anything.
+
+**Plan:**
+1. **Client `use()`** (client API only, no wire change): `CollectionHandle { collection; get(key); all(); has(key) }`, reading the active release at call time. Test `tests/use.test.ts`, docs in `docs/client.md`.
+2. **Project scope in `DirectusSource`**: `scope: { value, paths: { <collection>: "<relation path>" }, shared?: string[] }`. The filter `{ <path>: { _eq: value } }` goes on every `/items` request; a fetched collection with neither a path nor `shared` throws. Mapping modules may export `scope` paths (merged like `collections`); the CLI takes `--scope <value>` (or `DIRECTUS_SCOPE`). Files aren't scoped (Directus has no project on files): only files the content references are published. Tests in `tests/directus.test.ts`.
+3. **`@checkin247/cds-snippets`** (own repository, private): content types and scope paths for both collections, `qrPayload(item)` (WiFi escaping of `\ ; , : "`), and `cds-snippets-install`: reads the instance's schema snapshot, adds the two collections and their project junctions (key type taken from the project collection), checks that the diff touches nothing else, applies it, and optionally grants a policy read access with the project filter (junctions and relation fields included). Verified on the sandbox: install, content for two projects, scoped publishes, read with `use()`.
+4. **Handle check across collections** (optional target rule): fails a publish when two listed collections share a key.
+5. **Store per project**: documented in `docs/deployment.md`; S3 waits for G11, browser deployments for G12.
+
+### P19: Publish SDK: write through the adapter, render images at release
+
+**Status: implemented (2026-10-13)**, except moving the hotelplatform preview onto it (step 5). `PublishOptions.renderer` with `variants` on `_media`, `createRenderer` in `@usecds/imaging`, `SourceEditor.create`/`upload` (Directus), `createPublishSdk`. Verified on the sandbox: a text set by key, a conflict after an admin edit, a handle created in one project, an uploaded original set as a cover and rendered into four sizes at release, read back with the client.
+
+**Problem:** content changes come from more places than the CMS admin: a preview (hotelplatform.io), a script that sets one tenant's snippets, a tool that uploads an image. Today the preview does it by hand (`cds/preview.ts` in the site: address → source map → `DirectusEditor.write`, then the publish CLI as a child process). Images reach the store only as originals; sizes are rendered later on the device, which a browser can't do.
+
+**Direction:**
+- **Writes go to the source, never into a release** (as P13). The SDK writes through the adapter's editor and then publishes; nothing is edited in the store.
+- **Same shape as reading:** `const cds = createPublishSdk({ source, editor, store, session, targets })`, then `cds.use("snippets").set("contact-info", { text })`, `cds.media.add(file, { name, alt })`, `cds.publish("production")`.
+  - `set(key, values)` finds each value's source field through the source map of the SDK's last read (built in memory from source and mapping, no publish needed) and writes it with `editor.write`, `basedOn` being the value read, so a concurrent change comes back as a conflict.
+  - A missing item is created through the editor's optional `create(collection, values)`. For content types (P14) the values map back to source fields one to one.
+  - Works with any adapter that has an editor; the session is the caller's (login or static token, P18).
+- **Images are rendered only at release.** Adding an image uploads only the original to the source and sets the field; nothing is rendered then. The publish renders the sizes the targets ask for (`media.presets`, assigned to collections through `collections.<name>.presets`) after all checks and before anything is written, adds them to the release as media, and lists them on the original's `_media` item (`variants`). A failed render fails the publish like an unmet requirement, so the store stays consistent. CDS core doesn't render: the publisher takes a `MediaRenderer`, and `@usecds/imaging` provides one (sharp, Node), keyed by original hash and settings so unchanged images aren't rendered again. Without a renderer, only originals are published.
+- **The site keeps what is site-specific:** its `StructureEditor`, the session cookie and its routes. The SDK replaces `resolveField`, `saveEdit` and `republish` (in-process `Publisher` instead of the CLI).
+
+**Plan:**
+1. **`MediaRenderer` in the publisher** (`PublishOptions.renderer`): for each published raster image whose items' collections have presets in the effective targets, render preset × breakpoint width × DPR × format; variant media paths `<path>@<preset>-<width>w.<format>`; `_media` items get `variants: [{ path, preset, width, height, format }]` (schema, server and client types, `getMediaInfo`). `@usecds/imaging` exports `createRenderer({ cache? })`.
+2. **Editor writes in CDS terms:** `SourceEditor.create?` and `upload?` (optional); `DirectusEditor.upload` (`POST /files`, multipart) and `create` (`POST /items`).
+3. **`createPublishSdk`** in `@usecds/server`: `use(collection).get/set`, `media.add`, `publish(channel, options)`; the overlay stays the preview's concern.
+4. **Docs and tests:** `docs/server.md` (publish SDK, renderer), `docs/directus.md` (editor create/upload), tests with the fixture source and a fake editor; verified on the sandbox with the `@checkin247/cds-snippets` collections.
+5. **Later:** the hotelplatform site moves `cds/preview.ts` onto the SDK (not part of this step).
+
 ### Verification against the demo
 
 The demo page mapped onto P11/P12:

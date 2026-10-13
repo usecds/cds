@@ -3,11 +3,15 @@
 //
 //   cds-directus-publish --config directus-source.json --out .cds/published
 //                        [--mapping cds/mapping.ts] [--channel production] [--release <id>]
-//                        [--targets targets/] [--report .cds/report]
+//                        [--targets targets/] [--report .cds/report] [--scope <project id>]
 //
 // --mapping: a module whose default export (or `map`) maps the records to the CDS contract. It may
 // also export `mediaPath`, `collections` (more to fetch, merged into the config), `optional` (collections
-// that may be missing) and `targets` (checks, e.g. contentTypeTarget for declared content types).
+// that may be missing), `targets` (checks, e.g. contentTypeTarget for declared content types) and
+// `scope` (paths to the scope's key per collection, and shared collections; merged with the config's).
+//
+// --scope (or DIRECTUS_SCOPE): publish only this scope's records (e.g. one project of a token that
+// can read several). Every fetched collection then needs a scope path or must be declared shared.
 // TypeScript modules work on Node 23.6+ (type stripping).
 //
 // The Directus URL and read token come from the config, or DIRECTUS_URL / DIRECTUS_API_TOKEN.
@@ -25,7 +29,10 @@ import {
   ReleaseManifest,
   TargetDefinition
 } from "@usecds/server";
-import { DirectusSource, DirectusSourceConfig } from "./source.js";
+import { DirectusSource, DirectusSourceConfig, DirectusScope } from "./source.js";
+
+// A scope as configured: the paths and shared collections, the value from --scope
+type ScopeConfig = Partial<DirectusScope>;
 
 const args = process.argv.slice(2);
 const arg = (name: string): string | undefined => {
@@ -38,10 +45,10 @@ async function main() {
   const configPath = arg("config");
   const out = arg("out");
   if (!configPath || !out) {
-    console.error("Usage: cds-directus-publish --config <file> --out <dir> [--mapping <module>] [--channel production] [--release <id>] [--targets <dir>] [--report <dir>]");
+    console.error("Usage: cds-directus-publish --config <file> --out <dir> [--mapping <module>] [--channel production] [--release <id>] [--targets <dir>] [--report <dir>] [--scope <value>]");
     process.exit(2);
   }
-  const config: DirectusSourceConfig = JSON.parse(await fs.readFile(configPath, "utf-8"));
+  const config: Omit<DirectusSourceConfig, "scope"> & { scope?: ScopeConfig } = JSON.parse(await fs.readFile(configPath, "utf-8"));
   config.url = process.env.DIRECTUS_URL ?? config.url;
   config.token = process.env.DIRECTUS_API_TOKEN ?? process.env.DIRECTUS_TOKEN ?? config.token;
   if (!config.url) throw new Error("No Directus URL: set DIRECTUS_URL or url in the config");
@@ -64,9 +71,23 @@ async function main() {
     // Checks the mapping brings (e.g. a content types target)
     if (Array.isArray(mod.targets)) mappingTargets = mod.targets;
     if (Array.isArray(mod.optional)) config.optional = [...(config.optional ?? []), ...mod.optional];
+    // Scope paths the mapping knows (e.g. from the collections it declares)
+    if (mod.scope && typeof mod.scope === "object") {
+      const own: ScopeConfig = config.scope ?? {};
+      config.scope = {
+        ...own,
+        paths: { ...mod.scope.paths, ...own.paths },
+        shared: [...new Set([...(mod.scope.shared ?? []), ...(own.shared ?? [])])]
+      };
+    }
   }
 
-  const source = new DirectusSource({ ...config, log: (m) => console.log(`[directus] ${m}`) });
+  const scopeValue = arg("scope") ?? process.env.DIRECTUS_SCOPE ?? config.scope?.value;
+  // Paths without a value: the token's permissions alone decide what is published
+  const scope: DirectusScope | undefined = scopeValue ? { paths: {}, ...config.scope, value: scopeValue } : undefined;
+  if (scope) console.log(`[directus] scope ${scope.value}`);
+
+  const source = new DirectusSource({ ...config, scope, log: (m) => console.log(`[directus] ${m}`) });
   const publisher = new Publisher(source, new FilesystemStore(out), { retentionCount: 5 });
   const fromDir = targetsDir ? await loadTargets(targetsDir) : undefined;
   const all = [...(fromDir ?? []), ...mappingTargets];
