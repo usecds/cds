@@ -238,3 +238,45 @@ describe("Targets and content report (G4)", () => {
     expect(accepted).toMatchObject({ success: true, releaseId: "r2" });
   });
 });
+
+describe("Handles unique across collections (uniqueKeys)", () => {
+  let storeDir: string;
+  beforeEach(async () => {
+    storeDir = await fs.mkdtemp(path.join(os.tmpdir(), "cds-unique-keys-"));
+  });
+  afterEach(async () => {
+    await fs.rm(storeDir, { recursive: true, force: true });
+  });
+
+  const placed = (id: string, key: string): CollectionItem => ({ id, key, translations: {} });
+  const target: TargetDefinition = { id: "screens", scope: ["snippets", "qrcodes"], uniqueKeys: [["snippets", "qrcodes"]] };
+
+  it("fails a publish when two collections of a group share a key", async () => {
+    const content = {
+      snippets: [placed("s1", "contact-info"), placed("s2", "wifi")],
+      qrcodes: [placed("q1", "wifi"), placed("q2", "website-info")]
+    };
+    const error = await new Publisher(sourceOf(content), new FilesystemStore(storeDir))
+      .publish("production", "r1", { targets: [target] })
+      .catch((e) => e);
+    expect(error).toBeInstanceOf(PublishRequirementsError);
+    const issues = (error as PublishRequirementsError).artifacts.content.issues.filter((i) => i.issue === "duplicate-key");
+    expect(issues.map((i) => i.message)).toEqual(["Key wifi is used by 2 items of snippets, qrcodes: snippets/s2, qrcodes/q1"]);
+    expect(existsSync(path.join(storeDir, "channels"))).toBe(false);
+  });
+
+  it("publishes when every key is used once", async () => {
+    const content = { snippets: [placed("s1", "contact-info")], qrcodes: [placed("q1", "wifi")] };
+    const { manifest } = await new Publisher(sourceOf(content), new FilesystemStore(storeDir)).publish("production", "r1", { targets: [target] });
+    expect(manifest.targets).toContain("screens");
+  });
+
+  it("merges groups from extended definitions without duplicates", () => {
+    const { effective } = resolveTargets([
+      { id: "default" },
+      { id: "a", scope: ["snippets", "qrcodes"], uniqueKeys: [["snippets", "qrcodes"]] }
+    ]);
+    expect(effective.a.uniqueKeys).toEqual([["snippets", "qrcodes"]]);
+    expect(() => resolveTargets([{ id: "b", scope: ["snippets"], uniqueKeys: [["snippets", "qrcodes"]] }])).toThrow(/outside its scope: qrcodes/);
+  });
+});

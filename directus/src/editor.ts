@@ -1,4 +1,4 @@
-import type { EditResult, EditValue, EditorSession, SourceEdit, SourceEditor, SourceFieldRef } from "@usecds/server";
+import type { EditResult, EditValue, EditorSession, SourceEdit, SourceEditor, SourceFieldRef, SourceUpload } from "@usecds/server";
 
 export interface DirectusEditorConfig {
   url: string;
@@ -110,6 +110,29 @@ export class DirectusEditor implements SourceEditor {
     return String(res.body?.data?.id);
   }
 
+  /** SourceEditor.create: a record in a Directus collection, as the editor */
+  create(collection: string, data: Record<string, unknown>, session: EditorSession): Promise<string> {
+    return this.createItem(collection, data, session);
+  }
+
+  /**
+   * SourceEditor.upload: adds a file to Directus (POST /files, multipart) as the editor; returns its
+   * id, the value of a file field. The original only: sizes are rendered at release.
+   */
+  async upload(file: SourceUpload, session: EditorSession): Promise<string> {
+    const form = new FormData();
+    if (file.title) form.append("title", file.title);
+    if (file.description) form.append("description", file.description);
+    // Directus reads the metadata fields before the file
+    form.append("file", new Blob([new Uint8Array(file.content)], { type: file.mimeType }), file.filename);
+    const res = await fetch(`${this.url}/files?fields=id`, { method: "POST", headers: { Authorization: `Bearer ${session.accessToken}` }, body: form });
+    const body = res.headers.get("content-type")?.includes("json") ? await res.json() : null;
+    const message = body?.errors?.[0]?.message ?? res.statusText;
+    if (res.status === 401) throw new DirectusAuthError(401, message);
+    if (res.status !== 200) throw new Error(`Directus ${res.status}: ${message}`);
+    return String(body?.data?.id);
+  }
+
   /** Updates fields of a record as the editor */
   async updateItem(collection: string, id: string, data: Record<string, unknown>, session: EditorSession): Promise<void> {
     const res = await this.request("PATCH", `${itemPath(collection, id)}?fields=id`, { token: session.accessToken, body: data });
@@ -140,4 +163,4 @@ const scalar = (value: unknown): EditValue =>
 const same = (a: unknown, b: unknown) => (a === null || a === undefined ? "" : String(a)) === (b === null || b === undefined ? "" : String(b));
 
 // The edit contract, for apps that use the editor without depending on @usecds/server
-export type { EditResult, EditValue, EditorSession, SourceEdit, SourceEditor, SourceFieldRef, StructureEditor } from "@usecds/server";
+export type { EditResult, EditValue, EditorSession, SourceEdit, SourceEditor, SourceFieldRef, SourceUpload, StructureEditor } from "@usecds/server";

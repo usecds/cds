@@ -43,6 +43,18 @@ export interface MediaMetadataItem extends CollectionItem {
   focalPoints?: Record<string, { x: number; y: number }>; // named points of interest, e.g. per crop
   width?: number; // intrinsic size in pixels
   height?: number;
+  variants?: MediaVariant[]; // sizes rendered at publish for the targets' presets
+}
+
+// One rendered size of an image: a media file of the release (path), made for a preset
+export interface MediaVariant {
+  path: string; // virtual path of the rendered file
+  preset: string;
+  breakpoint: string;
+  dpr: number;
+  width: number; // pixels
+  height: number;
+  format: "avif" | "webp" | "jpeg" | "png";
 }
 
 export interface Collection {
@@ -101,6 +113,7 @@ export interface MediaInfo {
   focalPoints?: Record<string, { x: number; y: number }>;
   alt?: string; // in the requested locale
   description?: string;
+  variants?: MediaVariant[]; // rendered sizes in the release, if the targets asked for any
 }
 
 // Site structure (_routes, _pages, _blocks)

@@ -40,6 +40,7 @@ export interface TargetDefinition {
   };
   collections?: Record<string, CollectionRequirements>; // listed = required
   items?: { collection: string; key: string }[]; // required named items
+  uniqueKeys?: string[][]; // groups of collections whose item keys (handles) must be unique across the group
   recommendations?: Record<string, CollectionRules>; // reported, never failing
   media?: {
     breakpoints?: Record<string, number>; // name -> minimum screen width (CSS px)
@@ -191,6 +192,9 @@ export function mergeTargets(base: TargetDefinition, own: TargetDefinition): Tar
   const items = unionBy([...(base.items ?? []), ...(own.items ?? [])], (i) => `${i.collection}\u0000${i.key}`);
   if (items.length) merged.items = items;
 
+  const uniqueKeys = unionBy([...(base.uniqueKeys ?? []), ...(own.uniqueKeys ?? [])], (g) => [...g].sort().join("\u0000"));
+  if (uniqueKeys.length) merged.uniqueKeys = uniqueKeys;
+
   const recommendations = mergeRecords(base.recommendations, own.recommendations, (a, b) =>
     dropUndefined({ localized: allOf(a.localized, b.localized), fields: allOf(a.fields, b.fields) })
   );
@@ -215,7 +219,8 @@ function checkOwnScope(target: TargetDefinition): void {
   const outside = [
     ...Object.keys(target.collections ?? {}),
     ...Object.keys(target.recommendations ?? {}),
-    ...(target.items ?? []).map((i) => i.collection)
+    ...(target.items ?? []).map((i) => i.collection),
+    ...(target.uniqueKeys ?? []).flat()
   ].filter((c) => !scope.has(c));
   if (outside.length) {
     throw new Error(`Target ${target.id} declares rules outside its scope: ${[...new Set(outside)].join(", ")}`);

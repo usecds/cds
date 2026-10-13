@@ -23,5 +23,7 @@ export * from "./core/menu.js";
 export * from "./core/settings.js";
 export * from "./core/report.js";
 export * from "./core/content-types.js";
+export * from "./core/media-variants.js";
 export { FixtureSource } from "./sources/fixture.js";
 export { FilesystemStore } from "./storage/filesystem.js";
+export * from "./core/publish-sdk.js";

@@ -112,6 +112,7 @@ new Publisher(source: ContentSource, store: ObjectStore, config?: { retentionCou
 | --- | --- |
 | `sourceLocale` | Language of the original content, for [translation completeness](#translation-completeness). Usually a runtime argument of the publish job. |
 | `targets` | Target definitions (default + named), usually from `loadTargets(dir)` with the folder as a runtime argument. Built-in defaults apply if there's no default target. See [Targets](#targets). |
+| `renderer` | A `MediaRenderer` (e.g. `createRenderer()` from `@usecds/imaging`): renders the image sizes the targets' presets ask for, at release. See [Image sizes at release](#image-sizes-at-release). Without one, only originals are published. |
 
 ```ts
 interface PublishResult {
@@ -140,10 +141,11 @@ Steps, in order:
 3. Hash each published media file and record `{ hash, size, mimeType }` under its virtual path. If a `_media` collection exists, validate it (see [schemas.md](schemas.md#media-metadata-_media-collection-media-metadatajson)), validate `_jsonld` definitions (see [schemas.md](schemas.md#json-ld-definitions-_jsonld-collection-jsonldjson)) the optional site structure (see [schemas.md](schemas.md#site-structure-_routes-_pages-_blocks)) menus (see [schemas.md](schemas.md#menus-_menu)) and site settings (see [schemas.md](schemas.md#site-settings-and-languages-_site-_languages)); a problem throws before anything is written.
 4. Measure translation completeness (below), comparing against the release the channel currently points to.
 5. Check the targets and build the content report. **An unmet requirement throws `PublishRequirementsError` here, before anything is written.** The error carries the artifacts, so the pipeline can still store the report.
-6. Write objects (`store.writeObject`) and media (`store.writeMedia(hash, extname(virtualPath), bytes)`).
-7. Build the release manifest (`createdAt = now`, translation summary, satisfied `targets`), validate it, and write it to `releases/<releaseId>.json`.
-8. Build the channel manifest (`updatedAt = createdAt`), validate it, and write it. **This is the commit point.** Until this write, clients still see the previous release.
-9. Apply release retention (below).
+6. With a `renderer`: render the image sizes the targets ask for, add them as media and list them on their originals' `_media` items (`_media` is serialized again). A failed render throws here, before anything is written.
+7. Write objects (`store.writeObject`) and media (`store.writeMedia(hash, extname(virtualPath), bytes)`).
+8. Build the release manifest (`createdAt = now`, translation summary, satisfied `targets`), validate it, and write it to `releases/<releaseId>.json`.
+9. Build the channel manifest (`updatedAt = createdAt`), validate it, and write it. **This is the commit point.** Until this write, clients still see the previous release.
+10. Apply release retention (below).
 
 Objects and media are written whether or not they already exist. With content addressing, rewriting identical bytes under the same name has no effect on the result. A remote store can skip the upload with a `HEAD` check to save bandwidth.
 
@@ -209,6 +211,7 @@ A target definition is a contract between one consumer (website, kiosk, TV app) 
 | `locales.minCompleteness` / `maxStale` | Translation counts within the scope, for the required locales (or all non-source locales) | requirement |
 | `collections` | Listed collections must exist; `minItems`; `localized` is a JSON Schema for `translations[locale]` per required locale (or the source locale); `fields` is a JSON Schema for the item | requirement |
 | `items` | Named items (`collection` + `key`) must exist | requirement |
+| `uniqueKeys` | Groups of collections whose item keys must be unique across the group, e.g. `[["snippets", "qrcodes"]]` when both fill places by handle | requirement |
 | `recommendations` | Same as `localized` / `fields`, checked for **every** locale in the content | recommendation |
 | `media` | Breakpoints, DPR and presets: the contract for the image processor ([imaging.md](imaging.md)). Validated and merged, not rendered by CDS. | definition error |
 
@@ -305,6 +308,41 @@ interface SourceFieldRef {
 
 `fields` maps a value's path in the CDS item (`translations.en.title`, `interfaces.0.name`) to the source field it comes from. It is what makes a value editable in a preview (goal P13): an edit names the CDS address, and the source map says which source field to change.
 
+### Image sizes at release
+
+Images are rendered only when a release is made: adding an image (in the CMS, or with the [publish SDK](#publish-sdk-createpublishsdk)) stores the original. A target assigns presets to collections (`collections.<name>.presets`) and defines them (`media.presets`, `breakpoints`, `dpr`; see [imaging.md](imaging.md#target-contract-breakpoints-and-presets)). With a `renderer`, every published raster image used by an item of such a collection gets each preset's width per breakpoint and DPR, in each format; the focal point comes from its `_media` item. Vector images are published as they are.
+
+- Each size is a media file of the release: `<path>@<preset>-<width>w.<ext>` (sizes that come out the same share one file), content-addressed and cached like any media.
+- The original's `_media` item lists them: `variants: [{ path, preset, breakpoint, dpr, width, height, format }]` (an item is created for an original without one). The client returns them in `getMediaInfo(path).variants`.
+- CDS core doesn't render. `MediaRenderer.render(source, request)` gets the original (with its hash) and `{ preset, width, height?, fit, format, quality?, lossless?, background?, focalPoint? }`, and returns `{ content, width, height }`. The same input must give the same output, so a renderer may cache: `createRenderer({ cacheDir })` from `@usecds/imaging` keys by the original's hash and the effective options, and an unchanged image isn't rendered again.
+
+### Publish SDK: `createPublishSdk`
+
+Writes content through the adapter's editor and publishes it, with the same shape as reading (`use(collection)`, by key). Every write goes to the source system, never into a release.
+
+```ts
+const cds = createPublishSdk({
+  source: () => new DirectusSource({ ...config, scope: { value: projectId, paths } }), // a fresh source per read
+  editor: new DirectusEditor({ url }),
+  session: { accessToken: process.env.DIRECTUS_TOKEN! }, // a source user's static token, or a login
+  store: new FilesystemStore(".cds/published"),
+  targets, renderer: createRenderer({ cacheDir: ".cds/render-cache" }),
+  contentTypes,                                                     // key field, texts, files; needed to create
+  createDefaults: () => ({ projects: [{ projects_id: projectId }] }) // e.g. the record's project
+});
+
+await cds.use("snippets").set("contact-info", { text: "Call us 24/7" }); // { status: "saved", id, fields }
+const { id } = await cds.media.add({ content, filename: "lobby.jpg", mimeType: "image/jpeg", title: "The lobby" });
+await cds.use("rooms").set("suite", { cover: id });
+await cds.publish("production");
+```
+
+- `get(key)` reads the source's current content (what the next release will have). `set(key, values)` takes CDS field names: texts (in the source locale), values, and file ids from `media.add`.
+- Each value goes to the source field the source map names; the basis is the value the SDK read, so a change made meanwhile comes back as `{ status: "conflict", fields: { <field>: { current } } }` and nothing is written for that field. A file field has no recorded source field (the release holds its media path); it is written to the item's record, with the source's current value as the basis.
+- A key that doesn't exist yet is created with `editor.create`, the key in the content type's slug field, plus `createDefaults`. Without a content type or `create`, the set is rejected.
+- After a write, the next read loads the source again. `publish(channel, { releaseId? })` runs the `Publisher` in process (release ID: the current time).
+- A preview keeps what is its own: the overlay, the session cookie, its `StructureEditor`.
+
 ### Editing: `SourceEditor` (optional)
 
 The write side of a source adapter. Edits go to the source system, never into a release: releases stay immutable, CDS stores no edits, and the next publish includes them. An adapter without it simply offers no editing.
@@ -316,6 +354,8 @@ interface SourceEditor {
   logout?(session: EditorSession): Promise<void>;
   read(ref: SourceFieldRef, session: EditorSession): Promise<string | null>;
   write(edit: SourceEdit, session: EditorSession): Promise<EditResult>;
+  create?(collection: string, data: Record<string, unknown>, session: EditorSession): Promise<string>; // source terms; returns the id
+  upload?(file: SourceUpload, session: EditorSession): Promise<string>; // an original; returns the file id
 }
 
 type EditValue = string | number | boolean | null;               // text, or a scalar like a yes/no field

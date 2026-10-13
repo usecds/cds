@@ -83,6 +83,25 @@ CDS_URL=https://cds.example.com nuxi generate
   not implemented yet ([implementation-plan.md](implementation-plan.md), G11). Until then the folder
   has to be one the web server or CDN serves, or synced to one.
 
+## Several projects: one store each
+
+When one backend serves several projects (tenants; e.g. screens in several hotels), each project
+gets its own store, published with the project as the scope ([directus.md](directus.md#scope-one-project-of-a-token-that-reads-several)):
+
+```bash
+# where the backend is reachable, once per project; one token may reach several projects
+cds-directus-publish --config directus-source.json --mapping cds/mapping.ts \
+  --scope "$PROJECT_ID" --out "/srv/cds/$PROJECT_KEY"
+# a deployment of that project
+CDS_URL=https://cds.example.com/$PROJECT_KEY …
+```
+
+- Retention and garbage collection work per store, so one busy project never pushes another's
+  releases out, and removing a project is removing its folder.
+- A deployment is configured by one URL. `$PROJECT_KEY` should be unguessable (a random token, not
+  the project's name): a release is readable by anyone who has the URL.
+- Every project polls only its own channel manifest.
+
 ## Choosing
 
 - The backend is reachable from where builds run, and builds should always show current content: 1.

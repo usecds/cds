@@ -141,10 +141,11 @@ All queries read from the in-memory cache of the **active** release and need no 
 | `getCollection(name)` | `CollectionItem[]` (empty if unknown). Returns the cached array; treat it as read-only |
 | `getItemByKey(collection, key)` | Item or `null` (linear scan) |
 | `getItemById(collection, id)` | Item or `null` (linear scan) |
+| `use(collection)` | A `CollectionHandle` for reading items by key: `get(key)` (item or `null`), `has(key)`, `all()`. See [Reading by handle](#reading-by-handle) |
 | `getLocales()` | Sorted union of all locale keys across all items |
 | `resolveReferences(item)` | Referenced items, in order; dangling references are skipped |
 | `getMediaContent(virtualPath)` | `Buffer` from storage, or `null` if the path or file is unknown |
-| `getMediaInfo(virtualPath, locale?)` | `MediaInfo`: path, hash, size, MIME type, plus `width`, `height`, `focalPoint`, `focalPoints`, and `alt` / `description` in that locale from the `_media` collection. Fields that aren't set (or are empty in that locale) are left out. `null` if the path isn't in the release. |
+| `getMediaInfo(virtualPath, locale?)` | `MediaInfo`: path, hash, size, MIME type, plus `width`, `height`, `focalPoint`, `focalPoints`, `variants` (sizes rendered at publish), and `alt` / `description` in that locale from the `_media` collection. Fields that aren't set (or are empty in that locale) are left out. `null` if the path isn't in the release. |
 | `getRoutes()` | All routes: `{ id, key, paths: { [locale]: path }, page?, redirect? }`; empty without `_routes` |
 | `getAlternates(routeId)` | Paths of a route per locale (hreflang, language switcher) |
 | `resolveRoute(path)` | Route, locale and page for an exact path; redirects followed to their final target (`redirect: { path, status }`); `null` if unknown. Async. |
@@ -156,6 +157,20 @@ All queries read from the in-memory cache of the **active** release and need no 
 | `getTranslationStatus(item, locale, field)` | `{ status, stale }` from the item's `_provenance` translation marker (`status: null` without a marker). Staleness is detected via `sourceHash` only. The publisher's previous-release fallback shows up in the build report, not here. |
 
 The query API leaves locale fallback to the application. `item.translations[locale]` is `undefined` when an item lacks that locale.
+
+### Reading by handle
+
+A frontend that fills fixed places in its layout (a contact text, a WiFi QR code) reads them by item key, the handle every deployment shares:
+
+```ts
+const snippets = client.use("snippets");
+const qrcodes = client.use("qrcodes");
+
+snippets.get("contact-info"); // item or null
+qrcodes.get("wifi");
+```
+
+A handle holds only the collection name. Every read sees the active release at that moment (and a preview's overlay), so a handle taken before `sync()` reads the new release afterwards. The client keeps no "current collection": two handles never affect each other, also when components read concurrently. Reads are synchronous; the data is in memory.
 
 ### Preview edits: `EditOverlay`
 

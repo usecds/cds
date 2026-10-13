@@ -74,9 +74,28 @@ Without a mapping the adapter publishes each record as it is, under `directus` (
 ```
 cds-directus-publish --config directus-source.json --out .cds/published [--mapping cds/mapping.ts]
                      [--channel production] [--release <id>] [--targets targets/] [--report .cds/report]
+                     [--scope <project id>]
 ```
 
 `--mapping` loads a module whose default export (or `map`) is the mapping and that may export `mediaPath`. TypeScript modules work on Node 23.6+ (type stripping: erasable syntax, imports with their `.ts` extension). `DIRECTUS_URL` and `DIRECTUS_API_TOKEN` (or `DIRECTUS_TOKEN`) override the config. Release IDs default to the ISO time, so they sort chronologically. The report directory gets `report.json`, `index.html` and `source-map.json`; with `DEBUG` set, failures print their stack.
+
+## Scope: one project of a token that reads several
+
+A token may reach several projects (one token per tenant). A publish for one of them names it as the **scope**, and the source filters every request by it:
+
+```json
+"scope": {
+  "paths": { "pages": "projects.projects_id", "menu_items": "menu.projects.projects_id", "faqs": "groups.faq_groups_id.projects.projects_id" },
+  "shared": ["languages", "integration_categories"]
+}
+```
+
+`cds-directus-publish … --scope <project id>` (or `DIRECTUS_SCOPE`) sets the value; the paths come from the config and from the mapping module's `scope` export (merged). In code: `new DirectusSource({ …, scope: { value, paths, shared } })`.
+
+- **Every fetched collection needs a path or must be shared.** Otherwise the publish fails before the first request: a missing filter would silently publish the records of every project the token can read. Collections a mapping module adds (`collections` export) count too.
+- **Permissions:** filtering on a relation needs read access to it. In Directus that means the junction collections (`pages_projects`, …) and the relation field in restricted field lists; a token scoped to one project doesn't need them. Without them the publish fails with 403.
+- **Files** aren't scoped (Directus files have no project); only files the scoped content references are published.
+- Verified on a copy of the hotelplatform.io Directus: a token for one project, and a token for two projects with the scope set, publish byte-identical releases ([goals.md](goals.md), P18).
 
 ## Content types
 
@@ -112,6 +131,7 @@ const result = await editor.write({ ref, value: "New title", basedOn: "Old title
 - Values are text or scalars: a yes/no field is written as a boolean.
 - An expired session throws `DirectusAuthError`; `refresh(session)` renews it with the refresh token. `editable: false` refs are rejected.
 - Building blocks for structure edits: `createItem(collection, data, session)` (nested relations as Directus accepts them), `updateItem` and `readItems`, all as the editor; `directus_*` collections go to their own endpoints (`directus_files` → `/files`). A site's [`StructureEditor`](server.md#editing-sourceeditor-optional) is built on them.
+- `create(collection, data, session)` and `upload({ content, filename, mimeType, title?, description? }, session)` are the optional `SourceEditor` methods the [publish SDK](server.md#publish-sdk-createpublishsdk) uses: `upload` posts the original to `/files` (multipart, metadata first) and returns its id, the value of a file field. Sizes are rendered at release, never on upload.
 - `@usecds/directus/editor` has no runtime dependencies and re-exports the edit types, so a frontend server can use it without `@usecds/server`.
 
 How a preview puts it together (from the case study): the page marks each editable text with its CDS address; the preview server resolves the address through the source map, takes the value the page showed as `basedOn`, calls `write`, and on success lays the new value over the release with an [`EditOverlay`](client.md#preview-edits-editoverlay) until the next release has it.

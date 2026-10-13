@@ -174,6 +174,7 @@ Alt texts, descriptions, focal points and sizes of media files are content, kept
 | `translations[locale].description` | string | Longer text for llms.txt, SEO and JSON-LD (recommended 50–300 characters) |
 | `focalPoint` | `{ x, y }`, each `0..1` | The important point of the image, relative to width and height; used when cropping |
 | `focalPoints` | `{ [name]: { x, y } }` | Named points of interest (e.g. `lighthouse`, `balloon`), so different crops can center different subjects |
+| `variants` | `[{ path, preset, breakpoint, dpr, width, height, format }]` | Sizes rendered at publish for the targets' presets; each `path` is a media file of the release ([server.md](server.md#image-sizes-at-release)) |
 | `width`, `height` | integer ≥ 1 | Intrinsic size in pixels |
 
 `media-metadata.json` validates each `_media` item at publish, in addition to `collection.json`. Media files described twice fail the publish.

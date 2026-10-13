@@ -23,7 +23,25 @@
       "additionalProperties": { "$ref": "#/definitions/point" }
     },
     "width": { "type": "integer", "minimum": 1 },
-    "height": { "type": "integer", "minimum": 1 }
+    "height": { "type": "integer", "minimum": 1 },
+    "variants": {
+      "type": "array",
+      "description": "Sizes rendered at publish for the targets' presets; each is a media file of the release",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "preset": { "type": "string", "minLength": 1 },
+          "breakpoint": { "type": "string", "minLength": 1 },
+          "dpr": { "type": "number", "exclusiveMinimum": 0 },
+          "width": { "type": "integer", "minimum": 1 },
+          "height": { "type": "integer", "minimum": 1 },
+          "format": { "enum": ["avif", "webp", "jpeg", "png"] }
+        },
+        "required": ["path", "preset", "breakpoint", "dpr", "width", "height", "format"],
+        "additionalProperties": true
+      }
+    }
   },
   "definitions": {
     "point": {
