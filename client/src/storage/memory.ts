@@ -2,7 +2,7 @@ import { ClientStorage, ReleaseManifest, ChannelManifest } from "../types.js";
 
 export class MemoryStorage implements ClientStorage {
   private objects = new Map<string, string>();
-  private media = new Map<string, Buffer>();
+  private media = new Map<string, Uint8Array>();
   private releases = new Map<string, ReleaseManifest>();
   private channels = new Map<string, ChannelManifest>();
   private activeReleaseId: string | null = null;
@@ -19,11 +19,11 @@ export class MemoryStorage implements ClientStorage {
     return this.objects.has(hash);
   }
 
-  async saveMedia(hash: string, content: Buffer): Promise<void> {
+  async saveMedia(hash: string, content: Uint8Array): Promise<void> {
     this.media.set(hash, content);
   }
 
-  async readMedia(hash: string): Promise<Buffer | null> {
+  async readMedia(hash: string): Promise<Uint8Array | null> {
     return this.media.get(hash) || null;
   }
 

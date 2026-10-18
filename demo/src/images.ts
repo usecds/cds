@@ -62,7 +62,11 @@ export function createImageRenderer(
   // virtual path -> output file (from the root), for JSON-LD contentUrl
   const mediaUrls = new Map<string, string>();
   const stats = { rendered: 0, reused: 0, pending: 0, skipped: 0, vector: 0 };
-  const loadSource = (virtualPath: string) => client.getMediaContent(virtualPath);
+  // The client returns Uint8Array; sharp and the cache take a Buffer (a view on the same bytes)
+  const loadSource = async (virtualPath: string) => {
+    const bytes = await client.getMediaContent(virtualPath);
+    return bytes ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength) : null;
+  };
 
   async function picture(
     info: MediaInfo,

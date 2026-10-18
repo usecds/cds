@@ -3,7 +3,7 @@
 S3-compatible storage for [CDS](https://github.com/usecds/cds): releases in a bucket (AWS, SeaweedFS, RustFS, Ceph, R2), read by devices with signed requests and no proxy.
 
 - `@usecds/s3/store`: `S3Store`, the publisher's store. Same layout as the folder store, under a prefix per project. Node only.
-- `@usecds/s3/downloader`: `S3Downloader`, the client's downloader. SigV4-signed GETs with a device group's read-only key, `304` when nothing changed. Signs with Web Crypto.
+- `@usecds/s3/downloader`: `S3Downloader`, the client's downloader. SigV4-signed GETs with a device group's read-only key, `304` when nothing changed. Signs in plain JavaScript, so it runs in Node, browsers (also on pages served over plain `http`) and edge runtimes.
 
 ```ts
 import { Publisher } from "@usecds/server";

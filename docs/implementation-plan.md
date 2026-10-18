@@ -46,7 +46,7 @@ Done (P20): `@usecds/s3` with `S3Store` (cache headers: `immutable` for objects,
 
 ### G12: Browser client
 
-`@usecds/client` in the browser: `IndexedDB` storage, WebCrypto hashing, no Node APIs.
+Done (2026-10-18): `@usecds/client` in browsers and edge runtimes. A browser entry without Node APIs (the `browser`, `worker`, `workerd` and `deno` export conditions), `IndexedDBStorage`, Web Crypto hashing with a plain-JS fallback for pages that aren't a secure context, `Uint8Array` media, validators precompiled from `schemas/v1` (no `eval`), syncs serialized with Web Locks. `S3Downloader` signs with its own SigV4 signer instead of `aws4fetch`. Verified in Chromium and WebKit against SeaweedFS (`pnpm test:e2e`), on Deno, and in Node with `fake-indexeddb`; the browser bundle is about 14 kB gzip, with a test for the budget.
 
 ### G13: Smaller open items
 

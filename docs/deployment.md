@@ -140,6 +140,11 @@ const contact = client.useLocale("de-DE").use("snippets").get("contact-info");
 - **Lookups stay on the device.** S3 serves fixed files; the device syncs the release and reads
   by handle locally (`use`, `useLocale`). After the first sync, a poll is one signed request that
   answers `304`, and the device keeps working from its stored release while S3 is unreachable.
+- **Browser devices** (a kiosk page with `IndexedDBStorage`) read the bucket from another origin,
+  so the bucket needs CORS rules: `GET` and `HEAD` from the pages' origins, any request headers
+  (the signature is sent as headers), and `ETag` as an exposed header, or every poll downloads the
+  channel manifest again instead of getting a `304`. The signing works without a secure context,
+  so a kiosk page served over plain `http` on the LAN can sync too.
 - **SeaweedFS for local development:** `weed server -s3 -s3.config=s3.json`, with identities like
   `{ "name": "group-hotel-1", "actions": ["Read:tenant-a/hotel-1/*"] }` and
   `{ "name": "publisher-tenant-a", "actions": ["Read:tenant-a", "List:tenant-a", "Write:tenant-a"] }`.

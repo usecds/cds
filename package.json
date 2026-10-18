@@ -6,6 +6,7 @@
   "scripts": {
     "build": "pnpm --filter=server build && pnpm --filter=client build && pnpm --filter=imaging build && pnpm --filter=@usecds/s3 build && pnpm --filter=@usecds/directus build",
     "test": "vitest run",
+    "test:e2e": "pnpm build && playwright test -c e2e/playwright.config.ts",
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
@@ -14,7 +15,10 @@
     "demo:images": "pnpm build && pnpm --filter=@usecds/demo images"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^26.4.1",
+    "esbuild": "^0.28.2",
+    "fake-indexeddb": "^6.2.6",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
     "sharp": "^0.35.5",

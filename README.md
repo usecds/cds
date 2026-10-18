@@ -2,7 +2,7 @@
 
 CDS gives a frontend the content of a CMS backend without the two ever talking to each other directly. A frontend built on CDS works with any backend that supports CDS, and the data contract between them is deliberately loose.
 
-> **Early stage.** Milestone 1 is implemented: publishing, sync and verification, the filesystem store, Node storage (filesystem, memory) and the Directus adapter. The client runs in Node only, not yet in browsers. APIs and the schema may change before 1.0. Items marked *planned* or *in discussion* don't exist yet; [docs/goals.md](docs/goals.md) has the current status of every goal.
+> **Early stage.** Milestone 1 is implemented: publishing, sync and verification, the filesystem store, storage for Node (filesystem, memory) and browsers (IndexedDB), the S3 store and the Directus adapter. The client runs in Node, browsers and edge runtimes. APIs and the schema may change before 1.0. Items marked *planned* or *in discussion* don't exist yet; [docs/goals.md](docs/goals.md) has the current status of every goal.
 
 Rather than querying a CMS directly over a live, unreliable API, CDS normalizes CMS content into static, version-controlled, content-addressed JSON collections and media assets. These assets are compiled into immutable releases and published as plain files (the filesystem store today; an S3 store is *planned*), so any file host or CDN can serve them. Client applications use a lightweight CDS client library to pull, locally cache, and atomically consume content, so they keep working offline and query content locally without the network.
 
@@ -189,7 +189,7 @@ The TypeScript CDS client utilizes the following workflow during synchronization
 2. **Assess Compatibility:** Check `schemaVersion` in the manifest. If incompatible, log an error (requires client library upgrade).
 3. **Compare Release ID:** If the target `releaseId` matches the currently active local release, stop.
 4. **Fetch Release Manifest:** Download `releases/<releaseId>.json`.
-5. **Identify Missing Assets:** Compare the hashes in `collections` and `media` against local storage (filesystem or memory; IndexedDB *planned*). Compile a queue of only new/missing hashes.
+5. **Identify Missing Assets:** Compare the hashes in `collections` and `media` against local storage (filesystem, memory or IndexedDB). Compile a queue of only new/missing hashes.
 6. **Staged Download:** Download missing `.json` objects and media assets into a temporary staging layer. Verify the SHA-256 hash of each file during download.
 7. **Atomic Switch:** Once 100% of the files are validated, update the client pointer pointing to the active `releaseId`.
 8. **Pruning (*planned*):** Remove local files belonging to older releases that exceed the local retention quota.
