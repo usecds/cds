@@ -488,7 +488,7 @@ edit:  frontend ──{ collection, item, field, locale, value, basedOn }──�
 
 ### P18: Content placed by handle, scoped per project
 
-**Status: implemented (2026-10-13)**, except what waits for the S3 store (G11) and the browser client (G12). `client.use()`, the Directus scope (`--scope`), the `uniqueKeys` target rule, and `@checkin247/cds-snippets` (own repository, private), verified on the sandbox: installed by schema apply (a second run changes nothing), content for two projects with the same handles, scoped publishes byte-identical to single-project tokens, an unscoped publish of both refused by the handle check, read with `use()` and `qrPayload()`.
+**Status: implemented (2026-10-13)**, except what waits for the browser client (G12); the S3 store is P20. `client.use()`, the Directus scope (`--scope`), the `uniqueKeys` target rule, and `@checkin247/cds-snippets` (own repository, private), verified on the sandbox: installed by schema apply (a second run changes nothing), content for two projects with the same handles, scoped publishes byte-identical to single-project tokens, an unscoped publish of both refused by the handle check, read with `use()` and `qrPayload()`.
 
 **Problem:** a frontend deployed many times (e.g. screens in several hotels) fills fixed places in its layout with small pieces of content: a contact text, a website link, the WiFi credentials as a QR code. Every deployment must find the same content under the same name, while each tenant edits its own values.
 
@@ -535,6 +535,33 @@ Hence the rule: **with a scope, every fetched collection has a scope path or is 
 3. **`createPublishSdk`** in `@usecds/server`: `use(collection).get/set`, `media.add`, `publish(channel, options)`; the overlay stays the preview's concern.
 4. **Docs and tests:** `docs/server.md` (publish SDK, renderer), `docs/directus.md` (editor create/upload), tests with the fixture source and a fake editor; verified on the sandbox with the `@checkin247/cds-snippets` collections.
 5. **Later:** the hotelplatform site moves `cds/preview.ts` onto the SDK (not part of this step).
+
+### P20: S3 store and signed delivery per device group
+
+**Status: implemented (2026-10-13)**, except moving the local S3 into the hotelplatform `development-environment` project (step 3; it runs in the CDS sandbox for now) and the open points below. `@usecds/s3` (`S3Store`, `S3Downloader`), `HttpDownloader`'s `fetchImpl`, `cds-directus-publish --out s3://…`. Verified on SeaweedFS 4.48 (sandbox): bucket `tenant-demo`, one publisher key, a read key per device group granted `Read:tenant-demo/<project>/*`. Each group key reads its own project, and gets `403` on the other project, on writes, on listing the bucket and without a signature. Both projects were published from the sandbox Directus with one multi-project token and `--scope`. Two kiosks synced their own project with signed GETs and answered `304` on every unchanged poll. An edit in Directus plus a publish reached the kiosk on its next poll. With S3 stopped, the kiosk kept serving its stored release.
+
+**Problem:** releases should live in S3-compatible storage: one bucket per tenant, and read access per device group (a project's deployments, e.g. the screens of one hotel), so a group can read its own releases and nothing else. Today the publisher writes only to a folder, and the client reads only unauthenticated HTTP or a folder.
+
+**Direction:**
+- **Layout:** bucket per tenant, prefix per project: `<tenant-bucket>/<project>/{channels,releases,objects,media}/…`, the same layout as `FilesystemStore`. A store is a bucket plus a prefix, so retention and GC stay per project.
+- **Permissions are the storage's, not CDS's.** The publisher runs with one credential per tenant (read/write on its bucket). Each device group gets a read-only credential for `s3:GetObject` on `arn:aws:s3:::<tenant-bucket>/<project>/*`. Revoking a group means revoking its key. Granting by prefix needs AWS-style IAM or bucket policies (SeaweedFS, RustFS, AWS, Ceph). Garage only grants per bucket: with Garage, the bucket would have to be per device group.
+- **No proxy, so devices sign their requests.** Releases aren't public: the client's downloader signs each GET with the group's credential (SigV4). It is the same three or four static requests as today (channel manifest, release manifest, objects, media), only signed. The lookup by `position` stays on the device: the client syncs the release and `use("snippets").get("contact-info")` reads it locally. S3 never needs to know about handles.
+- **Write order and caching stay the same:** objects and media first, release manifest, channel manifest last (the commit point; S3 reads are strongly consistent after a write). Objects, media and releases get `Cache-Control: public, max-age=31536000, immutable`; channel manifests get `no-cache`. A `HEAD` check skips uploads of content that already exists. The client sends the channel manifest's real `ETag` (`If-None-Match`) and gets `304` when nothing changed, which closes the ETag gap in goal 7.
+
+**Plan:**
+1. **`@usecds/s3`**, a new package with two entry points, so a device never loads the server's dependencies:
+   - `@usecds/s3/store`: `S3Store implements ObjectStore` (`{ bucket, prefix, endpoint, region, credentials, forcePathStyle }`), built on `@aws-sdk/client-s3`, Node only. `cds-directus-publish --out s3://<bucket>/<prefix>` uses it; the credentials come from the standard `AWS_*` environment.
+   - `@usecds/s3/downloader`: `S3Downloader implements RemoteDownloader`, signing with `aws4fetch` (small; runs in Node and the browser, so it also covers G12). Takes `{ endpoint, bucket, prefix, accessKeyId, secretAccessKey, region }`, sends `If-None-Match` for the channel manifest and maps `304` to `notModified`.
+2. **Tests:** the store against an in-memory S3 fake (contract: the same suite `FilesystemStore` passes, including retention and GC); an integration test against a real S3 server when `CDS_S3_TEST_ENDPOINT` is set (CI service, local dev environment).
+3. **Local environment:** SeaweedFS in the hotelplatform `development-environment` project: one bucket per test tenant, a publisher identity per tenant, a read identity per device group restricted to its prefix. A script provisions them (tenant, project → bucket, prefix, keys).
+4. **Verification:** publish two projects of one tenant into one bucket; a device group's key reads its project and gets `403` on the other's prefix; a sync with an unchanged channel answers `304`.
+5. **Docs:** `docs/deployment.md` (setup 3 on S3, per-project prefixes, device credentials), `docs/client.md` (`S3Downloader`).
+
+**Open:**
+- Which S3 provider runs in production. It decides whether prefix grants are IAM policies (per identity) or bucket policies, and how keys are provisioned.
+- How a device receives its group's credential (provisioning at install, rotation).
+- Whether a deployment that can't keep a secret (a public browser kiosk) gets a short-lived credential from a small token service instead. That is the only case that brings a server back, and it issues credentials, not content.
+- The client still hashes with Node `crypto`/`Buffer` (G12): `S3Downloader` signs with Web Crypto, but a browser deployment needs the client's hashing moved too.
 
 ### P21: Reading in one language
 
@@ -611,9 +638,9 @@ Routes: `r_home` with `/` (en) and `/de/` (de) replaces the hard-coded `index.ht
 
 Needed before the table above is fully "done"; [implementation-plan.md](implementation-plan.md) groups them as G10–G13:
 
-- Production adapters: S3-compatible `ObjectStore`, Directus `ContentSource`, HTTP `RemoteDownloader`, IndexedDB `ClientStorage` (#1, #5)
+- Production adapters: IndexedDB `ClientStorage` (#1, #5). The S3 store and signed downloader are done (P20), as are the Directus `ContentSource` and the HTTP `RemoteDownloader`.
 - Browser-compatible hashing (WebCrypto) in the client (#1, #4)
-- Real HTTP ETag handling in `sync()` (#7)
+- Real HTTP ETag handling in `sync()` (#7): `HttpDownloader` and `S3Downloader` keep the HTTP ETag themselves (`304` verified on S3), but `sync()` still passes the release ID
 - Client rollback API and client-side object/media GC (#9)
 
 The Tier 2 specs from the root README (routing, layout tree, SEO metadata) are covered by P11 (routes, pages, blocks), P12 (menus) and P5 (JSON-LD).

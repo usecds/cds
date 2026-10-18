@@ -20,8 +20,17 @@
     "clean": "rimraf dist",
     "prepare": "tsc"
   },
+  "peerDependencies": {
+    "@usecds/s3": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@usecds/s3": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@usecds/client": "workspace:^",
+    "@usecds/s3": "workspace:^",
     "typescript": "^5.5.4"
   },
   "dependencies": {

@@ -6,7 +6,8 @@ The CMS and the frontend never talk to each other directly, and a frontend built
 - `schemas/v1/*.json`: the wire format (JSON Schema draft-07). This is the source of truth.
 - `server/` (`@usecds/server`): `Publisher` (takes an optional `MediaRenderer`: image sizes rendered at release), `ContentSource` / `ObjectStore` interfaces, `FixtureSource`, `FilesystemStore`, `createPublishSdk` (writes by key through an adapter's editor, then publishes)
 - `client/` (`@usecds/client`): `CDSClient` (`use(collection).get(key)` reads by handle; `useLocale(locale).use(…)` the same with texts resolved along locale fallbacks), `ClientStorage` / `RemoteDownloader` interfaces, `MemoryStorage`, `FilesystemStorage`
-- `directus/` (`@usecds/directus`): `DirectusSource` (GET-only publishing; a site mapping turns records into the CDS contract, `$sources` go into the source map), `cds-directus-publish --mapping [--scope <project>]` CLI (a scope filters every request to one project; every fetched collection needs a scope path or must be shared), `DirectusEditor` (optional write side: field writes, create, upload), `createDirectusCompat` (migration aid: Directus REST semantics over a raw release). See docs/directus.md.
+- `directus/` (`@usecds/directus`): `DirectusSource` (GET-only publishing; a site mapping turns records into the CDS contract, `$sources` go into the source map), `cds-directus-publish --mapping [--scope <project>] [--out s3://bucket/prefix]` CLI (a scope filters every request to one project; every fetched collection needs a scope path or must be shared), `DirectusEditor` (optional write side: field writes, create, upload), `createDirectusCompat` (migration aid: Directus REST semantics over a raw release). See docs/directus.md.
+- `s3/` (`@usecds/s3`): `S3Store` (`/store`, the publisher's store in a bucket under a prefix, Node, `@aws-sdk/client-s3`) and `S3Downloader` (`/downloader`, SigV4-signed reads with a device group's key, `aws4fetch`, built on `HttpDownloader`'s `fetchImpl`). `tests/s3.test.ts` runs against a fake; with `CDS_S3_TEST_*` set also against a real server (see the test file).
 - `imaging/` (`@usecds/imaging`): complementary image processor (sharp): crops by focal point, sizes per breakpoint. Not CDS core; the demo generator uses it after sync, and `createRenderer()` is the publisher's renderer.
 - `collections/` (`@usecds/collections`): recommended rules for common collections (posts, FAQs, videos) as target definitions that targets `extends` one by one; recommendations only, they never fail a publish. JSON only, nothing to build.
 - `demo/`: publishes `demo/data/*.json`, syncs it, and builds an EN/DE site from `_routes`/`_pages`/`_blocks`/`_menu` (static files or a Hono server)
@@ -14,7 +15,7 @@ The CMS and the frontend never talk to each other directly, and a frontend built
 
 ## Commands
 - `pnpm test`: Vitest, imports from `src`, no build needed
-- `pnpm build`: `tsc` for server, client, imaging and directus (demo and apps using them import their `dist`)
+- `pnpm build`: `tsc` for server, client, imaging, s3 and directus (demo and apps using them import their `dist`)
 - Publishing: CI (`.github/workflows/publish.yml`) publishes every package whose version isn't on npm yet when a pull request is merged to `main`; raise the version in the pull request. It packs with pnpm (which turns `workspace:^` into the version range; `npm publish` from the folder would ship `workspace:` as is) and uses npm trusted publishing (no token; each package trusts `publish.yml` on npmjs.com). A package that isn't on npm yet is skipped until it has been published once. `prepare` builds; `files` limits the tarball to `dist` (server and client add `schemas`).
 - `pnpm demo`: builds, then writes the static site (one file per route and language) to `demo/dist/`
 - `pnpm demo:serve`: the same site served by Hono (SSR), routes resolved per request, images rendered on first request; `pnpm demo:images` pre-generates them into `demo/cache-site/`. The demo compiles to `demo/build/`; each mode works in `demo/.work/<mode>/`
@@ -35,7 +36,7 @@ The CMS and the frontend never talk to each other directly, and a frontend built
 - The server throws if schema files are missing. The client falls back to loose inline schemas (`client/src/validation.ts`).
 
 ## Not implemented yet (don't assume these exist)
-S3 store, IndexedDB storage, client-side rollback API, client object/media GC, delta sync (Milestone 2). Image rendering lives in `imaging/`, not in CDS core.
+IndexedDB storage, client-side rollback API, client object/media GC, delta sync (Milestone 2). Image rendering lives in `imaging/`, not in CDS core.
 
 ## Git
 Branch `dev`, main branch `main`. Commit style: conventional commits (`feat(cds): …`, `feat(demo): …`).

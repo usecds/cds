@@ -344,6 +344,10 @@ await cds.publish("production");
 - `useLocale(locale).use(collection).set(key, values)` writes texts in that locale (`translations.<locale>.<field>` where the source map has it); values are the same in every locale. Creating a key starts in the source locale: in another locale, a missing key is rejected.
 - A preview keeps what is its own: the overlay, the session cookie, its `StructureEditor`.
 
+### Stores
+
+`FilesystemStore(dir)` writes the store layout into a folder. `S3Store` from `@usecds/s3` writes the same layout into an S3 bucket under a prefix: `new S3Store({ bucket, prefix, endpoint?, region?, credentials?, forcePathStyle? })`, or `S3Store.fromUrl("s3://bucket/prefix")` with the connection from the AWS environment (`AWS_ENDPOINT_URL` for a self-hosted server). Objects, media and releases get `Cache-Control: public, max-age=31536000, immutable`, channel manifests `no-cache`. Objects and media that are already there aren't uploaded again. Node only ([deployment.md](deployment.md#s3-a-bucket-per-tenant-a-read-key-per-device-group)).
+
 ### Editing: `SourceEditor` (optional)
 
 The write side of a source adapter. Edits go to the source system, never into a release: releases stay immutable, CDS stores no edits, and the next publish includes them. An adapter without it simply offers no editing.

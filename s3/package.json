@@ -1,0 +1,47 @@
+{
+  "name": "@usecds/s3",
+  "version": "0.1.0",
+  "description": "S3-compatible storage for CDS: the publisher's store, and a signed downloader for devices",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./store": "./dist/store.js",
+    "./downloader": "./dist/downloader.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "prepare": "tsc"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1150.0",
+    "aws4fetch": "^1.0.20"
+  },
+  "peerDependencies": {
+    "@usecds/client": "workspace:^",
+    "@usecds/server": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@usecds/client": { "optional": true },
+    "@usecds/server": { "optional": true }
+  },
+  "devDependencies": {
+    "@usecds/client": "workspace:^",
+    "@usecds/server": "workspace:^",
+    "typescript": "^5.5.4"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usecds/cds.git",
+    "directory": "s3"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ]
+}

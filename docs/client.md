@@ -57,6 +57,8 @@ The package includes two, for the two ways a store reaches a frontend ([deployme
 - `HttpDownloader(baseUrl, init?)`: a store served over HTTP(S), e.g. by a CDN. It sends the channel manifest's last HTTP ETag as `If-None-Match` and remembers it itself, so an unchanged channel costs a 304. `init` is passed to `fetch` (headers, credentials).
 - `FilesystemDownloader(baseDir)`: a store in a local folder (the layout `FilesystemStore` writes), such as a release committed to the site's repository. It uses the release ID as the ETag.
 
+`HttpDownloader` takes a third argument, `fetchImpl`, that replaces the global `fetch` (e.g. to sign requests). `@usecds/s3` builds on it: `S3Downloader({ endpoint, bucket, prefix, accessKeyId, secretAccessKey, region? })` reads a private bucket with SigV4-signed GETs, using a device group's read-only key ([deployment.md](deployment.md#s3-a-bucket-per-tenant-a-read-key-per-device-group)).
+
 Another source (an authenticated API, an archive) implements the interface itself. Important details:
 
 - `fetchObject` **must return the exact bytes** the server stored. Don't parse and re-stringify the JSON, or the hash check will fail.

@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Content Decoupling System: frontends that work with any CMS backend, without ever talking to it.",
   "scripts": {
-    "build": "pnpm --filter=server build && pnpm --filter=client build && pnpm --filter=imaging build && pnpm --filter=@usecds/directus build",
+    "build": "pnpm --filter=server build && pnpm --filter=client build && pnpm --filter=imaging build && pnpm --filter=@usecds/s3 build && pnpm --filter=@usecds/directus build",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --ext .ts",

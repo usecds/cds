@@ -77,6 +77,8 @@ cds-directus-publish --config directus-source.json --out .cds/published [--mappi
                      [--scope <project id>]
 ```
 
+`--out s3://<bucket>/<prefix>` publishes into an S3 bucket instead of a folder. It needs `@usecds/s3` installed next to the CLI, and the connection comes from the AWS environment: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, and `AWS_ENDPOINT_URL` for a self-hosted server. The report then defaults to `.cds/report`.
+
 `--mapping` loads a module whose default export (or `map`) is the mapping and that may export `mediaPath`. TypeScript modules work on Node 23.6+ (type stripping: erasable syntax, imports with their `.ts` extension). `DIRECTUS_URL` and `DIRECTUS_API_TOKEN` (or `DIRECTUS_TOKEN`) override the config. Release IDs default to the ISO time, so they sort chronologically. The report directory gets `report.json`, `index.html` and `source-map.json`; with `DEBUG` set, failures print their stack.
 
 ## Scope: one project of a token that reads several
