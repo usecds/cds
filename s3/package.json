@@ -1,6 +1,6 @@
 {
   "name": "@usecds/s3",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "S3-compatible storage for CDS: the publisher's store, and a signed downloader for devices",
   "type": "module",
   "main": "./dist/index.js",
