@@ -16,6 +16,7 @@ import {
 } from "../types.js";
 import { sha256 } from "../utils.js";
 import { EditOverlay } from "./overlay.js";
+import { LocaleOptions, LocalizedItem, localize, resolveLocales } from "./locale.js";
 import { JSONLD_COLLECTION, JsonLdDefinition, mergeJsonLd, readFieldPath, setJsonLdProperty } from "./jsonld.js";
 import { 
   validateChannelManifest, 
@@ -47,6 +48,26 @@ export interface CollectionHandle {
   all(): CollectionItem[];
 }
 
+/** One collection of the active release in one language (see CDSClient.useLocale) */
+export interface LocalizedHandle {
+  readonly collection: string;
+  /** The item with this key, texts resolved along the locales, or null */
+  get(key: string): LocalizedItem | null;
+  has(key: string): boolean;
+  all(): LocalizedItem[];
+}
+
+/** The active release read in one language (see CDSClient.useLocale) */
+export interface LocaleView {
+  /** The requested locale */
+  readonly locale: string;
+  /** The locales texts are read from, in order, for the active release */
+  locales(): string[];
+  use(collection: string): LocalizedHandle;
+  /** getMediaInfo with alt text and description from the first locale that has them */
+  media(virtualPath: string): MediaInfo | null;
+}
+
 export class CDSClient {
   private storage: ClientStorage;
   private downloader: RemoteDownloader;
@@ -58,6 +79,7 @@ export class CDSClient {
   private collectionsCache = new Map<string, CollectionItem[]>();
   private overlay: EditOverlay | null = null;
   private overlaid = new Map<string, { revision: number; items: CollectionItem[] }>();
+  private availableLocales: { release: ReleaseManifest; locales: string[] } | null = null;
 
   constructor(config: CDSClientConfig) {
     this.storage = config.storage;
@@ -308,6 +330,48 @@ export class CDSClient {
       get: (key) => items().find((item) => item.key === key) || null,
       has: (key) => items().some((item) => item.key === key),
       all: () => items()
+    };
+  }
+
+  /**
+   * The release read in one language: `useLocale("de-DE").use("snippets").get("contact-info")` gives
+   * the item with its texts as fields, each from the first locale that has it: de-DE, de, other
+   * German regions, `options.fallback`, then the release's source locale (`$locales` tells which).
+   * Like use(), it holds no state: every read sees the active release at that moment.
+   */
+  useLocale(locale: string, options: LocaleOptions = {}): LocaleView {
+    const locales = () => {
+      const release = this.activeRelease;
+      if (!release) return resolveLocales(locale, [], undefined, options);
+      if (this.availableLocales?.release !== release) this.availableLocales = { release, locales: this.getLocales() };
+      return resolveLocales(locale, this.availableLocales.locales, release.translations?.sourceLocale, options);
+    };
+    return {
+      locale,
+      locales,
+      use: (collection) => {
+        const handle = this.use(collection);
+        return {
+          collection,
+          get: (key) => {
+            const item = handle.get(key);
+            return item ? localize(item, locales()) : null;
+          },
+          has: (key) => handle.has(key),
+          all: () => {
+            const chain = locales();
+            return handle.all().map((item) => localize(item, chain));
+          }
+        };
+      },
+      media: (virtualPath) => {
+        const chain = locales();
+        const info = this.getMediaInfo(virtualPath);
+        if (!info) return null;
+        const withAlt = chain.map((l) => this.getMediaInfo(virtualPath, l)).find((i) => i?.alt);
+        const withDescription = chain.map((l) => this.getMediaInfo(virtualPath, l)).find((i) => i?.description);
+        return { ...info, ...(withAlt?.alt ? { alt: withAlt.alt } : {}), ...(withDescription?.description ? { description: withDescription.description } : {}) };
+      }
     };
   }
 

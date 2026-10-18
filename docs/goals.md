@@ -536,6 +536,21 @@ Hence the rule: **with a scope, every fetched collection has a scope path or is 
 4. **Docs and tests:** `docs/server.md` (publish SDK, renderer), `docs/directus.md` (editor create/upload), tests with the fixture source and a fake editor; verified on the sandbox with the `@checkin247/cds-snippets` collections.
 5. **Later:** the hotelplatform site moves `cds/preview.ts` onto the SDK (not part of this step).
 
+### P21: Reading in one language
+
+**Status: implemented (2026-10-13).** `client.useLocale()`, `resolveLocales()`, `localize()`, and `useLocale()` on the publish SDK. Tests: `tests/locale.test.ts` and `tests/publish-sdk.test.ts`.
+
+**Problem:** releases carry every language (`translations[locale][field]`), but a deployment shows one. Each frontend wrote its own lookup with its own fallbacks, and `de-DE` found nothing in a release that has `de`.
+
+**Direction:**
+- **`client.useLocale("de-DE").use("snippets").get("contact-info")`** gives the item with its texts as fields (`.text`), like `use()` but in one language. Each text comes from the first locale that has it: `de-DE`, `de`, the language's other regions (`de-AT`), `options.fallback`, then the release's source locale. `{ fallback: false }` reads the requested locale only. Matching ignores case and `_` vs `-`.
+- **`$locales`** says where each text came from, so a frontend can mark fallbacks (untranslated texts). An empty string counts as missing, since untranslated fields are often stored as `""`.
+- **Missing content is `null`, never `""`.** An item that doesn't exist is `null` (`get`), and a text that none of the locales has is `null` (the item keeps the same shape in every language). The frontend decides what a place shows without content; CDS doesn't invent placeholder text.
+- **Stateless like `use()`:** the view holds the locale, not the release, so a sync is seen by the next read. The available locales are computed once per release.
+- **The publish SDK has the same entry point:** `sdk.useLocale("de").use("snippets").set(key, { text })` writes `translations.de.text` where the source map has it; values (non-text fields) are the same in every language. Creating an item starts in the source locale.
+
+**Open:** `@checkin247/cds-snippets` stores one language per snippet (`text`, `html` on the record). Multilingual snippets need a Directus translations junction (`snippets_translations`) and `mapContentTypes` reading it into `translations[locale]`. A content type option, e.g. `translations: "snippets_translations"`, would do it.
+
 ### Verification against the demo
 
 The demo page mapped onto P11/P12:

@@ -23,7 +23,7 @@ type Row = Record<string, unknown> & { id: string };
 // (texts into translations.en, files to media paths); the editor writes them back.
 function cms() {
   const records: Record<string, Row[]> = {
-    rooms: [{ id: "1", slug: "suite", name: "Suite", project: "a", cover: null }]
+    rooms: [{ id: "1", slug: "suite", name: "Suite", name_de: "Suite (DE)", project: "a", cover: null }]
   };
   const files = new Map<string, { content: Buffer; mimeType: string; title?: string }>();
   let nextId = 2;
@@ -33,7 +33,7 @@ function cms() {
       id: `room-${r.id}`,
       key: String(r.slug),
       ...(r.cover ? { cover: `cms/${r.cover}.png`, media: [`cms/${r.cover}.png`] } : { cover: null }),
-      translations: { en: { name: r.name } }
+      translations: { en: { name: r.name }, ...(r.name_de ? { de: { name: r.name_de } } : {}) }
     }));
     const map: SourceMap = {
       sources: { cms: {} },
@@ -46,6 +46,7 @@ function cms() {
               collection: "rooms",
               fields: {
                 "translations.en.name": { collection: "rooms", id: r.id, field: "name" },
+                "translations.de.name": { collection: "rooms", id: r.id, field: "name_de" },
                 slug: { collection: "rooms", id: r.id, field: "slug" }
               }
             }
@@ -145,6 +146,16 @@ describe("Publish SDK (P19)", () => {
 
     await sdk.publish("production", { releaseId: "r1" });
     expect((await read()).use("rooms").get("suite")?.translations.en.name).toBe("Grand Suite");
+  });
+
+  it("writes a text in another locale to that locale's source field", async () => {
+    const system = cms();
+    const sdk = sdkFor(system);
+    const result = await sdk.useLocale("de").use("rooms").set("suite", { name: "Grosse Suite" });
+    expect(result).toMatchObject({ status: "saved", fields: { name: { status: "saved", value: "Grosse Suite" } } });
+    expect(system.records.rooms[0]).toMatchObject({ name: "Suite", name_de: "Grosse Suite" });
+    // creating starts in the source locale
+    expect((await sdk.useLocale("de").use("rooms").set("loft", { name: "Dachzimmer" })).status).toBe("rejected");
   });
 
   it("reports a conflict when the source changed after the SDK read it", async () => {

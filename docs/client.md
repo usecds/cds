@@ -142,6 +142,7 @@ All queries read from the in-memory cache of the **active** release and need no 
 | `getItemByKey(collection, key)` | Item or `null` (linear scan) |
 | `getItemById(collection, id)` | Item or `null` (linear scan) |
 | `use(collection)` | A `CollectionHandle` for reading items by key: `get(key)` (item or `null`), `has(key)`, `all()`. See [Reading by handle](#reading-by-handle) |
+| `useLocale(locale, options?)` | The release in one language: `use(collection)` gives items with their texts as fields, resolved along fallbacks; `locales()`, `media(path)`. See [Reading in one language](#reading-in-one-language) |
 | `getLocales()` | Sorted union of all locale keys across all items |
 | `resolveReferences(item)` | Referenced items, in order; dangling references are skipped |
 | `getMediaContent(virtualPath)` | `Buffer` from storage, or `null` if the path or file is unknown |
@@ -156,7 +157,7 @@ All queries read from the in-memory cache of the **active** release and need no 
 | `getTranslationSummary()` | The release's translation completeness summary, or `null` |
 | `getTranslationStatus(item, locale, field)` | `{ status, stale }` from the item's `_provenance` translation marker (`status: null` without a marker). Staleness is detected via `sourceHash` only. The publisher's previous-release fallback shows up in the build report, not here. |
 
-The query API leaves locale fallback to the application. `item.translations[locale]` is `undefined` when an item lacks that locale.
+The query API above reads raw items: `item.translations[locale]` is `undefined` when an item lacks that locale. `useLocale()` resolves fallbacks for you.
 
 ### Reading by handle
 
@@ -171,6 +172,25 @@ qrcodes.get("wifi");
 ```
 
 A handle holds only the collection name. Every read sees the active release at that moment (and a preview's overlay), so a handle taken before `sync()` reads the new release afterwards. The client keeps no "current collection": two handles never affect each other, also when components read concurrently. Reads are synchronous; the data is in memory.
+
+### Reading in one language
+
+`useLocale()` reads like `use()`, but returns each item with its texts as fields, in one language:
+
+```ts
+const de = client.useLocale("de-DE");
+const contact = de.use("snippets").get("contact-info");
+contact?.text;             // "Rufen Sie uns an", or the English text if there is no German one
+contact?.$locales.text;    // "de": where the text came from
+de.locales();              // ["de-DE", "de", "en"] for a release with de and en (source locale en)
+de.media(post.cover)?.alt; // alt text along the same fallbacks
+```
+
+- **Fallbacks, in order:** the requested locale, its language (`de` for `de-DE`), the language's other regions (`de-AT`), `options.fallback` (e.g. `["en"]`), then the release's source locale. `{ fallback: false }` reads the requested locale only. Matching ignores case and `_` vs `-`; the release's spelling is used.
+- **Per text:** each text falls back on its own, so a half-translated item shows the translated texts and fills in the rest. An empty string counts as missing.
+- **Missing content is `null`.** `get(key)` is `null` when there is no item with that key (not published, a draft, or never created). A text that none of the locales has is `null`, and the item has every text field it has in any locale, so its shape doesn't depend on the language. What a place shows without content (nothing, a default, a placeholder) is the frontend's decision.
+- Values (non-text fields: `kind`, `url`, media paths) are on the item as they are. Like `use()`, a view holds no release: every read sees the active release at that moment.
+- `localize(item, locales)` and `resolveLocales(locale, available, sourceLocale, options)` are exported for frontends that read items another way.
 
 ### Preview edits: `EditOverlay`
 

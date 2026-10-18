@@ -341,6 +341,7 @@ await cds.publish("production");
 - Each value goes to the source field the source map names; the basis is the value the SDK read, so a change made meanwhile comes back as `{ status: "conflict", fields: { <field>: { current } } }` and nothing is written for that field. A file field has no recorded source field (the release holds its media path); it is written to the item's record, with the source's current value as the basis.
 - A key that doesn't exist yet is created with `editor.create`, the key in the content type's slug field, plus `createDefaults`. Without a content type or `create`, the set is rejected.
 - After a write, the next read loads the source again. `publish(channel, { releaseId? })` runs the `Publisher` in process (release ID: the current time).
+- `useLocale(locale).use(collection).set(key, values)` writes texts in that locale (`translations.<locale>.<field>` where the source map has it); values are the same in every locale. Creating a key starts in the source locale: in another locale, a missing key is rejected.
 - A preview keeps what is its own: the overlay, the session cookie, its `StructureEditor`.
 
 ### Editing: `SourceEditor` (optional)
