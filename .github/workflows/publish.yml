@@ -2,13 +2,19 @@
 # yet. A pull request that should be released raises the version of the packages it changes.
 # Nobody publishes by hand, and there is no token: npm trusts this workflow (trusted publishing,
 # set up per package on npmjs.com). A package npm doesn't know yet can't be published this way;
-# it is skipped with a notice until it has been published once and trusts this workflow.
+# it is skipped with a notice until it has a placeholder version and trusts this workflow
+# (docs/releasing.md). A trusted publisher expires unless it publishes within 48 hours.
 name: publish
 
 on:
   push:
     branches: [main]
   pull_request:
+
+# one publish at a time: a merge right after another waits instead of racing it
+concurrency:
+  group: ${{ github.event_name == 'push' && 'publish' || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -53,7 +59,7 @@ jobs:
             name=$(node -p "require('./$dir/package.json').name")
             version=$(node -p "require('./$dir/package.json').version")
             if ! npm view "$name" name > /dev/null 2>&1; then
-              echo "::notice::$name is not on npm yet: publish it once, then add this workflow as its trusted publisher"
+              echo "::notice::$name is not on npm yet: publish 0.0.0-stage by hand, then add this workflow as its trusted publisher (docs/releasing.md)"
               continue
             fi
             if npm view "$name@$version" version > /dev/null 2>&1; then
@@ -61,5 +67,17 @@ jobs:
               continue
             fi
             tarball=$(cd "$dir" && pnpm pack --pack-destination "$RUNNER_TEMP" | tail -1)
-            npm publish "$tarball" --access public
+            # npm holds a new version as staged for some minutes, invisible to npm view; a run in
+            # that window (a re-run, the next merge) gets a 409 for a version that is on npm
+            if out=$(npm publish "$tarball" --access public 2>&1); then
+              echo "$out"
+            elif grep -q "previously staged version" <<< "$out"; then
+              echo "::notice::$name@$version is on npm already (still staged)"
+            else
+              echo "$out"
+              echo "::error::$name@$version wasn't published"
+              failed="$failed $name"
+            fi
           done
+          # the other packages are published before a failure fails the job
+          [ -z "${failed:-}" ]
