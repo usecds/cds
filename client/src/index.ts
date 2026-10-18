@@ -1,5 +1,5 @@
 export * from "./types.js";
-export { CDSClient, CDSClientConfig, SyncResult } from "./core/client.js";
+export { CDSClient, CDSClientConfig, CollectionHandle, SyncResult } from "./core/client.js";
 export { MemoryStorage } from "./storage/memory.js";
 export { FilesystemStorage } from "./storage/filesystem.js";
 export { HttpDownloader, FilesystemDownloader } from "./downloaders.js";

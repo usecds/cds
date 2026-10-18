@@ -250,3 +250,4 @@ export function fitSize(sourceWidth: number, sourceHeight: number, width: number
 }
 
 export * from "./cache.js";
+export * from "./renderer.js";

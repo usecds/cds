@@ -235,6 +235,24 @@ function evaluateTarget(ctx: Context, target: TargetDefinition): ContentIssue[] 
     }
   }
 
+  // Handles shared by several items of a group (e.g. snippets and qrcodes both claiming "wifi")
+  for (const group of target.uniqueKeys ?? []) {
+    const owners = new Map<string, string[]>();
+    for (const collection of group) {
+      for (const item of ctx.collections[collection] ?? []) {
+        owners.set(item.key, [...(owners.get(item.key) ?? []), `${collection}/${item.id}`]);
+      }
+    }
+    for (const [key, items] of owners) {
+      if (items.length < 2) continue;
+      requirement({
+        issue: "duplicate-key",
+        collection: items[0].split("/")[0],
+        message: `Key ${key} is used by ${items.length} items of ${group.join(", ")}: ${items.join(", ")}`
+      });
+    }
+  }
+
   // Recommendations apply to every locale in the content
   for (const [collection, rules] of Object.entries(target.recommendations ?? {})) {
     const items = ctx.collections[collection];

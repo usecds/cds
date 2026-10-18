@@ -335,3 +335,83 @@ describe("DirectusEditor building blocks", () => {
     expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({ standalone: true });
   });
 });
+
+describe("DirectusSource with a scope", () => {
+  let requests: string[];
+  beforeEach(() => {
+    requests = mockDirectus();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const filterOf = (collection: string) => {
+    const request = requests.find((r) => r.includes(`/items/${collection}?`));
+    const filter = request ? new URL(request.slice(request.indexOf("http"))).searchParams.get("filter") : null;
+    return filter ? JSON.parse(filter) : null;
+  };
+
+  it("filters every scoped collection by its path to the scope's key, and leaves shared ones alone", async () => {
+    const source = new DirectusSource({
+      url: "http://directus.test",
+      defaultLocale: "en-gb",
+      collections: { pages: {}, menu_items: {}, languages: { primaryKey: "code" } },
+      scope: {
+        value: "project-a",
+        paths: { pages: "projects.projects_id", menu_items: "menu.projects.projects_id" },
+        shared: ["languages"]
+      }
+    });
+    await source.getCollections();
+    expect(filterOf("pages")).toEqual({ projects: { projects_id: { _eq: "project-a" } } });
+    expect(filterOf("menu_items")).toEqual({ menu: { projects: { projects_id: { _eq: "project-a" } } } });
+    expect(filterOf("languages")).toBeNull();
+  });
+
+  it("fails before any request when a fetched collection has no scope path and isn't shared", async () => {
+    const source = new DirectusSource({
+      url: "http://directus.test",
+      defaultLocale: "en-gb",
+      collections: { pages: {}, menu_items: {}, languages: {} },
+      scope: { value: "project-a", paths: { pages: "projects.projects_id" } }
+    });
+    await expect(source.getCollections()).rejects.toThrow(/no scope path for menu_items, languages/);
+    expect(requests).toEqual([]);
+  });
+
+  it("without a scope, sends no filter", async () => {
+    await new DirectusSource({ url: "http://directus.test", defaultLocale: "en-gb", collections: { pages: {} } }).getCollections();
+    expect(filterOf("pages")).toBeNull();
+  });
+});
+
+describe("DirectusEditor upload and create", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("uploads a file as multipart, metadata before the file, as the editor", async () => {
+    let seen: { url: string; auth: string | null; fields: string[]; file?: File } | undefined;
+    vi.stubGlobal("fetch", async (input: string, init: RequestInit = {}) => {
+      const form = init.body as FormData;
+      seen = {
+        url: input,
+        auth: new Headers(init.headers).get("authorization"),
+        fields: [...form.keys()],
+        file: form.get("file") as File
+      };
+      return new Response(JSON.stringify({ data: { id: "file-1" } }), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    const editor = new DirectusEditor({ url: "http://directus.test/" });
+    const id = await editor.upload({ content: Buffer.from("png"), filename: "lobby.png", mimeType: "image/png", title: "The lobby" }, { accessToken: "tok" });
+    expect(id).toBe("file-1");
+    expect(seen?.url).toBe("http://directus.test/files?fields=id");
+    expect(seen?.auth).toBe("Bearer tok");
+    expect(seen?.fields).toEqual(["title", "file"]);
+    expect(seen?.file?.name).toBe("lobby.png");
+    expect(seen?.file?.type).toBe("image/png");
+  });
+
+  it("create posts a record and returns its id", async () => {
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ data: { id: "s-9" } }), { status: 200, headers: { "content-type": "application/json" } }));
+    expect(await new DirectusEditor({ url: "http://directus.test" }).create("snippets", { position: "x" }, { accessToken: "tok" })).toBe("s-9");
+  });
+});

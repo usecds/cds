@@ -37,6 +37,16 @@ export interface SyncResult {
   error?: Error;
 }
 
+/** One collection of the active release, read by item key (see CDSClient.use) */
+export interface CollectionHandle {
+  readonly collection: string;
+  /** The item with this key, or null (also when the collection isn't in the release) */
+  get(key: string): CollectionItem | null;
+  has(key: string): boolean;
+  /** All items; the cached array, treat it as read-only */
+  all(): CollectionItem[];
+}
+
 export class CDSClient {
   private storage: ClientStorage;
   private downloader: RemoteDownloader;
@@ -286,6 +296,22 @@ export class CDSClient {
   }
 
   /**
+   * A handle bound to one collection, for reading items by their key (handle). It holds only the
+   * collection name: every read sees the active release at that moment (and the overlay), so a
+   * handle taken before a sync reads the new release afterwards. The client keeps no "current
+   * collection": handles don't affect each other, also under concurrent async code.
+   */
+  use(collection: string): CollectionHandle {
+    const items = () => this.items(collection) || [];
+    return {
+      collection,
+      get: (key) => items().find((item) => item.key === key) || null,
+      has: (key) => items().some((item) => item.key === key),
+      all: () => items()
+    };
+  }
+
+  /**
    * Finds a single item by its unique ID.
    */
   async getItemById(collectionName: string, id: string): Promise<CollectionItem | null> {
@@ -373,6 +399,7 @@ export class CDSClient {
     if (typeof item.height === "number") info.height = item.height;
     if (item.focalPoint) info.focalPoint = item.focalPoint;
     if (item.focalPoints) info.focalPoints = item.focalPoints;
+    if (Array.isArray(item.variants) && item.variants.length) info.variants = item.variants;
     const texts = locale ? item.translations[locale] : undefined;
     if (typeof texts?.alt === "string" && texts.alt) info.alt = texts.alt;
     if (typeof texts?.description === "string" && texts.description) info.description = texts.description;

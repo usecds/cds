@@ -43,6 +43,18 @@ export interface MediaMetadataItem extends CollectionItem {
   focalPoints?: Record<string, { x: number; y: number }>; // named points of interest, e.g. per crop
   width?: number; // intrinsic size in pixels
   height?: number;
+  variants?: MediaVariant[]; // sizes rendered at publish for the targets' presets
+}
+
+// One rendered size of an image: a media file of the release (path), made for a preset
+export interface MediaVariant {
+  path: string; // virtual path of the rendered file
+  preset: string;
+  breakpoint: string;
+  dpr: number;
+  width: number; // pixels
+  height: number;
+  format: "avif" | "webp" | "jpeg" | "png";
 }
 
 export interface Collection {
@@ -146,6 +158,19 @@ export interface SourceEditor {
   logout?(session: EditorSession): Promise<void>;
   read(ref: SourceFieldRef, session: EditorSession): Promise<EditValue>;
   write(edit: SourceEdit, session: EditorSession): Promise<EditResult>;
+  /** Creates a record in a source collection (source field names, relations as the source takes them); returns its id */
+  create?(collection: string, data: Record<string, unknown>, session: EditorSession): Promise<string>;
+  /** Uploads a file to the source system; returns its id there, the value of a file field */
+  upload?(file: SourceUpload, session: EditorSession): Promise<string>;
+}
+
+// A file to add to the source system (an image for a file field); rendering happens at release
+export interface SourceUpload {
+  content: Buffer;
+  filename: string;
+  mimeType: string;
+  title?: string; // the source's title (Directus: published as the alt text)
+  description?: string;
 }
 
 /**
