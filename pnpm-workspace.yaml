@@ -3,5 +3,6 @@ packages:
   - 'client'
   - 'imaging'
   - 'directus'
+  - 's3'
   - 'collections'
   - 'demo'

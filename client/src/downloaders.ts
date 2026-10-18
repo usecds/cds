@@ -7,18 +7,23 @@ const safe = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "_");
 
 /**
  * Downloads a published CDS store over HTTP(S), e.g. from a CDN. The channel manifest is
- * requested with If-None-Match, so an unchanged channel costs a 304.
+ * requested with If-None-Match, so an unchanged channel costs a 304. `fetchImpl` replaces the
+ * global fetch, e.g. one that signs each request (S3Downloader in @usecds/s3).
  */
 export class HttpDownloader implements RemoteDownloader {
   private etag?: string;
   private lastManifest?: ChannelManifest;
 
-  constructor(private readonly baseUrl: string, private readonly init: RequestInit = {}) {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly init: RequestInit = {},
+    private readonly fetchImpl: (url: string, init: RequestInit) => Promise<Response> = (url, init) => fetch(url, init)
+  ) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
   private async get(relative: string, headers: Record<string, string> = {}): Promise<Response> {
-    const res = await fetch(`${this.baseUrl}/${relative}`, {
+    const res = await this.fetchImpl(`${this.baseUrl}/${relative}`, {
       ...this.init,
       headers: { ...(this.init.headers as Record<string, string> | undefined), ...headers }
     });

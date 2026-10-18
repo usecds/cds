@@ -14,6 +14,10 @@
 // can read several). Every fetched collection then needs a scope path or must be declared shared.
 // TypeScript modules work on Node 23.6+ (type stripping).
 //
+// --out s3://<bucket>/<prefix>: publish into an S3 bucket (needs @usecds/s3). The connection comes from
+// the AWS environment: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, and AWS_ENDPOINT_URL for a
+// self-hosted server (SeaweedFS, RustFS, Ceph).
+//
 // The Directus URL and read token come from the config, or DIRECTUS_URL / DIRECTUS_API_TOKEN.
 import fs from "fs/promises";
 import path from "path";
@@ -26,6 +30,7 @@ import {
   renderPublishReportHtml,
   PublishRequirementsError,
   PublishArtifacts,
+  ObjectStore,
   ReleaseManifest,
   TargetDefinition
 } from "@usecds/server";
@@ -40,6 +45,17 @@ const arg = (name: string): string | undefined => {
   if (i < 0) return undefined;
   return args[i].includes("=") ? args[i].slice(args[i].indexOf("=") + 1) : args[i + 1];
 };
+
+// The S3 store is an optional dependency: only an s3:// target loads it
+async function s3Store(url: string): Promise<ObjectStore> {
+  try {
+    const { S3Store } = await import("@usecds/s3/store");
+    return S3Store.fromUrl(url);
+  } catch (err) {
+    if ((err as { code?: string }).code === "ERR_MODULE_NOT_FOUND") throw new Error(`--out ${url} needs @usecds/s3: npm install @usecds/s3`);
+    throw err;
+  }
+}
 
 async function main() {
   const configPath = arg("config");
@@ -57,7 +73,8 @@ async function main() {
   // Release IDs sort chronologically: retention keeps the newest
   const releaseId = arg("release") ?? new Date().toISOString().replace(/[:.]/g, "-");
   const targetsDir = arg("targets");
-  const reportDir = arg("report") ?? path.join(path.dirname(out), "report");
+  const toS3 = out.startsWith("s3://");
+  const reportDir = arg("report") ?? (toS3 ? path.join(".cds", "report") : path.join(path.dirname(out), "report"));
 
   let mappingTargets: TargetDefinition[] = [];
   const mappingPath = arg("mapping");
@@ -88,7 +105,8 @@ async function main() {
   if (scope) console.log(`[directus] scope ${scope.value}`);
 
   const source = new DirectusSource({ ...config, scope, log: (m) => console.log(`[directus] ${m}`) });
-  const publisher = new Publisher(source, new FilesystemStore(out), { retentionCount: 5 });
+  const store = toS3 ? await s3Store(out) : new FilesystemStore(out);
+  const publisher = new Publisher(source, store, { retentionCount: 5 });
   const fromDir = targetsDir ? await loadTargets(targetsDir) : undefined;
   const all = [...(fromDir ?? []), ...mappingTargets];
   const targets = all.length ? all : undefined;

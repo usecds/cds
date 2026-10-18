@@ -1,6 +1,6 @@
 {
   "name": "@usecds/directus",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Directus adapter for CDS: a content source for publishing, and a Directus-compatible read API over a synced CDS release",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,8 +20,17 @@
     "clean": "rimraf dist",
     "prepare": "tsc"
   },
+  "peerDependencies": {
+    "@usecds/s3": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@usecds/s3": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@usecds/client": "workspace:^",
+    "@usecds/s3": "workspace:^",
     "typescript": "^5.5.4"
   },
   "dependencies": {

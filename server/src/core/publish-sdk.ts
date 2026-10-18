@@ -62,7 +62,13 @@ export interface SdkCollection {
 }
 
 export interface PublishSdk {
+  /** Writes texts in the source locale */
   use(collection: string): SdkCollection;
+  /**
+   * Writes texts in this locale (translations.<locale>.<field>, where the source map has it);
+   * values (non-text fields) are the same in every locale. Creating needs the source locale.
+   */
+  useLocale(locale: string): { use(collection: string): SdkCollection };
   media: {
     /** Uploads an original to the source; set its id in a file field. Sizes are rendered at release. */
     add(file: SourceUpload): Promise<{ id: string }>;
@@ -115,10 +121,12 @@ export function createPublishSdk(config: PublishSdkConfig): PublishSdk {
   const typeOf = (collection: string) => config.contentTypes?.find((t) => t.collection === collection);
 
   // The source field behind a field of an item, and the value the SDK read for it
-  async function target(collection: string, item: CollectionItem, field: string, snap: Snapshot): Promise<{ ref: SourceFieldRef; basedOn: EditValue } | null> {
+  async function target(collection: string, item: CollectionItem, field: string, snap: Snapshot, locale: string): Promise<{ ref: SourceFieldRef; basedOn: EditValue } | null> {
     const declared = typeOf(collection)?.fields.find((f) => f.field === field);
-    const isText = declared ? TEXT_KINDS.has(declared.kind) : item.translations[snap.locale]?.[field] !== undefined;
-    const path = isText ? `translations.${snap.locale}.${field}` : field;
+    const isText = declared
+      ? TEXT_KINDS.has(declared.kind)
+      : item.translations[locale]?.[field] !== undefined || item.translations[snap.locale]?.[field] !== undefined;
+    const path = isText ? `translations.${locale}.${field}` : field;
     const entry = snap.map.collections[collection]?.items[item.id];
     const ref = entry?.fields?.[path];
     if (ref) return { ref, basedOn: asEditValue(readPath(item, path)) };
@@ -146,33 +154,39 @@ export function createPublishSdk(config: PublishSdkConfig): PublishSdk {
     return { status: "created", id, fields };
   }
 
-  return {
-    use(collection) {
-      return {
-        collection,
-        async get(key) {
-          return (await read()).collections[collection]?.find((i) => i.key === key) ?? null;
-        },
-        async set(key, values) {
-          const snap = await read();
-          const item = snap.collections[collection]?.find((i) => i.key === key);
-          if (!item) return create(collection, key, values, snap);
-
-          const fields: Record<string, EditResult> = {};
-          let status: SetResult["status"] = "saved";
-          for (const [field, value] of Object.entries(values)) {
-            const found = await target(collection, item, field, snap);
-            const result: EditResult = found
-              ? await config.editor.write({ ref: found.ref, value, basedOn: found.basedOn }, config.session)
-              : { status: "rejected", message: `${collection}/${key}: ${field} has no source field, so it can't be written` };
-            fields[field] = result;
-            if (result.status !== "saved" && status === "saved") status = result.status;
-          }
-          stale();
-          return { status, id: snap.map.collections[collection]?.items[item.id]?.id ?? item.id, fields };
-        }
-      };
+  const handle = (collection: string, requested?: string): SdkCollection => ({
+    collection,
+    async get(key) {
+      return (await read()).collections[collection]?.find((i) => i.key === key) ?? null;
     },
+    async set(key, values) {
+      const snap = await read();
+      const item = snap.collections[collection]?.find((i) => i.key === key);
+      const locale = requested ?? snap.locale;
+      if (!item && locale !== snap.locale) {
+        const message = `${collection}/${key} doesn't exist: create it in the source locale (${snap.locale}) first`;
+        return { status: "rejected", fields: { [key]: { status: "rejected", message } } };
+      }
+      if (!item) return create(collection, key, values, snap);
+
+      const fields: Record<string, EditResult> = {};
+      let status: SetResult["status"] = "saved";
+      for (const [field, value] of Object.entries(values)) {
+        const found = await target(collection, item, field, snap, locale);
+        const result: EditResult = found
+          ? await config.editor.write({ ref: found.ref, value, basedOn: found.basedOn }, config.session)
+          : { status: "rejected", message: `${collection}/${key}: ${field} has no source field, so it can't be written` };
+        fields[field] = result;
+        if (result.status !== "saved" && status === "saved") status = result.status;
+      }
+      stale();
+      return { status, id: snap.map.collections[collection]?.items[item.id]?.id ?? item.id, fields };
+    }
+  });
+
+  return {
+    use: (collection) => handle(collection),
+    useLocale: (locale) => ({ use: (collection) => handle(collection, locale) }),
     media: {
       async add(file) {
         if (!config.editor.upload) throw new Error("The editor can't upload files");

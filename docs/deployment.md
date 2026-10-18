@@ -78,10 +78,9 @@ CDS_URL=https://cds.example.com nuxi generate
   ([schemas.md](schemas.md)), and a client downloads only the objects it doesn't have.
 - A running server can follow the channel and switch releases without a rebuild
   (`CDSClient.sync()`, [client.md](client.md)); a static build syncs once.
-- The client reads a store over HTTP (`HttpDownloader`) or from a folder (`FilesystemDownloader`).
-  The publisher writes to a folder (`FilesystemStore`); writing to S3-compatible storage directly is
-  not implemented yet ([implementation-plan.md](implementation-plan.md), G11). Until then the folder
-  has to be one the web server or CDN serves, or synced to one.
+- The client reads a store over HTTP (`HttpDownloader`), from a folder (`FilesystemDownloader`) or
+  from a private S3 bucket (`S3Downloader`, below). The publisher writes to a folder
+  (`FilesystemStore`) or to S3 (`--out s3://<bucket>/<prefix>`).
 
 ## Several projects: one store each
 
@@ -101,6 +100,51 @@ CDS_URL=https://cds.example.com/$PROJECT_KEY …
 - A deployment is configured by one URL. `$PROJECT_KEY` should be unguessable (a random token, not
   the project's name): a release is readable by anyone who has the URL.
 - Every project polls only its own channel manifest.
+
+## S3: a bucket per tenant, a read key per device group
+
+`@usecds/s3` stores releases in S3-compatible storage (AWS, SeaweedFS, RustFS, Ceph, R2) with the
+folder store's layout, so nothing between the publisher and the devices has to run:
+
+```
+<tenant-bucket>/<project>/channels/<channel>/manifest.json   no-cache (the commit point, written last)
+<tenant-bucket>/<project>/releases/<id>.json                 immutable
+<tenant-bucket>/<project>/objects/<hash>.json                immutable, uploaded once
+<tenant-bucket>/<project>/media/<hash>.<ext>                 immutable, uploaded once
+```
+
+```bash
+# publish one project of the tenant, with the tenant's publisher key
+AWS_ENDPOINT_URL=https://s3.example.com AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=…   cds-directus-publish --config directus-source.json --mapping cds/mapping.ts   --scope "$PROJECT_ID" --out "s3://$TENANT_BUCKET/$PROJECT_KEY"
+```
+
+```ts
+// a device of the project's group: signed GETs with the group's read-only key, no proxy
+import { CDSClient, FilesystemStorage } from "@usecds/client";
+import { S3Downloader } from "@usecds/s3/downloader";
+
+const client = new CDSClient({
+  storage: new FilesystemStorage(".cds"),
+  downloader: new S3Downloader({ endpoint, bucket: TENANT_BUCKET, prefix: PROJECT_KEY, accessKeyId, secretAccessKey })
+});
+await client.initialize();
+await client.sync("production"); // 304 while nothing changed
+const contact = client.useLocale("de-DE").use("snippets").get("contact-info");
+```
+
+- **Permissions are the storage's.** The publisher key has read and write on the tenant's bucket.
+  Each device group gets a key that may only read `<tenant-bucket>/<project>/*`: it can't read
+  another project, list the bucket or write. Revoking a group means revoking its key. Granting by
+  prefix needs AWS-style grants (AWS IAM or bucket policies, SeaweedFS, RustFS, Ceph). Garage
+  grants whole buckets only, so with Garage each device group needs its own bucket.
+- **Lookups stay on the device.** S3 serves fixed files; the device syncs the release and reads
+  by handle locally (`use`, `useLocale`). After the first sync, a poll is one signed request that
+  answers `304`, and the device keeps working from its stored release while S3 is unreachable.
+- **SeaweedFS for local development:** `weed server -s3 -s3.config=s3.json`, with identities like
+  `{ "name": "group-hotel-1", "actions": ["Read:tenant-a/hotel-1/*"] }` and
+  `{ "name": "publisher-tenant-a", "actions": ["Read:tenant-a", "List:tenant-a", "Write:tenant-a"] }`.
+- A deployment that can't keep a key (a public browser) needs short-lived keys from a token
+  service; that isn't part of CDS.
 
 ## Choosing
 

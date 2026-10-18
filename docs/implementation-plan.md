@@ -38,11 +38,11 @@ The first end-to-end run against real systems.
 - Done: **`@usecds/directus`** with `DirectusSource` (GET only; records, referenced files, `_media`, source map), the `cds-directus-publish` CLI, and `createDirectusCompat`, a Directus-compatible read API over a synced client. Proven on hotelplatform.io: identical rendered pages with CDS in between ([directus.md](directus.md)).
 - Done: `HttpDownloader` and `FilesystemDownloader` in `@usecds/client`.
 - Done: mapped publishing (a site mapping turns records into the CDS contract) and editing (P13): field-level source map, `SourceEditor` / `DirectusEditor`, the client's `EditOverlay`, `sourceReadAt` on releases. hotelplatform.io reads CDS natively and has an editable preview.
-- Open: real ETag handling in `sync()` (`If-None-Match`, `304`) end to end; publishing from a Directus flow or webhook instead of a manual CLI run.
+- Open: publishing from a Directus flow or webhook instead of a manual CLI run.
 
 ### G11: S3 object store
 
-An `ObjectStore` for S3-compatible storage (AWS, R2, MinIO), with cache headers (`immutable` for objects, media and releases; short for channels) and upload skipping for content that already exists.
+Done (P20): `@usecds/s3` with `S3Store` (cache headers: `immutable` for objects, media and releases, `no-cache` for channels; uploads skipped for content that already exists) and `S3Downloader` (SigV4-signed GETs with a device group's key, `If-None-Match`/`304`), and `cds-directus-publish --out s3://…`. Verified on SeaweedFS.
 
 ### G12: Browser client
 
