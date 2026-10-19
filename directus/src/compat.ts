@@ -5,7 +5,7 @@ export type { DirectusQuery } from "./query.js";
 // What the compat layer needs from a CDS client (structurally, so this module has no dependencies)
 export interface CdsReader {
   getCollection(name: string): Promise<Array<{ id: string; [field: string]: any }>>;
-  getMediaContent(virtualPath: string): Promise<Buffer | null>;
+  getMediaContent(virtualPath: string): Promise<Uint8Array | null>;
 }
 
 /** An error shaped like a failed Directus response */
@@ -85,8 +85,9 @@ export function createDirectusCompat(reader: CdsReader, options: { transform?: A
      */
     async asset(id: string, params: Record<string, unknown> = {}): Promise<{ data: Buffer; type: string; filename: string }> {
       const file = (await filesById()).get(id);
-      const data = file ? await reader.getMediaContent(file.path) : null;
-      if (!file || !data) throw forbidden(`asset "${id}"`);
+      const bytes = file ? await reader.getMediaContent(file.path) : null;
+      if (!file || !bytes) throw forbidden(`asset "${id}"`);
+      const data = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
       const original = { data, type: String(file.meta.type ?? "application/octet-stream") };
       const transformParams = Object.fromEntries(
         Object.entries(params).filter(([k, v]) => TRANSFORM_PARAMS.includes(k) && v !== undefined && v !== null).map(([k, v]) => [k, String(v)])

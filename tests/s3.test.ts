@@ -3,6 +3,7 @@ import type { S3Client } from "@aws-sdk/client-s3";
 import { Publisher, CollectionItem, ContentSource } from "../server/src/index.js";
 import { CDSClient, MemoryStorage, RemoteDownloader } from "../client/src/index.js";
 import { S3Store, S3Downloader } from "../s3/src/index.js";
+import { signRequest } from "../s3/src/sigv4.js";
 
 type Stored = { body: Buffer; contentType?: string; cacheControl?: string };
 
@@ -65,6 +66,23 @@ const sourceOf = (text: string): ContentSource => ({
     snippets: [{ id: "s1", key: "contact-info", logo: "logo.png", media: ["logo.png"], translations: { en: { text } } }]
   }),
   getMedia: async () => [{ virtualPath: "logo.png", content: Buffer.from("png"), mimeType: "image/png" }]
+});
+
+describe("SigV4 signing (S3Downloader)", () => {
+  it("matches AWS's documented example (GET object with a range)", () => {
+    const headers = signRequest({
+      method: "GET",
+      url: "https://examplebucket.s3.amazonaws.com/test.txt",
+      headers: { range: "bytes=0-9" },
+      accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+      secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      region: "us-east-1",
+      service: "s3",
+      datetime: "20130524T000000Z"
+    });
+    expect(headers.authorization).toBe("AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41");
+    expect(headers["x-amz-date"]).toBe("20130524T000000Z");
+  });
 });
 
 describe("S3Store", () => {

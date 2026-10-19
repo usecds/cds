@@ -56,3 +56,8 @@ demo/cache-site/
 # copied from schemas/ when a package is packed (prepare)
 client/schemas/
 server/schemas/
+
+# Playwright (pnpm test:e2e)
+e2e/.work/
+test-results/
+playwright-report/

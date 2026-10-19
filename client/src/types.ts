@@ -171,8 +171,8 @@ export interface ClientStorage {
   readObject(hash: string): Promise<string | null>;
   hasObject(hash: string): Promise<boolean>;
   
-  saveMedia(hash: string, content: Buffer): Promise<void>;
-  readMedia(hash: string): Promise<Buffer | null>;
+  saveMedia(hash: string, content: Uint8Array): Promise<void>;
+  readMedia(hash: string): Promise<Uint8Array | null>;
   hasMedia(hash: string): Promise<boolean>;
   
   saveRelease(releaseId: string, manifest: ReleaseManifest): Promise<void>;
@@ -192,5 +192,5 @@ export interface RemoteDownloader {
   fetchChannelManifest(channel: string, currentEtag?: string): Promise<{ manifest: ChannelManifest; etag?: string; notModified?: boolean }>;
   fetchReleaseManifest(releaseId: string): Promise<ReleaseManifest>;
   fetchObject(hash: string): Promise<string>;
-  fetchMedia(hash: string, ext: string): Promise<Buffer>;
+  fetchMedia(hash: string, ext: string): Promise<Uint8Array>;
 }

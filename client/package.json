@@ -1,19 +1,45 @@
 {
   "name": "@usecds/client",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
+      },
+      "worker": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
+      },
+      "workerd": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
+      },
+      "deno": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
+      },
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "build": "tsc",
     "clean": "rimraf dist",
-    "prepare": "node -e \"require('node:fs').cpSync('../schemas', 'schemas', { recursive: true })\" && tsc"
+    "prepare": "node -e \"require('node:fs').cpSync('../schemas', 'schemas', { recursive: true })\" && tsc",
+    "validators": "node scripts/validators.mjs"
   },
   "dependencies": {
-    "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1"
+    "@noble/hashes": "^2.4.0"
   },
   "devDependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "esbuild": "^0.28.2",
     "typescript": "^5.5.4"
   },
   "license": "Apache-2.0",

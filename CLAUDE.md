@@ -5,16 +5,16 @@ The CMS and the frontend never talk to each other directly, and a frontend built
 ## Layout
 - `schemas/v1/*.json`: the wire format (JSON Schema draft-07). This is the source of truth.
 - `server/` (`@usecds/server`): `Publisher` (takes an optional `MediaRenderer`: image sizes rendered at release), `ContentSource` / `ObjectStore` interfaces, `FixtureSource`, `FilesystemStore`, `createPublishSdk` (writes by key through an adapter's editor, then publishes)
-- `client/` (`@usecds/client`): `CDSClient` (`use(collection).get(key)` reads by handle; `useLocale(locale).use(…)` the same with texts resolved along locale fallbacks), `ClientStorage` / `RemoteDownloader` interfaces, `MemoryStorage`, `FilesystemStorage`
+- `client/` (`@usecds/client`): `CDSClient` (`use(collection).get(key)` reads by handle; `useLocale(locale).use(…)` the same with texts resolved along locale fallbacks), `ClientStorage` / `RemoteDownloader` interfaces, `MemoryStorage`, `IndexedDBStorage` (browsers), `FilesystemStorage` (Node)
 - `directus/` (`@usecds/directus`): `DirectusSource` (GET-only publishing; a site mapping turns records into the CDS contract, `$sources` go into the source map), `cds-directus-publish --mapping [--scope <project>] [--out s3://bucket/prefix]` CLI (a scope filters every request to one project; every fetched collection needs a scope path or must be shared), `DirectusEditor` (optional write side: field writes, create, upload), `createDirectusCompat` (migration aid: Directus REST semantics over a raw release). See docs/directus.md.
-- `s3/` (`@usecds/s3`): `S3Store` (`/store`, the publisher's store in a bucket under a prefix, Node, `@aws-sdk/client-s3`) and `S3Downloader` (`/downloader`, SigV4-signed reads with a device group's key, `aws4fetch`, built on `HttpDownloader`'s `fetchImpl`). `tests/s3.test.ts` runs against a fake; with `CDS_S3_TEST_*` set also against a real server (see the test file).
+- `s3/` (`@usecds/s3`): `S3Store` (`/store`, the publisher's store in a bucket under a prefix, Node, `@aws-sdk/client-s3`) and `S3Downloader` (`/downloader`, SigV4-signed reads with a device group's key, its own signer `src/sigv4.ts` on `@noble/hashes`, built on `HttpDownloader`'s `fetchImpl`). `tests/s3.test.ts` runs against a fake; with `CDS_S3_TEST_*` set also against a real server (see the test file).
 - `imaging/` (`@usecds/imaging`): complementary image processor (sharp): crops by focal point, sizes per breakpoint. Not CDS core; the demo generator uses it after sync, and `createRenderer()` is the publisher's renderer.
 - `collections/` (`@usecds/collections`): recommended rules for common collections (posts, FAQs, videos) as target definitions that targets `extends` one by one; recommendations only, they never fail a publish. JSON only, nothing to build.
 - `demo/`: publishes `demo/data/*.json`, syncs it, and builds an EN/DE site from `_routes`/`_pages`/`_blocks`/`_menu` (static files or a Hono server)
 - `tests/integration.test.ts`: a single end-to-end lifecycle test (publish, sync, CAS reuse, retention, GC)
 
 ## Commands
-- `pnpm test`: Vitest, imports from `src`, no build needed
+- `pnpm test`: Vitest, imports from `src`, no build needed. `pnpm test:e2e`: Playwright (Chromium, WebKit) against an S3 server, see e2e/README.md
 - `pnpm build`: `tsc` for server, client, imaging, s3 and directus (demo and apps using them import their `dist`)
 - Publishing: CI (`.github/workflows/publish.yml`) publishes every package whose version isn't on npm yet when a pull request is merged to `main`; raise the version in the pull request. It packs with pnpm (which turns `workspace:^` into the version range; `npm publish` from the folder would ship `workspace:` as is) and uses npm trusted publishing (no token; each package trusts `publish.yml` on npmjs.com). A package that isn't on npm yet is skipped until it has been published once (by hand: docs/releasing.md). `prepare` builds; `files` limits the tarball to `dist` (server and client add `schemas`).
 - `pnpm demo`: builds, then writes the static site (one file per route and language) to `demo/dist/`
@@ -32,11 +32,11 @@ The CMS and the frontend never talk to each other directly, and a frontend built
 - `CDSClient.sync()` never throws. It returns `{ success: false, error }` and keeps serving the old release.
 - Release retention sorts IDs **lexicographically**, so IDs must sort chronologically. Stores map characters outside `[a-zA-Z0-9_-]` in IDs and channel names to `_`.
 - The client passes the active release ID as `currentEtag` (it's not a real HTTP ETag).
-- The client uses Node `crypto`/`Buffer`. It isn't browser-ready yet.
+- The client runs in Node, browsers and edge runtimes: `client/src/browser.ts` (the `browser`/`worker`/`deno` export conditions) must not import Node APIs, and `tests/browser-bundle.test.ts` checks that and the size budget. Media is `Uint8Array`. Its validators are precompiled from `schemas/v1` into `client/src/generated/validators.ts` (`pnpm --filter @usecds/client validators` after a schema change; a test fails when they're stale).
 - The server throws if schema files are missing. The client falls back to loose inline schemas (`client/src/validation.ts`).
 
 ## Not implemented yet (don't assume these exist)
-IndexedDB storage, client-side rollback API, client object/media GC, delta sync (Milestone 2). Image rendering lives in `imaging/`, not in CDS core.
+Client-side rollback API, client object/media GC, delta sync (Milestone 2). Image rendering lives in `imaging/`, not in CDS core.
 
 ## Git
 Branch `dev`, main branch `main`. Commit style: conventional commits (`feat(cds): …`, `feat(demo): …`).

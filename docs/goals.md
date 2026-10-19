@@ -14,7 +14,7 @@ Status reflects the code on `dev` as of 2026-10-03.
 
 | # | Problem | How CDS solves it | Where | Status |
 | --- | --- | --- | --- | --- |
-| 1 | **The app breaks when the network or CMS is down** | The client keeps the active release locally and loads it at startup (`initialize()`) with no network. A failed `sync()` returns an error and leaves the active release untouched. | `client/src/core/client.ts` | Done (Node: filesystem/memory storage) |
+| 1 | **The app breaks when the network or CMS is down** | The client keeps the active release locally and loads it at startup (`initialize()`) with no network. A failed `sync()` returns an error and leaves the active release untouched. | `client/src/core/client.ts` | Done (Node: filesystem/memory storage; browsers: IndexedDB storage, G12) |
 | 2 | **Clients see half-published or mixed content** | The server writes objects → release manifest → channel manifest, and only the last step makes a release visible. The client downloads and verifies everything first, then moves one active-release pointer. | `Publisher.publish`, `CDSClient.sync` | Done |
 | 3 | **Every update re-sends everything** | Collections and media are stored under their SHA-256 hash. A new release that changes one collection costs one object upload and one object download. Unchanged files are reused by the server and skipped by the client. | `utils.ts` (`deterministicStringify`, `sha256`), sync staging | Done (integration test checks 1 object / 0 media re-fetched) |
 | 4 | **Corrupt, truncated or incompatible content reaches the app** | The client hashes every downloaded file against the manifest and validates every manifest and collection against the v1 JSON Schemas. `schemaVersion` is pinned, so a future format is rejected instead of misread. | `validation.ts`, `schemas/v1/` | Done (the client's fallback schemas are looser) |
@@ -488,7 +488,7 @@ edit:  frontend ──{ collection, item, field, locale, value, basedOn }──�
 
 ### P18: Content placed by handle, scoped per project
 
-**Status: implemented (2026-10-13)**, except what waits for the browser client (G12); the S3 store is P20. `client.use()`, the Directus scope (`--scope`), the `uniqueKeys` target rule, and `@checkin247/cds-snippets` (own repository, private), verified on the sandbox: installed by schema apply (a second run changes nothing), content for two projects with the same handles, scoped publishes byte-identical to single-project tokens, an unscoped publish of both refused by the handle check, read with `use()` and `qrPayload()`.
+**Status: implemented (2026-10-13)**; the S3 store is P20, browser deployments are G12 (2026-10-18). `client.use()`, the Directus scope (`--scope`), the `uniqueKeys` target rule, and `@checkin247/cds-snippets` (own repository, private), verified on the sandbox: installed by schema apply (a second run changes nothing), content for two projects with the same handles, scoped publishes byte-identical to single-project tokens, an unscoped publish of both refused by the handle check, read with `use()` and `qrPayload()`.
 
 **Problem:** a frontend deployed many times (e.g. screens in several hotels) fills fixed places in its layout with small pieces of content: a contact text, a website link, the WiFi credentials as a QR code. Every deployment must find the same content under the same name, while each tenant edits its own values.
 
@@ -512,7 +512,7 @@ Hence the rule: **with a scope, every fetched collection has a scope path or is 
 2. **Project scope in `DirectusSource`**: `scope: { value, paths: { <collection>: "<relation path>" }, shared?: string[] }`. The filter `{ <path>: { _eq: value } }` goes on every `/items` request; a fetched collection with neither a path nor `shared` throws. Mapping modules may export `scope` paths (merged like `collections`); the CLI takes `--scope <value>` (or `DIRECTUS_SCOPE`). Files aren't scoped (Directus has no project on files): only files the content references are published. Tests in `tests/directus.test.ts`.
 3. **`@checkin247/cds-snippets`** (own repository, private): content types and scope paths for both collections, `qrPayload(item)` (WiFi escaping of `\ ; , : "`), and `cds-snippets-install`: reads the instance's schema snapshot, adds the two collections and their project junctions (key type taken from the project collection), checks that the diff touches nothing else, applies it, and optionally grants a policy read access with the project filter (junctions and relation fields included). Verified on the sandbox: install, content for two projects, scoped publishes, read with `use()`.
 4. **Handle check across collections** (optional target rule): fails a publish when two listed collections share a key.
-5. **Store per project**: documented in `docs/deployment.md`; S3 waits for G11, browser deployments for G12.
+5. **Store per project**: documented in `docs/deployment.md`; S3 is P20, browser deployments are G12.
 
 ### P19: Publish SDK: write through the adapter, render images at release
 
@@ -551,7 +551,7 @@ Hence the rule: **with a scope, every fetched collection has a scope path or is 
 **Plan:**
 1. **`@usecds/s3`**, a new package with two entry points, so a device never loads the server's dependencies:
    - `@usecds/s3/store`: `S3Store implements ObjectStore` (`{ bucket, prefix, endpoint, region, credentials, forcePathStyle }`), built on `@aws-sdk/client-s3`, Node only. `cds-directus-publish --out s3://<bucket>/<prefix>` uses it; the credentials come from the standard `AWS_*` environment.
-   - `@usecds/s3/downloader`: `S3Downloader implements RemoteDownloader`, signing with `aws4fetch` (small; runs in Node and the browser, so it also covers G12). Takes `{ endpoint, bucket, prefix, accessKeyId, secretAccessKey, region }`, sends `If-None-Match` for the channel manifest and maps `304` to `notModified`.
+   - `@usecds/s3/downloader`: `S3Downloader implements RemoteDownloader`, signing with its own SigV4 signer on `@noble/hashes` (plain JavaScript: runs in Node, browsers, also on pages that aren't a secure context, and edge runtimes; replaced `aws4fetch` in G12, which needs `crypto.subtle`). Takes `{ endpoint, bucket, prefix, accessKeyId, secretAccessKey, region }`, sends `If-None-Match` for the channel manifest and maps `304` to `notModified`.
 2. **Tests:** the store against an in-memory S3 fake (contract: the same suite `FilesystemStore` passes, including retention and GC); an integration test against a real S3 server when `CDS_S3_TEST_ENDPOINT` is set (CI service, local dev environment).
 3. **Local environment:** SeaweedFS in the hotelplatform `development-environment` project: one bucket per test tenant, a publisher identity per tenant, a read identity per device group restricted to its prefix. A script provisions them (tenant, project → bucket, prefix, keys).
 4. **Verification:** publish two projects of one tenant into one bucket; a device group's key reads its project and gets `403` on the other's prefix; a sync with an unchanged channel answers `304`.
@@ -561,7 +561,7 @@ Hence the rule: **with a scope, every fetched collection has a scope path or is 
 - Which S3 provider runs in production. It decides whether prefix grants are IAM policies (per identity) or bucket policies, and how keys are provisioned.
 - How a device receives its group's credential (provisioning at install, rotation).
 - Whether a deployment that can't keep a secret (a public browser kiosk) gets a short-lived credential from a small token service instead. That is the only case that brings a server back, and it issues credentials, not content.
-- The client still hashes with Node `crypto`/`Buffer` (G12): `S3Downloader` signs with Web Crypto, but a browser deployment needs the client's hashing moved too.
+- ~~The client still hashes with Node `crypto`/`Buffer`~~: done in G12 (2026-10-18). The client and `S3Downloader` run in browsers, verified in Chromium and WebKit against SeaweedFS (`pnpm test:e2e`).
 
 ### P21: Reading in one language
 
@@ -638,8 +638,7 @@ Routes: `r_home` with `/` (en) and `/de/` (de) replaces the hard-coded `index.ht
 
 Needed before the table above is fully "done"; [implementation-plan.md](implementation-plan.md) groups them as G10–G13:
 
-- Production adapters: IndexedDB `ClientStorage` (#1, #5). The S3 store and signed downloader are done (P20), as are the Directus `ContentSource` and the HTTP `RemoteDownloader`.
-- Browser-compatible hashing (WebCrypto) in the client (#1, #4)
+- Production adapters: done. IndexedDB `ClientStorage` and Web Crypto hashing (G12), the S3 store and signed downloader (P20), the Directus `ContentSource` and the HTTP `RemoteDownloader`.
 - Real HTTP ETag handling in `sync()` (#7): `HttpDownloader` and `S3Downloader` keep the HTTP ETag themselves (`304` verified on S3), but `sync()` still passes the release ID
 - Client rollback API and client-side object/media GC (#9)
 

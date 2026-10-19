@@ -14,7 +14,7 @@ import {
   RouteInfo,
   TranslationSummary
 } from "../types.js";
-import { sha256 } from "../utils.js";
+import { sha256, sha256Sync } from "../utils.js";
 import { EditOverlay } from "./overlay.js";
 import { LocaleOptions, LocalizedItem, localize, resolveLocales } from "./locale.js";
 import { JSONLD_COLLECTION, JsonLdDefinition, mergeJsonLd, readFieldPath, setJsonLdProperty } from "./jsonld.js";
@@ -29,6 +29,11 @@ export interface CDSClientConfig {
   downloader: RemoteDownloader;
   retentionCount?: number; // default: 3
   target?: string; // only activate releases that satisfy this target
+  /**
+   * Web Locks name that serializes sync() across tabs and windows sharing one storage (default
+   * "cds-sync"; used where navigator.locks exists). Clients with separate storages can use their own.
+   */
+  syncLock?: string;
 }
 
 export interface SyncResult {
@@ -73,6 +78,7 @@ export class CDSClient {
   private downloader: RemoteDownloader;
   private retentionCount: number;
   private target?: string;
+  private syncLock: string;
   private activeRelease: ReleaseManifest | null = null;
   
   // In-memory cache for fast, sub-millisecond lookups
@@ -86,6 +92,7 @@ export class CDSClient {
     this.downloader = config.downloader;
     this.retentionCount = config.retentionCount ?? 3;
     this.target = config.target;
+    this.syncLock = config.syncLock ?? "cds-sync";
   }
 
   /**
@@ -140,8 +147,19 @@ export class CDSClient {
   /**
    * Syncs with the remote server/CDN channel.
    * If a new release is available, downloads, validates, and atomically activates it.
+   * Never throws: on failure it returns `{ success: false, error }` and keeps the active release.
    */
   async sync(channel: string): Promise<SyncResult> {
+    const locks: LockManager | undefined = globalThis.navigator?.locks;
+    if (!locks) return this.syncUnlocked(channel);
+    try {
+      return await locks.request(this.syncLock, () => this.syncUnlocked(channel));
+    } catch (err) {
+      return { success: false, updated: false, error: err instanceof Error ? err : new Error(String(err)) };
+    }
+  }
+
+  private async syncUnlocked(channel: string): Promise<SyncResult> {
     try {
       // 1. Fetch channel manifest (optionally passing current active releaseId as ETag)
       const currentEtag = this.activeRelease?.releaseId;
@@ -177,7 +195,7 @@ export class CDSClient {
 
       // 3. Download, hash-verify, and stage all missing objects & media
       const stagedObjects = new Map<string, string>();
-      const stagedMedia = new Map<string, Buffer>();
+      const stagedMedia = new Map<string, Uint8Array>();
 
       // Staging JSON collections
       for (const [colName, colMeta] of Object.entries(releaseManifest.collections)) {
@@ -186,7 +204,7 @@ export class CDSClient {
           const content = await this.downloader.fetchObject(colMeta.hash);
           
           // Verify SHA-256 hash
-          const computedHash = sha256(content);
+          const computedHash = await sha256(content);
           if (computedHash !== colMeta.hash) {
             throw new Error(`Hash mismatch for collection ${colName}. Expected ${colMeta.hash}, got ${computedHash}`);
           }
@@ -207,7 +225,7 @@ export class CDSClient {
           const content = await this.downloader.fetchMedia(mediaMeta.hash, ext);
 
           // Verify SHA-256 hash
-          const computedHash = sha256(content);
+          const computedHash = await sha256(content);
           if (computedHash !== mediaMeta.hash) {
             throw new Error(`Hash mismatch for media ${virtualPath}. Expected ${mediaMeta.hash}, got ${computedHash}`);
           }
@@ -423,7 +441,7 @@ export class CDSClient {
     if (marker.sourceHash) {
       const fromLocale = marker.from ?? this.activeRelease?.translations?.sourceLocale;
       const reference = fromLocale ? item.translations[fromLocale]?.[field] : undefined;
-      stale = typeof reference === "string" && sha256(reference) !== marker.sourceHash;
+      stale = typeof reference === "string" && sha256Sync(reference) !== marker.sourceHash;
     }
     return { status: marker.status, stale };
   }
@@ -669,7 +687,7 @@ export class CDSClient {
   /**
    * Utility to retrieve raw binary media content from local cache.
    */
-  async getMediaContent(virtualPath: string): Promise<Buffer | null> {
+  async getMediaContent(virtualPath: string): Promise<Uint8Array | null> {
     if (!this.activeRelease) return null;
     const meta = this.activeRelease.media[virtualPath];
     if (!meta) return null;

@@ -1,6 +1,6 @@
 {
   "name": "@usecds/directus",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Directus adapter for CDS: a content source for publishing, and a Directus-compatible read API over a synced CDS release",
   "type": "module",
   "main": "./dist/index.js",

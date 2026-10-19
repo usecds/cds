@@ -1,6 +1,6 @@
 {
   "name": "@usecds/s3",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "S3-compatible storage for CDS: the publisher's store, and a signed downloader for devices",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,15 +17,19 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1150.0",
-    "aws4fetch": "^1.0.20"
+    "@noble/hashes": "^2.4.0"
   },
   "peerDependencies": {
     "@usecds/client": "workspace:^",
     "@usecds/server": "workspace:^"
   },
   "peerDependenciesMeta": {
-    "@usecds/client": { "optional": true },
-    "@usecds/server": { "optional": true }
+    "@usecds/client": {
+      "optional": true
+    },
+    "@usecds/server": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@usecds/client": "workspace:^",

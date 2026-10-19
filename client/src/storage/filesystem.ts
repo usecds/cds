@@ -31,13 +31,13 @@ export class FilesystemStorage implements ClientStorage {
     return existsSync(filePath);
   }
 
-  async saveMedia(hash: string, content: Buffer): Promise<void> {
+  async saveMedia(hash: string, content: Uint8Array): Promise<void> {
     const filePath = path.join(this.baseDir, "media", `${hash}.bin`);
     await this.ensureDir(path.dirname(filePath));
     await fs.writeFile(filePath, content);
   }
 
-  async readMedia(hash: string): Promise<Buffer | null> {
+  async readMedia(hash: string): Promise<Uint8Array | null> {
     const filePath = path.join(this.baseDir, "media", `${hash}.bin`);
     if (!existsSync(filePath)) return null;
     return await fs.readFile(filePath);
