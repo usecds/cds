@@ -295,12 +295,15 @@ interface SourceMap {
     }>;
   }>;
   media: Record<string, { adapter: string; id: string; path?: string }>; // per virtual path
+  contentTypes?: ContentType[];                              // what the release was mapped to: what editors can create
 }
 
 interface SourceFieldRef {
   collection: string; id: string; field: string;            // where the value comes from
   format?: "plain" | "html";                                 // text format, for editors
   editable?: boolean;                                        // false for derived values
+  via?: string;                                              // a one-to-many list: the children's field pointing back
+  related?: string;                                          // a list: the CDS collection of its items (also while it is empty)
 }
 ```
 
@@ -361,6 +364,7 @@ interface SourceEditor {
   write(edit: SourceEdit, session: EditorSession): Promise<EditResult>;
   create?(collection: string, data: Record<string, unknown>, session: EditorSession): Promise<string>; // source terms; returns the id
   upload?(file: SourceUpload, session: EditorSession): Promise<string>; // an original; returns the file id
+  delete?(collection: string, id: string, session: EditorSession): Promise<void>; // source terms
 }
 
 type EditValue = string | number | boolean | null;               // text, or a scalar like a yes/no field
@@ -384,6 +388,31 @@ interface StructureEditor {
 ```
 
 How pages, blocks and menus are stored is site-specific, so a `StructureEditor` is written next to the site's mapping (its inverse), on top of the adapter's editor. Structure changes can't be shown through an overlay; a preview publishes a new release after them.
+
+#### Items: `createItemEditor`
+
+Adding, reordering and removing the items of any collection that has a [content type](#content-types) needs no site code: the content type says what an item has, the source map says where it lives.
+
+```ts
+const items = createItemEditor({
+  editor,                                  // the adapter's SourceEditor (write, create, delete)
+  snapshot: async () => ({ collections, map, locale }), // the release a preview shows (with its edits) and its source map
+  createDefaults: async (collection, session, sourceCollection) => ({ projects: [{ projects_id: project }] }) // optional
+});
+
+await items.describe("features");          // the content type: a form for a new item is built from it
+await items.listOf("features", "f2");      // { list: { collection: "_blocks", id, field: "items" } | null, items: [ids in order] }
+await items.add({ collection: "features", values: { title: "New" }, list, after: "f1" }, session); // after: null = first, undefined = last
+await items.reorder({ collection: "features", items: ["f3", "f1", "f2"], list }, session);
+await items.remove({ collection: "features", id: "f2" }, session); // { result: "unpublished" | "deleted" }
+```
+
+- **Content types** come from the source map (`contentTypes`, written by the adapter from the mapping's declaration) or `contentTypes` in the config. A collection without one is refused (404).
+- **A list** is a parent's `references` field, or a whole collection. A parent's list needs a source ref with `via` (the field on the child records that points back to the parent's record); a new child gets `via` set to it. Lists may hold plain ids or `{ collection, id }` references.
+- **Order** is the type's `sort` field: the list's items get consecutive values from its lowest one, so other lists sharing the field keep theirs.
+- **Remove** sets a `status` field to a value that unpublishes (`draft`, else `archived`, else the first option that isn't `published`), and deletes only items whose type has no status (the editor needs `delete`).
+- **New items** are validated against the type (required fields, known fields), get `status: "published"` and the sort value of their place.
+- Writes are based on the snapshot's values, like any edit: a source that changed meanwhile answers with a conflict (`ItemEditError`, 409). Errors carry a `statusCode` (400, 404, 409, 501).
 
 Writes run with the editor's session, so the source system applies its own permissions; CDS holds no write credentials. Implemented by `DirectusEditor` in `@usecds/directus` ([directus.md](directus.md#editing-directuseditor)).
 

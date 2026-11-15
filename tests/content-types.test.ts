@@ -74,9 +74,16 @@ describe("Content types", () => {
     });
     expect(mews.$sources!["translations.en.description"]).toEqual({ collection: "integrations", id: "i1", field: "description", format: "html" });
     expect(mews.$sources!.lifecycle).toEqual({ collection: "integrations", id: "i1", field: "lifecycle" });
+    // A one-to-many list's source: where an editor adds a child, and the child's field pointing back
+    expect(mews.$sources!.interfaces).toEqual({ collection: "integrations", id: "i1", field: "interfaces", via: "integration", related: "integration_interfaces", editable: false });
     expect(out.integration_interfaces.map((i) => i.translations.en.name)).toEqual(["Webhooks", "API"]);
     expect(out.integration_interfaces[0].$sources!["translations.en.name"]).toMatchObject({ collection: "integration_interfaces", id: "x2" });
     expect(Object.keys(mapContentTypes(types, {}, ctx)).sort()).toEqual(["integration_categories", "integration_interfaces", "integrations"]);
+  });
+
+  it("publish drafts too: what the token reads, with their status (a site renders the published ones, a preview edits drafts)", () => {
+    const out = mapContentTypes(types, { integrations: [records.integrations[0], { id: "i2", status: "draft", name: "Unpublished" }] }, ctx);
+    expect(out.integrations.map((i) => [i.id, i.status])).toEqual([["i1", "published"], ["i2", "draft"]]);
   });
 
   it("imply publish checks: required fields and select values fail the publish", async () => {

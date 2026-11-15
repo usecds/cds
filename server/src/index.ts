@@ -27,3 +27,4 @@ export * from "./core/media-variants.js";
 export { FixtureSource } from "./sources/fixture.js";
 export { FilesystemStore } from "./storage/filesystem.js";
 export * from "./core/publish-sdk.js";
+export * from "./core/item-editor.js";
