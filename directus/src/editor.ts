@@ -134,6 +134,13 @@ export class DirectusEditor implements SourceEditor {
   }
 
   /** Updates fields of a record as the editor */
+  /** SourceEditor.delete: removes a record of a Directus collection, as the editor */
+  async delete(collection: string, id: string, session: EditorSession): Promise<void> {
+    const res = await this.request("DELETE", itemPath(collection, id), { token: session.accessToken });
+    if (res.status === 401) throw new DirectusAuthError(401, res.message);
+    if (res.status !== 200 && res.status !== 204) throw new Error(`Directus ${res.status}: ${res.message}`);
+  }
+
   async updateItem(collection: string, id: string, data: Record<string, unknown>, session: EditorSession): Promise<void> {
     const res = await this.request("PATCH", `${itemPath(collection, id)}?fields=id`, { token: session.accessToken, body: data });
     if (res.status === 401) throw new DirectusAuthError(401, res.message);

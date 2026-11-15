@@ -87,6 +87,8 @@ export function mapContentTypes(types: ContentType[], records: Record<string, Ro
             break;
           case "references":
             item[field.field] = childIds(field, value);
+            // The list's source: where an editor adds a child (the child's `via` field points back)
+            if (field.via) sources[field.field] = ctx.source(type.collection, id, field.field, { via: field.via, related: field.related, editable: false });
             break;
           default:
             item[field.field] = value ?? null;

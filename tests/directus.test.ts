@@ -328,6 +328,12 @@ describe("DirectusEditor building blocks", () => {
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /items/pages", "PATCH /files/file-1", "GET /items/content_blocks"]);
   });
 
+  it("deletes a record as the editor", async () => {
+    const editor = new DirectusEditor({ url: "http://directus.test" });
+    await editor.delete("features", "f1", session);
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["DELETE /items/features/f1"]);
+  });
+
   it("writes yes/no values", async () => {
     const editor = new DirectusEditor({ url: "http://directus.test" });
     const result = await editor.write({ ref: { collection: "flags", id: "f1", field: "standalone" }, value: true, basedOn: false }, session);

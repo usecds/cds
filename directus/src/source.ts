@@ -1,4 +1,4 @@
-import type { CollectionItem, ContentSource, SourceFieldRef, SourceItemRef, SourceMap, SourceMedia } from "@usecds/server";
+import type { CollectionItem, ContentSource, ContentType, SourceFieldRef, SourceItemRef, SourceMap, SourceMedia } from "@usecds/server";
 
 type Row = Record<string, any>;
 
@@ -48,6 +48,8 @@ export interface DirectusSourceConfig {
   map?: DirectusMapping;
   /** Media path of a file in mapped publishing (default directus/<id><ext>) */
   mediaPath?: (file: FileMeta) => string;
+  /** The content types the mapping maps to: written into the source map, for editors (what a new item has) */
+  contentTypes?: ContentType[];
   log?: (message: string) => void;
 }
 
@@ -60,7 +62,7 @@ export interface DirectusMapContext {
   /** A file's Directus metadata, without publishing it */
   file(fileId: string | null | undefined): FileMeta | null;
   /** The source field of a value, for $sources */
-  source(collection: string, id: string | number, field: string, options?: Pick<SourceFieldRef, "format" | "editable">): SourceFieldRef;
+  source(collection: string, id: string | number, field: string, options?: Pick<SourceFieldRef, "format" | "editable" | "via" | "related">): SourceFieldRef;
   log(message: string): void;
 }
 
@@ -385,7 +387,8 @@ export class DirectusSource implements ContentSource {
     const map: SourceMap = {
       sources: { directus: { baseUrl: this.config.adminUrl ?? this.config.url } },
       collections: {},
-      media: {}
+      media: {},
+      ...(this.config.contentTypes?.length ? { contentTypes: this.config.contentTypes } : {})
     };
     for (const [collection, items] of Object.entries(collections)) {
       if (collection === "_media") continue;

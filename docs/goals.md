@@ -411,7 +411,7 @@ The Directus compat layer in `@usecds/directus` (Directus REST semantics answere
 
 ### P13: Editing in the frontend, through the source adapter
 
-**Status: first version implemented** (field-level source map, `SourceEditor` with `DirectusEditor`, `EditOverlay` in the client, `sourceReadAt` on releases), and proven on hotelplatform.io with an editable Nuxt preview ([directus.md](directus.md#case-study-hotelplatformio)). Structure editing (`StructureEditor`: pages, blocks, block order, routes, menu entries) followed, written next to the site's mapping. Still open: rich text beyond bold/italic/links, images, drafts in previews, and a write side for other adapters.
+**Status: first version implemented** (field-level source map, `SourceEditor` with `DirectusEditor`, `EditOverlay` in the client, `sourceReadAt` on releases), and proven on hotelplatform.io with an editable Nuxt preview ([directus.md](directus.md#case-study-hotelplatformio)). Structure editing (`StructureEditor`: pages, blocks, block order, routes, menu entries) followed, written next to the site's mapping. Items of any collection with a content type are added, reordered and unpublished (or deleted) generically by `createItemEditor`, from the content type and the source map. Drafts are published with their status, so a preview can edit them and publish them again; a site renders the published ones (a preview shows drafts on request). Still open: rich text beyond bold/italic/links, images, and a write side for other adapters.
 
 **Problem:** editors want to fix wording where they see it: on the page, in a preview mode. If the frontend writes to the backend directly (as Directus' Visual Editor does), the frontend is tied to that backend again, which defeats the contract.
 

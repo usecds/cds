@@ -1,3 +1,5 @@
+import type { ContentType } from "./core/content-types.js";
+
 export interface ChannelManifest {
   schemaVersion: 1;
   channel: string;
@@ -123,6 +125,8 @@ export interface SourceFieldRef {
   field: string; // source field
   format?: "plain" | "html"; // text format, for editors (default plain)
   editable?: boolean; // false for derived values: shown, but not editable in place (default true)
+  via?: string; // a list (one-to-many): the field on the child records that points back to this record
+  related?: string; // a list: the CDS collection its items are in (known even while the list is empty)
 }
 
 // An edit of one published value, addressed by its source field (the optional write side of an adapter)
@@ -162,6 +166,8 @@ export interface SourceEditor {
   create?(collection: string, data: Record<string, unknown>, session: EditorSession): Promise<string>;
   /** Uploads a file to the source system; returns its id there, the value of a file field */
   upload?(file: SourceUpload, session: EditorSession): Promise<string>;
+  /** Deletes a record of a source collection (for items whose content type has no status to unpublish with) */
+  delete?(collection: string, id: string, session: EditorSession): Promise<void>;
 }
 
 // A file to add to the source system (an image for a file field); rendering happens at release
@@ -205,6 +211,7 @@ export interface SourceMap {
     items: Record<string, SourceItemRef>; // keyed by CDS item id
   }>;
   media: Record<string, SourceMediaRef>; // keyed by virtual path
+  contentTypes?: ContentType[]; // the content types the release was mapped with: what editors can create
 }
 
 // CMS source adapter interface

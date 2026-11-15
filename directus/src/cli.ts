@@ -7,7 +7,8 @@
 //
 // --mapping: a module whose default export (or `map`) maps the records to the CDS contract. It may
 // also export `mediaPath`, `collections` (more to fetch, merged into the config), `optional` (collections
-// that may be missing), `targets` (checks, e.g. contentTypeTarget for declared content types) and
+// that may be missing), `targets` (checks, e.g. contentTypeTarget for declared content types),
+// `contentTypes` (the types it maps to, written into the source map for a preview's item editor) and
 // `scope` (paths to the scope's key per collection, and shared collections; merged with the config's).
 //
 // --scope (or DIRECTUS_SCOPE): publish only this scope's records (e.g. one project of a token that
@@ -87,6 +88,8 @@ async function main() {
     if (mod.collections && typeof mod.collections === "object") config.collections = { ...mod.collections, ...config.collections };
     // Checks the mapping brings (e.g. a content types target)
     if (Array.isArray(mod.targets)) mappingTargets = mod.targets;
+    // The content types it maps to, for editors (into the source map)
+    if (Array.isArray(mod.contentTypes)) config.contentTypes = mod.contentTypes;
     if (Array.isArray(mod.optional)) config.optional = [...(config.optional ?? []), ...mod.optional];
     // Scope paths the mapping knows (e.g. from the collections it declares)
     if (mod.scope && typeof mod.scope === "object") {
